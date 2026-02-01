@@ -42,6 +42,15 @@
       {
         "command": "agent-config-keeper.testReadAll",
         "title": "Agent Config Keeper: Test Read All Tools"
+      },
+      {
+        "command": "agent-config-keeper.openToolSource",
+        "title": "Agent Config Keeper: Open Tool Source"
+      },
+      {
+        "command": "agent-config-keeper.refreshToolTree",
+        "title": "Agent Config Keeper: Refresh Tool Tree",
+        "icon": "$(refresh)"
       }
     ],
     "colors": [
@@ -88,21 +97,22 @@
     "package": "npm run compile -- --minify"
   },
   "dependencies": {
-    "zod": "^4.3",
-    "write-file-atomic": "^6.0"
+    "jsonc-parser": "^3.3.1",
+    "write-file-atomic": "^6.0",
+    "zod": "^4.3"
   },
   "devDependencies": {
-    "@types/vscode": "^1.105.0",
-    "@types/node": "^22",
-    "@types/write-file-atomic": "^4.0.3",
-    "typescript": "^5.7",
-    "esbuild": "^0.24",
-    "npm-run-all": "^4.1",
-    "vitest": "^3.0",
     "@eslint/js": "^9.0",
-    "eslint": "^9.0",
-    "typescript-eslint": "^8.0",
+    "@types/node": "^22",
+    "@types/vscode": "^1.105.0",
+    "@types/write-file-atomic": "^4.0.3",
     "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.4.1"
+    "@vscode/test-electron": "^2.4.1",
+    "esbuild": "^0.24",
+    "eslint": "^9.0",
+    "npm-run-all": "^4.1",
+    "typescript": "^5.7",
+    "typescript-eslint": "^8.0",
+    "vitest": "^3.0"
   }
 }
