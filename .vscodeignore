@@ -1,0 +1,7 @@
+.vscode/**
+src/**
+node_modules/**
+.planning/**
+tsconfig.json
+esbuild.mjs
+.eslintrc.json

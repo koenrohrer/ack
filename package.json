@@ -1,0 +1,44 @@
+{
+  "name": "agent-config-keeper",
+  "displayName": "Agent Config Keeper",
+  "description": "Discover, install, configure, and switch between agent tool sets",
+  "version": "0.0.1",
+  "publisher": "agent-config-keeper",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.105.0"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {},
+  "scripts": {
+    "compile": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+    "watch": "npm run compile -- --watch",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src/",
+    "test:unit": "vitest run",
+    "test:integration": "vscode-test",
+    "dev": "npm-run-all --parallel watch check-types",
+    "package": "npm run compile -- --minify"
+  },
+  "dependencies": {
+    "zod": "^4.3",
+    "write-file-atomic": "^6.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.105.0",
+    "@types/node": "^22",
+    "@types/write-file-atomic": "^4.0.3",
+    "typescript": "^5.7",
+    "esbuild": "^0.24",
+    "npm-run-all": "^4.1",
+    "vitest": "^3.0",
+    "@eslint/js": "^9.0",
+    "eslint": "^9.0",
+    "typescript-eslint": "^8.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1"
+  }
+}
