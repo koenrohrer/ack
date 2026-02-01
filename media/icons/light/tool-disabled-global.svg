@@ -1,0 +1,10 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Globe outline (global scope) - muted for disabled -->
+  <circle cx="7" cy="7" r="5.5" stroke="#848484" stroke-width="1.1" fill="none"/>
+  <ellipse cx="7" cy="7" rx="2.5" ry="5.5" stroke="#848484" stroke-width="0.8" fill="none"/>
+  <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="#848484" stroke-width="0.8"/>
+  <line x1="2.5" y1="4" x2="11.5" y2="4" stroke="#848484" stroke-width="0.6"/>
+  <line x1="2.5" y1="10" x2="11.5" y2="10" stroke="#848484" stroke-width="0.6"/>
+  <!-- Status dot: disabled (gray) -->
+  <circle cx="13" cy="13" r="2.5" fill="#848484"/>
+</svg>

@@ -1,0 +1,6 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Terminal/chevron icon: represents slash commands -->
+  <rect x="1" y="2" width="14" height="12" rx="1.5" stroke="#424242" stroke-width="1.2" fill="none"/>
+  <polyline points="4,6 7,8.5 4,11" stroke="#424242" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="9" y1="11" x2="12" y2="11" stroke="#424242" stroke-width="1.3" stroke-linecap="round"/>
+</svg>

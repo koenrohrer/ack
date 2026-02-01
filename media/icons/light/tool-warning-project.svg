@@ -1,0 +1,6 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Folder outline (project scope) -->
+  <path d="M1.5 3.5h4.5l1.5 1.5h6a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1h-12a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z" stroke="#424242" stroke-width="1.1" fill="none"/>
+  <!-- Status dot: warning (amber) -->
+  <circle cx="13" cy="13" r="2.5" fill="#c4a103"/>
+</svg>
