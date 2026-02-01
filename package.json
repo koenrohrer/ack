@@ -9,14 +9,71 @@
     "vscode": "^1.105.0"
   },
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onView:agent-config-keeper.toolTree"
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agent-config-keeper",
+          "title": "Agent Config Keeper",
+          "icon": "media/icons/activity-bar.svg"
+        }
+      ]
+    },
+    "views": {
+      "agent-config-keeper": [
+        {
+          "id": "agent-config-keeper.toolTree",
+          "name": "Tools"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "agent-config-keeper.toolTree",
+        "contents": "No agent tools found.\n\nConfigure Claude Code to get started.\n[Open Documentation](https://docs.anthropic.com/en/docs/claude-code)",
+        "when": "agent-config-keeper.noTools"
+      }
+    ],
     "commands": [
       {
         "command": "agent-config-keeper.testReadAll",
         "title": "Agent Config Keeper: Test Read All Tools"
+      }
+    ],
+    "colors": [
+      {
+        "id": "agentConfigKeeper.enabledIcon",
+        "description": "Icon color for enabled tools",
+        "defaults": {
+          "dark": "#89d185",
+          "light": "#388a34",
+          "highContrast": "#89d185",
+          "highContrastLight": "#388a34"
+        }
+      },
+      {
+        "id": "agentConfigKeeper.disabledIcon",
+        "description": "Icon color for disabled tools",
+        "defaults": {
+          "dark": "#848484",
+          "light": "#848484",
+          "highContrast": "#848484",
+          "highContrastLight": "#848484"
+        }
+      },
+      {
+        "id": "agentConfigKeeper.errorIcon",
+        "description": "Icon color for tools with errors",
+        "defaults": {
+          "dark": "#f14c4c",
+          "light": "#e51400",
+          "highContrast": "#f14c4c",
+          "highContrastLight": "#e51400"
+        }
       }
     ]
   },
