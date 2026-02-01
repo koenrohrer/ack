@@ -6,6 +6,9 @@ import { ConfigService } from './services/config.service.js';
 import { AdapterRegistry } from './adapters/adapter.registry.js';
 import { ClaudeCodeAdapter } from './adapters/claude-code/claude-code.adapter.js';
 import { claudeCodeSchemas } from './adapters/claude-code/schemas.js';
+import { ToolTreeProvider } from './views/tool-tree/tool-tree.provider.js';
+import { registerToolTreeCommands } from './views/tool-tree/tool-tree.commands.js';
+import { FileWatcherManager } from './views/file-watcher.manager.js';
 
 /**
  * Service container for cross-module access to initialized services.
@@ -66,12 +69,35 @@ export function activate(context: vscode.ExtensionContext): void {
   // 7. Store services for cross-module access
   services = { configService, registry, outputChannel };
 
-  // 8. Auto-detect platform
+  // 8. Tree view provider
+  const treeProvider = new ToolTreeProvider(configService, registry, context.extensionUri);
+  treeProvider.register(context);
+
+  // 9. Tree commands (open file, refresh)
+  registerToolTreeCommands(context, treeProvider);
+
+  // 10. File watcher for auto-refresh on config changes
+  const fileWatcher = new FileWatcherManager(
+    () => treeProvider.refresh(),
+    () => {
+      const showNotif = vscode.workspace
+        .getConfiguration('agentConfigKeeper')
+        .get<boolean>('showChangeNotifications', true);
+      if (showNotif) {
+        vscode.window.showInformationMessage('Agent Config Keeper: Config updated');
+      }
+    },
+  );
+  context.subscriptions.push(fileWatcher);
+
+  // 11. Auto-detect platform, then setup watchers and initial tree load
   registry
     .detectAndActivate()
     .then((adapter) => {
       if (adapter) {
         outputChannel.appendLine(`Platform detected: ${adapter.displayName}`);
+        fileWatcher.setupWatchers(adapter);
+        treeProvider.refresh();
       } else {
         outputChannel.appendLine('No supported agent platform detected');
       }
@@ -80,7 +106,7 @@ export function activate(context: vscode.ExtensionContext): void {
       outputChannel.appendLine(`Platform detection error: ${err}`);
     });
 
-  // 9. Test command (temporary, for manual verification during development)
+  // 12. Test command (temporary, for manual verification during development)
   const testCmd = vscode.commands.registerCommand(
     'agent-config-keeper.testReadAll',
     async () => {
