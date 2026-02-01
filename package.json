@@ -53,6 +53,16 @@
         "icon": "$(refresh)"
       }
     ],
+    "configuration": {
+      "title": "Agent Config Keeper",
+      "properties": {
+        "agentConfigKeeper.showChangeNotifications": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show notifications when agent config files change externally"
+        }
+      }
+    },
     "colors": [
       {
         "id": "agentConfigKeeper.enabledIcon",
