@@ -6,6 +6,7 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     files: ['src/**/*.ts'],
+    ignores: ['src/views/marketplace/webview/**'],
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -18,7 +19,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/**/*.tsx'],
+    files: ['src/views/marketplace/webview/**/*.ts', 'src/views/marketplace/webview/**/*.tsx'],
     languageOptions: {
       parserOptions: {
         project: 'tsconfig.webview.json',
@@ -31,6 +32,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['dist/**', 'node_modules/**', '*.mjs'],
+    ignores: ['dist/**', 'node_modules/**', '*.mjs', '**/*.d.ts'],
   }
 );
