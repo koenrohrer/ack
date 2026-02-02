@@ -17,7 +17,12 @@ export type ExtensionMessage =
   | { type: 'installComplete'; toolId: string; scope: string }
   | { type: 'installError'; toolId: string; error: string }
   | { type: 'installCancelled'; toolId: string }
-  | { type: 'installConfigRequired'; toolId: string; fields: ConfigField[] };
+  | { type: 'installConfigRequired'; toolId: string; fields: ConfigField[] }
+  | { type: 'githubResults'; tools: RegistryEntryWithSource[]; loading: false; rateLimitWarning?: string }
+  | { type: 'githubLoading'; loading: true }
+  | { type: 'githubError'; error: string; cached?: boolean }
+  | { type: 'githubRateLimit'; message: string }
+  | { type: 'githubAuthRequired' };
 
 // --- Messages FROM webview TO extension ---
 
@@ -28,7 +33,12 @@ export type WebviewMessage =
   | { type: 'requestInstall'; toolId: string; sourceId: string }
   | { type: 'submitConfig'; toolId: string; sourceId: string; values: Record<string, string> }
   | { type: 'retryInstall'; toolId: string; sourceId: string }
-  | { type: 'requestUninstall'; toolId: string };
+  | { type: 'requestUninstall'; toolId: string }
+  | { type: 'searchGitHub'; query: string; typeFilter?: string }
+  | { type: 'requestGitHubReadme'; repoFullName: string; defaultBranch: string }
+  | { type: 'authenticateGitHub' }
+  | { type: 'toggleGitHub'; enabled: boolean }
+  | { type: 'openExternal'; url: string };
 
 // --- Shared types ---
 
@@ -74,4 +84,12 @@ export interface RegistryEntryWithSource {
   updatedAt: string;
   sourceId: string;
   sourceName: string;
+
+  // GitHub-specific fields (present when source is 'github')
+  source?: 'registry' | 'github';
+  repoUrl?: string;
+  repoFullName?: string;
+  language?: string | null;
+  defaultBranch?: string;
+  relevanceScore?: number;
 }
