@@ -20,6 +20,11 @@ export interface InstallState {
 
 const DEFAULT_INSTALL_STATE: InstallState = { status: 'idle' };
 
+/** Normalize a tool name for comparison (lowercased, spaces/underscores → hyphens, .disabled stripped). */
+export function normalizeToolName(name: string): string {
+  return name.toLowerCase().replace(/\.disabled$/, '').replace(/[\s_]+/g, '-');
+}
+
 const ITEMS_PER_PAGE = 24;
 
 /** Persisted state shape for VS Code webview state API. */
@@ -46,9 +51,11 @@ export function useMarketplace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Derived Set of installed tool names for backward-compatible lookup
+  // Derived Set of normalized installed tool names for cross-name-format lookup.
+  // Registry display names ("Test Runner") and config names ("test-runner")
+  // both normalize to the same key.
   const installedToolIds = useMemo(
-    () => new Set(installedTools.map((t) => t.name)),
+    () => new Set(installedTools.map((t) => normalizeToolName(t.name))),
     [installedTools],
   );
 
@@ -274,7 +281,8 @@ export function useMarketplace() {
 
   const getInstalledInfo = useCallback(
     (toolName: string): InstalledToolInfo | undefined => {
-      return installedTools.find((t) => t.name === toolName);
+      const normalized = normalizeToolName(toolName);
+      return installedTools.find((t) => normalizeToolName(t.name) === normalized);
     },
     [installedTools],
   );

@@ -14,6 +14,11 @@ import type {
   InstalledToolInfo,
 } from './marketplace.messages.js';
 
+/** Normalize a tool name for comparison (lowercased, spaces/underscores → hyphens, .disabled stripped). */
+function normalizeToolName(name: string): string {
+  return name.toLowerCase().replace(/\.disabled$/, '').replace(/[\s_]+/g, '-');
+}
+
 /** Map manifest type strings to ToolType enum values. */
 const MANIFEST_TYPE_TO_TOOL_TYPE: Record<string, ToolType> = {
   skill: ToolType.Skill,
@@ -377,12 +382,17 @@ export class MarketplacePanel {
       const toolEntry = this.toolEntryMap.get(toolId);
       const toolName = toolEntry?.name ?? toolId;
 
-      // Search across all types/scopes for a tool with this name
+      // Search across all types/scopes for a tool with this name.
+      // Use normalized comparison because registry display names ("Test Runner")
+      // may differ from installed config names ("test-runner").
+      const normalizedTarget = normalizeToolName(toolName);
       let found = false;
       for (const type of Object.values(ToolType)) {
         try {
           const tools = await this.configService.readAllTools(type);
-          const match = tools.find((t) => t.name === toolName);
+          const match = tools.find(
+            (t) => normalizeToolName(t.name) === normalizedTarget,
+          );
           if (match) {
             const result = await this.toolManager.deleteTool(match);
             if (result.success) {

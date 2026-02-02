@@ -1,4 +1,4 @@
-import { useMarketplace } from './hooks/useMarketplace';
+import { useMarketplace, normalizeToolName } from './hooks/useMarketplace';
 import { SearchBar } from './components/SearchBar';
 import { TypeTabs } from './components/TypeTabs';
 import { SortDropdown } from './components/SortDropdown';
@@ -50,7 +50,7 @@ export function App() {
           tool={selectedTool}
           readmeContent={readmeContent}
           readmeLoading={readmeLoading}
-          isInstalled={installedToolIds.has(selectedTool.name)}
+          isInstalled={installedToolIds.has(normalizeToolName(selectedTool.name))}
           installState={getInstallState(selectedTool.id)}
           onBack={goBack}
           onInstall={() => requestInstall(selectedTool)}

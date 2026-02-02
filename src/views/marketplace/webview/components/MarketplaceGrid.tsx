@@ -1,5 +1,5 @@
 import type { RegistryEntryWithSource } from '../../marketplace.messages';
-import type { InstallState } from '../hooks/useMarketplace';
+import { type InstallState, normalizeToolName } from '../hooks/useMarketplace';
 import { ToolCard } from './ToolCard';
 
 interface MarketplaceGridProps {
@@ -40,7 +40,7 @@ export function MarketplaceGrid({
         <ToolCard
           key={`${tool.sourceId}:${tool.id}`}
           tool={tool}
-          isInstalled={installedToolIds.has(tool.name)}
+          isInstalled={installedToolIds.has(normalizeToolName(tool.name))}
           installState={getInstallState(tool.id)}
           onClick={() => onSelect(tool)}
           onInstall={() => onInstall(tool)}
