@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { NormalizedTool } from '../types/config.js';
 
 // ---------------------------------------------------------------------------
 // Profile data model types
@@ -97,6 +98,139 @@ export interface SwitchResult {
   failed: number;
   errors: string[];
 }
+
+// ---------------------------------------------------------------------------
+// Export/import types
+// ---------------------------------------------------------------------------
+
+/**
+ * Discriminated union describing the configuration for an exported tool.
+ *
+ * Each variant captures the full config data so the bundle is self-contained
+ * and works on machines that don't have the same tools pre-installed.
+ */
+export type ExportedToolConfig =
+  | { kind: 'mcp_server'; command: string; args: string[]; env: Record<string, string>; transport?: string; url?: string }
+  | { kind: 'skill'; files: { name: string; content: string }[] }
+  | { kind: 'command'; files: { name: string; content: string }[] }
+  | { kind: 'hook'; eventName: string; matcher: string; hooks: Array<Record<string, unknown>> };
+
+/**
+ * A single tool within an export bundle.
+ */
+export interface ExportedTool {
+  key: string;
+  enabled: boolean;
+  type: 'skill' | 'mcp_server' | 'hook' | 'command';
+  name: string;
+  config: ExportedToolConfig;
+}
+
+/**
+ * Self-contained profile export bundle.
+ *
+ * Contains full tool configuration data so profiles can be shared across
+ * machines and projects without requiring pre-installed tools.
+ */
+export interface ProfileExportBundle {
+  bundleType: 'agent-config-keeper-profile';
+  profile: {
+    name: string;
+    createdAt: string;
+    updatedAt: string;
+    exportedAt: string;
+  };
+  tools: ExportedTool[];
+}
+
+/**
+ * Analysis of an import bundle against the local tool environment.
+ *
+ * Classifies each bundle tool as matching (identical config), conflicting
+ * (same key but different config), or missing (not installed locally).
+ */
+export interface ImportAnalysis {
+  matching: ExportedTool[];
+  conflicts: Array<{ exported: ExportedTool; local: NormalizedTool }>;
+  missing: ExportedTool[];
+}
+
+/**
+ * Result of an import operation.
+ */
+export interface ImportResult {
+  profileId: string;
+  profileName: string;
+  installed: number;
+  skipped: string[];
+  conflictsResolved: number;
+}
+
+// ---------------------------------------------------------------------------
+// Export/import Zod schemas
+// ---------------------------------------------------------------------------
+
+const ExportedFileSchema = z.object({
+  name: z.string(),
+  content: z.string(),
+}).passthrough();
+
+const McpServerConfigSchema = z.object({
+  kind: z.literal('mcp_server'),
+  command: z.string(),
+  args: z.array(z.string()),
+  env: z.record(z.string(), z.string()),
+  transport: z.string().optional(),
+  url: z.string().optional(),
+}).passthrough();
+
+const SkillConfigSchema = z.object({
+  kind: z.literal('skill'),
+  files: z.array(ExportedFileSchema),
+}).passthrough();
+
+const CommandConfigSchema = z.object({
+  kind: z.literal('command'),
+  files: z.array(ExportedFileSchema),
+}).passthrough();
+
+const HookConfigSchema = z.object({
+  kind: z.literal('hook'),
+  eventName: z.string(),
+  matcher: z.string(),
+  hooks: z.array(z.record(z.string(), z.unknown())),
+}).passthrough();
+
+export const ExportedToolConfigSchema = z.discriminatedUnion('kind', [
+  McpServerConfigSchema,
+  SkillConfigSchema,
+  CommandConfigSchema,
+  HookConfigSchema,
+]);
+
+export const ExportedToolSchema = z.object({
+  key: z.string(),
+  enabled: z.boolean(),
+  type: z.enum(['skill', 'mcp_server', 'hook', 'command']),
+  name: z.string(),
+  config: ExportedToolConfigSchema,
+}).passthrough();
+
+/**
+ * Zod schema for validating imported profile bundles.
+ *
+ * Uses `.passthrough()` for forward compatibility (project convention from 01-02).
+ */
+export const ProfileExportBundleSchema = z.object({
+  bundleType: z.literal('agent-config-keeper-profile'),
+  profile: z.object({
+    name: z.string(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    exportedAt: z.string(),
+  }).passthrough(),
+  tools: z.array(ExportedToolSchema),
+}).passthrough();
 
 // ---------------------------------------------------------------------------
 // Constants
