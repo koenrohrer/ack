@@ -216,6 +216,65 @@ export class ProfileService {
   }
 
   // ---------------------------------------------------------------------------
+  // Active profile sync
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Update the active profile to reflect a tool's new enabled/disabled state.
+   *
+   * Called after a successful toggle to keep the active profile in sync.
+   * If no profile is active, this is a no-op. If the tool isn't already in
+   * the profile, it gets added.
+   */
+  async syncToolToActiveProfile(tool: NormalizedTool, enabled: boolean): Promise<void> {
+    const activeId = this.getActiveProfileId();
+    if (!activeId) {
+      return;
+    }
+
+    const profile = this.getProfile(activeId);
+    if (!profile) {
+      return;
+    }
+
+    const key = canonicalKey(tool);
+    const existingIndex = profile.tools.findIndex((e) => e.key === key);
+
+    if (existingIndex !== -1) {
+      profile.tools[existingIndex].enabled = enabled;
+    } else {
+      profile.tools.push({ key, enabled });
+    }
+
+    await this.updateProfile(activeId, { tools: profile.tools });
+  }
+
+  /**
+   * Remove a tool from the active profile.
+   *
+   * Called after a successful delete to keep the active profile in sync.
+   * If no profile is active or the tool isn't in the profile, this is a no-op.
+   */
+  async removeToolFromActiveProfile(tool: NormalizedTool): Promise<void> {
+    const activeId = this.getActiveProfileId();
+    if (!activeId) {
+      return;
+    }
+
+    const profile = this.getProfile(activeId);
+    if (!profile) {
+      return;
+    }
+
+    const key = canonicalKey(tool);
+    const filtered = profile.tools.filter((e) => e.key !== key);
+
+    if (filtered.length !== profile.tools.length) {
+      await this.updateProfile(activeId, { tools: filtered });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Profile switching
   // ---------------------------------------------------------------------------
 

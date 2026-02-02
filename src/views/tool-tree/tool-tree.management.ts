@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { ToolManagerService } from '../../services/tool-manager.service.js';
-import { ConfigScope } from '../../types/enums.js';
+import type { ProfileService } from '../../services/profile.service.js';
+import { ConfigScope, ToolStatus } from '../../types/enums.js';
 import { buildDeleteDescription } from '../../services/tool-manager.utils.js';
 import type { ToolTreeProvider } from './tool-tree.provider.js';
 import type { ToolNode, GroupNode, TreeNode } from './tool-tree.nodes.js';
@@ -22,6 +23,7 @@ export function registerManagementCommands(
   context: vscode.ExtensionContext,
   toolManager: ToolManagerService,
   treeProvider: ToolTreeProvider,
+  profileService: ProfileService,
 ): void {
   // ---------------------------------------------------------------------------
   // Toggle Enable/Disable
@@ -34,11 +36,14 @@ export function registerManagementCommands(
         return;
       }
       const toolNode = node as ToolNode;
+      const wasEnabled = toolNode.tool.status === ToolStatus.Enabled;
       const result = await toolManager.toggleTool(toolNode.tool);
       if (!result.success) {
         vscode.window.showErrorMessage(`Toggle failed: ${result.error}`);
         return;
       }
+      // Sync new state to active profile (no-op if no profile is active)
+      await profileService.syncToolToActiveProfile(toolNode.tool, !wasEnabled);
       // Explicitly refresh tree — directory renames (skills/commands) may not
       // trigger the file watcher reliably
       await treeProvider.refresh();
@@ -87,7 +92,10 @@ export function registerManagementCommands(
       const result = await toolManager.deleteTool(tool);
       if (!result.success) {
         vscode.window.showErrorMessage(`Delete failed: ${result.error}`);
+        return;
       }
+      // Remove from active profile (no-op if no profile is active)
+      await profileService.removeToolFromActiveProfile(tool);
     },
   );
 
