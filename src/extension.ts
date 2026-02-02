@@ -8,6 +8,8 @@ import { ClaudeCodeAdapter } from './adapters/claude-code/claude-code.adapter.js
 import { claudeCodeSchemas } from './adapters/claude-code/schemas.js';
 import { ToolTreeProvider } from './views/tool-tree/tool-tree.provider.js';
 import { registerToolTreeCommands } from './views/tool-tree/tool-tree.commands.js';
+import { registerManagementCommands } from './views/tool-tree/tool-tree.management.js';
+import { ToolManagerService } from './services/tool-manager.service.js';
 import { FileWatcherManager } from './views/file-watcher.manager.js';
 
 /**
@@ -20,6 +22,7 @@ let services:
   | {
       configService: ConfigService;
       registry: AdapterRegistry;
+      toolManager: ToolManagerService;
       outputChannel: vscode.OutputChannel;
     }
   | undefined;
@@ -34,6 +37,7 @@ let services:
 export function getServices(): {
   configService: ConfigService;
   registry: AdapterRegistry;
+  toolManager: ToolManagerService;
   outputChannel: vscode.OutputChannel;
 } {
   if (!services) {
@@ -66,17 +70,23 @@ export function activate(context: vscode.ExtensionContext): void {
   // 6. Config service (the main API for reading/writing tool configs)
   const configService = new ConfigService(fileIO, backup, schemas, registry);
 
-  // 7. Store services for cross-module access
-  services = { configService, registry, outputChannel };
+  // 7. Tool management service
+  const toolManager = new ToolManagerService(configService, registry);
 
-  // 8. Tree view provider
+  // 8. Store services for cross-module access
+  services = { configService, registry, toolManager, outputChannel };
+
+  // 9. Tree view provider
   const treeProvider = new ToolTreeProvider(configService, registry, context.extensionUri);
   treeProvider.register(context);
 
-  // 9. Tree commands (open file, refresh)
+  // 10. Tree commands (open file, refresh)
   registerToolTreeCommands(context, treeProvider);
 
-  // 10. File watcher for auto-refresh on config changes
+  // 11. Management commands (toggle, delete, move, install)
+  registerManagementCommands(context, toolManager);
+
+  // 12. File watcher for auto-refresh on config changes
   const fileWatcher = new FileWatcherManager(
     () => treeProvider.refresh(),
     () => {
@@ -90,7 +100,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(fileWatcher);
 
-  // 11. Auto-detect platform, then setup watchers and initial tree load
+  // 13. Auto-detect platform, then setup watchers and initial tree load
   registry
     .detectAndActivate()
     .then((adapter) => {
@@ -106,7 +116,7 @@ export function activate(context: vscode.ExtensionContext): void {
       outputChannel.appendLine(`Platform detection error: ${err}`);
     });
 
-  // 12. Test command (temporary, for manual verification during development)
+  // 14. Test command (temporary, for manual verification during development)
   const testCmd = vscode.commands.registerCommand(
     'agent-config-keeper.testReadAll',
     async () => {
