@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { ToolManagerService } from '../../services/tool-manager.service.js';
 import { ConfigScope } from '../../types/enums.js';
 import { buildDeleteDescription } from '../../services/tool-manager.utils.js';
+import type { ToolTreeProvider } from './tool-tree.provider.js';
 import type { ToolNode, GroupNode, TreeNode } from './tool-tree.nodes.js';
 
 /**
@@ -16,11 +17,11 @@ import type { ToolNode, GroupNode, TreeNode } from './tool-tree.nodes.js';
  *
  * All commands receive the tree node that was right-clicked (VS Code
  * passes the TreeItem element to command handlers registered on menus).
- * Tree auto-refreshes via file watcher -- no manual refresh needed.
  */
 export function registerManagementCommands(
   context: vscode.ExtensionContext,
   toolManager: ToolManagerService,
+  treeProvider: ToolTreeProvider,
 ): void {
   // ---------------------------------------------------------------------------
   // Toggle Enable/Disable
@@ -36,8 +37,11 @@ export function registerManagementCommands(
       const result = await toolManager.toggleTool(toolNode.tool);
       if (!result.success) {
         vscode.window.showErrorMessage(`Toggle failed: ${result.error}`);
+        return;
       }
-      // No success notification -- tree visual update is sufficient (CONTEXT decision)
+      // Explicitly refresh tree — directory renames (skills/commands) may not
+      // trigger the file watcher reliably
+      await treeProvider.refresh();
     },
   );
 
