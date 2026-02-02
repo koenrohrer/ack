@@ -24,9 +24,13 @@ export interface IPlatformAdapter {
   writeTool(tool: NormalizedTool, scope: ConfigScope): Promise<void>;
 
   /**
-   * Remove a tool from a scope.
+   * Remove a tool from its scope.
+   *
+   * Accepts the full NormalizedTool so the adapter has access to
+   * type, scope, source path, and metadata needed to locate and
+   * remove the tool's config entries or files.
    */
-  removeTool(toolId: string, type: ToolType, scope: ConfigScope): Promise<void>;
+  removeTool(tool: NormalizedTool): Promise<void>;
 
   /**
    * Return filesystem paths that should be watched for changes in a scope.

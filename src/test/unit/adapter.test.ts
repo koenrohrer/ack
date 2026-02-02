@@ -404,17 +404,26 @@ Deploy everything.`);
     expect(paths[0]).toContain('settings.local.json');
   });
 
-  it('writeTool throws not yet implemented', async () => {
+  it('writeTool throws when ConfigService not provided', async () => {
     const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    await expect(adapter.writeTool({} as NormalizedTool, ConfigScope.User)).rejects.toThrow(
-      'Not yet implemented',
+    const tool = { type: ToolType.Skill, name: 'test' } as NormalizedTool;
+    await expect(adapter.writeTool(tool, ConfigScope.User)).rejects.toThrow(
+      'ConfigService and BackupService are required',
     );
   });
 
-  it('removeTool throws not yet implemented', async () => {
+  it('removeTool throws when ConfigService not provided', async () => {
     const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    await expect(adapter.removeTool('id', ToolType.Skill, ConfigScope.User)).rejects.toThrow(
-      'Not yet implemented',
+    const tool = {
+      id: 'skill:user:test',
+      type: ToolType.Skill,
+      name: 'test',
+      scope: ConfigScope.User,
+      source: { filePath: '/fake/SKILL.md', isDirectory: true, directoryPath: '/fake' },
+      metadata: {},
+    } as NormalizedTool;
+    await expect(adapter.removeTool(tool)).rejects.toThrow(
+      'ConfigService and BackupService are required',
     );
   });
 });
