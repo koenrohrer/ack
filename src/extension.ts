@@ -17,6 +17,7 @@ import { MarketplacePanel } from './views/marketplace/marketplace.panel.js';
 import { ConfigPanel } from './views/config-panel/config-panel.panel.js';
 import { RegistryService } from './services/registry.service.js';
 import { InstallService } from './services/install.service.js';
+import { WorkspaceProfileService } from './services/workspace-profile.service.js';
 
 /**
  * Service container for cross-module access to initialized services.
@@ -30,6 +31,7 @@ let services:
       registry: AdapterRegistry;
       toolManager: ToolManagerService;
       registryService: RegistryService;
+      workspaceProfileService: WorkspaceProfileService;
       outputChannel: vscode.OutputChannel;
     }
   | undefined;
@@ -46,6 +48,7 @@ export function getServices(): {
   registry: AdapterRegistry;
   toolManager: ToolManagerService;
   registryService: RegistryService;
+  workspaceProfileService: WorkspaceProfileService;
   outputChannel: vscode.OutputChannel;
 } {
   if (!services) {
@@ -95,8 +98,11 @@ export function activate(context: vscode.ExtensionContext): void {
   // 9b. Profile service for named tool presets
   const profileService = new ProfileService(context.globalState, configService, toolManager);
 
+  // 9c. Workspace-profile association service
+  const workspaceProfileService = new WorkspaceProfileService(fileIO, context.globalState);
+
   // 10. Store services for cross-module access
-  services = { configService, registry, toolManager, registryService, outputChannel };
+  services = { configService, registry, toolManager, registryService, workspaceProfileService, outputChannel };
 
   // 11. Tree view provider
   const treeProvider = new ToolTreeProvider(configService, registry, context.extensionUri);
@@ -108,8 +114,8 @@ export function activate(context: vscode.ExtensionContext): void {
   // 13. Management commands (toggle, delete, move, install)
   registerManagementCommands(context, toolManager, treeProvider, profileService);
 
-  // 14. Profile commands (create, switch, edit, delete, save-as, export, import)
-  registerProfileCommands(context, profileService, configService, treeProvider, registryService, installService);
+  // 14. Profile commands (create, switch, edit, delete, save-as, export, import, associate)
+  registerProfileCommands(context, profileService, configService, treeProvider, registryService, installService, workspaceProfileService);
 
   // 14b. Restore active profile name in sidebar header on startup
   const activeId = profileService.getActiveProfileId();
@@ -144,6 +150,7 @@ export function activate(context: vscode.ExtensionContext): void {
         toolManager,
         treeProvider,
         outputChannel,
+        workspaceProfileService,
       ),
   );
   context.subscriptions.push(openConfigPanel);
@@ -170,6 +177,19 @@ export function activate(context: vscode.ExtensionContext): void {
         outputChannel.appendLine(`Platform detected: ${adapter.displayName}`);
         fileWatcher.setupWatchers(adapter);
         treeProvider.refresh();
+
+        // Auto-activate workspace profile (must run AFTER platform detection completes)
+        if (workspaceRoot) {
+          handleWorkspaceAutoActivation(
+            workspaceRoot,
+            profileService,
+            workspaceProfileService,
+            treeProvider,
+            outputChannel,
+          ).catch((err: unknown) => {
+            outputChannel.appendLine(`Workspace profile auto-activation error: ${err}`);
+          });
+        }
       } else {
         outputChannel.appendLine('No supported agent platform detected');
       }
@@ -202,6 +222,74 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(testCmd);
 
   outputChannel.appendLine('Agent Config Keeper activated');
+}
+
+/**
+ * Auto-activate the workspace's associated profile after platform detection.
+ *
+ * Checks the global setting, reads `.vscode/agent-profile.json`, validates
+ * that no manual override exists, then switches to the associated profile.
+ * Partial activation occurs when some tools are missing (user is prompted
+ * to install them from the marketplace).
+ */
+async function handleWorkspaceAutoActivation(
+  workspaceRoot: string,
+  profileService: ProfileService,
+  workspaceProfileService: WorkspaceProfileService,
+  treeProvider: ToolTreeProvider,
+  outputChannel: vscode.OutputChannel,
+): Promise<void> {
+  // 1. Check global setting -- is auto-activation enabled?
+  const autoActivate = vscode.workspace
+    .getConfiguration('agentConfigKeeper')
+    .get<boolean>('autoActivateWorkspaceProfiles', true);
+  if (!autoActivate) {
+    return;
+  }
+
+  // 2. Read .vscode/agent-profile.json
+  const association = await workspaceProfileService.getAssociation(workspaceRoot);
+  if (!association) {
+    return;
+  }
+
+  // 3. Check for manual override (validate staleness with current profile names)
+  const profileNames = profileService.getProfiles().map((p) => p.name);
+  if (workspaceProfileService.isOverridden(workspaceRoot, profileNames)) {
+    outputChannel.appendLine(
+      `Workspace profile auto-activation skipped: manual override active`,
+    );
+    return;
+  }
+
+  // 4. Find profile by name
+  const profile = profileService.getProfiles().find((p) => p.name === association.profileName);
+  if (!profile) {
+    vscode.window.showWarningMessage(
+      `Associated profile "${association.profileName}" not found`,
+    );
+    return;
+  }
+
+  // 5. Switch profile
+  const result = await profileService.switchProfile(profile.id);
+
+  // 6. Update sidebar header
+  treeProvider.setActiveProfile(profile.name);
+
+  // 7. Show info notification
+  vscode.window.showInformationMessage(`Switched to profile: ${profile.name}`);
+
+  // 8. If missing tools, prompt to install
+  if (result.skipped > 0) {
+    const action = await vscode.window.showWarningMessage(
+      `Profile "${profile.name}" has ${result.skipped} missing tool(s).`,
+      'Open Marketplace',
+    );
+    if (action === 'Open Marketplace') {
+      await vscode.commands.executeCommand('agent-config-keeper.openMarketplace');
+    }
+  }
 }
 
 export function deactivate(): void {

@@ -8,6 +8,7 @@ import { ProfileExportBundleSchema } from '../../services/profile.types.js';
 import type { ConfigService } from '../../services/config.service.js';
 import type { RegistryService } from '../../services/registry.service.js';
 import type { InstallService } from '../../services/install.service.js';
+import type { WorkspaceProfileService } from '../../services/workspace-profile.service.js';
 import type { ToolTreeProvider } from './tool-tree.provider.js';
 import type { ProfileToolEntry } from '../../services/profile.types.js';
 import { ToolType, ConfigScope } from '../../types/enums.js';
@@ -61,6 +62,7 @@ export function registerProfileCommands(
   treeProvider: ToolTreeProvider,
   registryService: RegistryService,
   installService: InstallService,
+  workspaceProfileService: WorkspaceProfileService,
 ): void {
   // ---------------------------------------------------------------------------
   // Create Profile

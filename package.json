@@ -111,6 +111,10 @@
       {
         "command": "agent-config-keeper.importProfile",
         "title": "Agent Config Keeper: Import Profile"
+      },
+      {
+        "command": "agent-config-keeper.associateProfile",
+        "title": "Agent Config Keeper: Associate Profile with Workspace"
       }
     ],
     "submenus": [
@@ -187,6 +191,11 @@
           "type": "boolean",
           "default": false,
           "description": "Skip confirmation dialog when deleting tools"
+        },
+        "agentConfigKeeper.autoActivateWorkspaceProfiles": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically activate the associated profile when opening a workspace"
         },
         "agentConfigKeeper.registrySources": {
           "type": "array",

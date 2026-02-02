@@ -7,6 +7,7 @@ import type { ToolTreeProvider } from '../tool-tree/tool-tree.provider.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { canonicalKey } from '../../utils/tool-key.utils.js';
 import { ClaudeCodePaths } from '../../adapters/claude-code/paths.js';
+import type { WorkspaceProfileService } from '../../services/workspace-profile.service.js';
 import type {
   ConfigPanelWebMessage,
   ConfigPanelExtMessage,
@@ -35,6 +36,7 @@ export class ConfigPanel {
   private readonly toolManager: ToolManagerService;
   private readonly treeProvider: ToolTreeProvider;
   private readonly outputChannel: vscode.OutputChannel;
+  private readonly workspaceProfileService: WorkspaceProfileService;
 
   /**
    * Create a new config panel or reveal the existing one.
@@ -46,6 +48,7 @@ export class ConfigPanel {
     toolManager: ToolManagerService,
     treeProvider: ToolTreeProvider,
     outputChannel: vscode.OutputChannel,
+    workspaceProfileService: WorkspaceProfileService,
   ): void {
     // If panel already exists, reveal it
     if (ConfigPanel.currentPanel) {
@@ -73,6 +76,7 @@ export class ConfigPanel {
       toolManager,
       treeProvider,
       outputChannel,
+      workspaceProfileService,
     );
   }
 
@@ -84,6 +88,7 @@ export class ConfigPanel {
     toolManager: ToolManagerService,
     treeProvider: ToolTreeProvider,
     outputChannel: vscode.OutputChannel,
+    workspaceProfileService: WorkspaceProfileService,
   ) {
     this.panel = panel;
     this.extensionUri = extensionUri;
@@ -92,6 +97,7 @@ export class ConfigPanel {
     this.toolManager = toolManager;
     this.treeProvider = treeProvider;
     this.outputChannel = outputChannel;
+    this.workspaceProfileService = workspaceProfileService;
 
     // Set initial HTML content
     this.panel.webview.html = this.getHtmlForWebview(this.panel.webview);
