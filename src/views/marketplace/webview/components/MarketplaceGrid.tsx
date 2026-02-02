@@ -1,11 +1,14 @@
 import type { RegistryEntryWithSource } from '../../marketplace.messages';
+import type { InstallState } from '../hooks/useMarketplace';
 import { ToolCard } from './ToolCard';
 
 interface MarketplaceGridProps {
   tools: RegistryEntryWithSource[];
   installedToolIds: Set<string>;
+  getInstallState: (toolId: string) => InstallState;
   onSelect: (tool: RegistryEntryWithSource) => void;
   onInstall: (tool: RegistryEntryWithSource) => void;
+  onRetry: (tool: RegistryEntryWithSource) => void;
 }
 
 /**
@@ -14,8 +17,10 @@ interface MarketplaceGridProps {
 export function MarketplaceGrid({
   tools,
   installedToolIds,
+  getInstallState,
   onSelect,
   onInstall,
+  onRetry,
 }: MarketplaceGridProps) {
   if (tools.length === 0) {
     return (
@@ -36,8 +41,10 @@ export function MarketplaceGrid({
           key={`${tool.sourceId}:${tool.id}`}
           tool={tool}
           isInstalled={installedToolIds.has(tool.name)}
+          installState={getInstallState(tool.id)}
           onClick={() => onSelect(tool)}
           onInstall={() => onInstall(tool)}
+          onRetry={() => onRetry(tool)}
         />
       ))}
     </div>

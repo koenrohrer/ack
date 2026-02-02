@@ -1,4 +1,6 @@
 import type { RegistryEntryWithSource } from '../../marketplace.messages';
+import type { InstallState } from '../hooks/useMarketplace';
+import { InstallButton } from './InstallButton';
 
 /** Human-readable labels for tool types. */
 const TYPE_LABELS: Record<string, string> = {
@@ -11,17 +13,26 @@ const TYPE_LABELS: Record<string, string> = {
 interface ToolCardProps {
   tool: RegistryEntryWithSource;
   isInstalled: boolean;
+  installState: InstallState;
   onClick: () => void;
   onInstall: () => void;
+  onRetry: () => void;
 }
 
 /**
  * A single tool card in the marketplace grid.
  *
  * Shows name, type badge, author, description, tags, stats,
- * and an install button (disabled when already installed).
+ * and an install button with progress states.
  */
-export function ToolCard({ tool, isInstalled, onClick, onInstall }: ToolCardProps) {
+export function ToolCard({
+  tool,
+  isInstalled,
+  installState,
+  onClick,
+  onInstall,
+  onRetry,
+}: ToolCardProps) {
   return (
     <div className="tool-card" onClick={onClick} role="button" tabIndex={0}>
       <div className="tool-card__header">
@@ -33,7 +44,6 @@ export function ToolCard({ tool, isInstalled, onClick, onInstall }: ToolCardProp
           <span className={`type-badge type-badge--${tool.toolType}`}>
             {TYPE_LABELS[tool.toolType] ?? tool.toolType}
           </span>
-          {isInstalled && <span className="installed-badge">Installed</span>}
         </div>
       </div>
 
@@ -54,16 +64,13 @@ export function ToolCard({ tool, isInstalled, onClick, onInstall }: ToolCardProp
       </div>
 
       <div style={{ marginTop: '8px', textAlign: 'right' }}>
-        <button
-          className="tool-card__install-btn"
-          disabled={isInstalled}
-          onClick={(e) => {
-            e.stopPropagation();
-            onInstall();
-          }}
-        >
-          {isInstalled ? 'Installed' : 'Install'}
-        </button>
+        <InstallButton
+          installState={installState}
+          isInstalled={isInstalled}
+          onInstall={onInstall}
+          onRetry={onRetry}
+          variant="card"
+        />
       </div>
     </div>
   );

@@ -36,6 +36,10 @@ export function App() {
     goBack,
     refresh,
     requestInstall,
+    submitConfig,
+    retryInstall,
+    requestUninstall,
+    getInstallState,
   } = useMarketplace();
 
   // --- Detail view ---
@@ -47,8 +51,14 @@ export function App() {
           readmeContent={readmeContent}
           readmeLoading={readmeLoading}
           isInstalled={installedToolIds.has(selectedTool.name)}
+          installState={getInstallState(selectedTool.id)}
           onBack={goBack}
           onInstall={() => requestInstall(selectedTool)}
+          onRetry={() => retryInstall(selectedTool.id, selectedTool.sourceId)}
+          onUninstall={() => requestUninstall(selectedTool.name)}
+          onSubmitConfig={(values) =>
+            submitConfig(selectedTool.id, selectedTool.sourceId, values)
+          }
         />
       </div>
     );
@@ -97,8 +107,10 @@ export function App() {
       <MarketplaceGrid
         tools={tools}
         installedToolIds={installedToolIds}
+        getInstallState={getInstallState}
         onSelect={selectTool}
         onInstall={requestInstall}
+        onRetry={(tool) => retryInstall(tool.id, tool.sourceId)}
       />
 
       <Pagination

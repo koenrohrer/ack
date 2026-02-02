@@ -451,3 +451,87 @@ body {
 .tool-card__install-btn--primary:hover {
   background-color: var(--vscode-button-hoverBackground);
 }
+
+/* Install progress spinner + text */
+.install-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* Install error state */
+.install-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.install-error__text {
+  font-size: 12px;
+  color: var(--vscode-errorForeground);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Uninstall button (danger style) */
+.install-btn--uninstall {
+  color: var(--vscode-errorForeground);
+  border-color: var(--vscode-errorForeground);
+}
+
+.install-btn--uninstall:hover {
+  background-color: var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.1));
+}
+
+/* Update button (secondary style) */
+.install-btn--update {
+  color: var(--vscode-button-secondaryForeground);
+  background-color: var(--vscode-button-secondaryBackground);
+}
+
+.install-btn--update:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* Config form */
+.config-form {
+  padding: 16px;
+  margin-top: 12px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  background-color: var(--vscode-editorWidget-background);
+}
+
+.config-form__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+  margin-bottom: 12px;
+}
+
+.config-form__field {
+  margin-bottom: 12px;
+}
+
+.config-form__description {
+  display: block;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  margin-top: 4px;
+}
+
+.config-form__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.config-form__validation {
+  font-size: 12px;
+  color: var(--vscode-errorForeground);
+  margin-top: 8px;
+}
