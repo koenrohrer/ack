@@ -60,7 +60,9 @@ export type ConfigPanelExtMessage =
   | { type: 'operationSuccess'; op: string; message: string }
   | { type: 'operationError'; op: string; error: string }
   | { type: 'profileSwitching'; profileId: string }
-  | { type: 'profileSwitchComplete'; result: SwitchResultInfo };
+  | { type: 'profileSwitchComplete'; result: SwitchResultInfo }
+  | { type: 'exportComplete'; profileName: string }
+  | { type: 'importComplete'; profileName: string; installed: number; skipped: string[] };
 
 /** Switch result shape mirroring SwitchResult from profile.types. */
 export interface SwitchResultInfo {
@@ -87,4 +89,6 @@ export type ConfigPanelWebMessage =
   | { type: 'requestTools' }
   | { type: 'requestMcpSettings'; toolKey: string; serverName: string; scope: string }
   | { type: 'updateMcpEnv'; toolKey: string; serverName: string; scope: string; env: Record<string, string>; disabled?: boolean }
-  | { type: 'openToolFile'; filePath: string };
+  | { type: 'openToolFile'; filePath: string }
+  | { type: 'exportProfile'; id: string }
+  | { type: 'importProfile' };

@@ -1,7 +1,13 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as os from 'os';
 import type { ProfileService } from '../../services/profile.service.js';
 import type { Profile } from '../../services/profile.types.js';
+import { ProfileExportBundleSchema } from '../../services/profile.types.js';
 import type { ConfigService } from '../../services/config.service.js';
+import type { RegistryService } from '../../services/registry.service.js';
+import type { InstallService } from '../../services/install.service.js';
 import type { ToolTreeProvider } from './tool-tree.provider.js';
 import type { ProfileToolEntry } from '../../services/profile.types.js';
 import { ToolType, ConfigScope } from '../../types/enums.js';
@@ -53,6 +59,8 @@ export function registerProfileCommands(
   profileService: ProfileService,
   configService: ConfigService,
   treeProvider: ToolTreeProvider,
+  registryService: RegistryService,
+  installService: InstallService,
 ): void {
   // ---------------------------------------------------------------------------
   // Create Profile
@@ -319,7 +327,246 @@ export function registerProfileCommands(
     },
   );
 
-  context.subscriptions.push(createCmd, switchCmd, editCmd, deleteCmd, saveAsCmd);
+  // ---------------------------------------------------------------------------
+  // Export Profile
+  // ---------------------------------------------------------------------------
+
+  const exportCmd = vscode.commands.registerCommand(
+    'agent-config-keeper.exportProfile',
+    async () => {
+      const profiles = profileService.getProfiles();
+      if (profiles.length === 0) {
+        vscode.window.showInformationMessage('No profiles to export. Create one first.');
+        return;
+      }
+
+      const activeId = profileService.getActiveProfileId();
+      const profileItems = await Promise.all(
+        profiles.map((p) => reconcileAndBuildItem(p, profileService, activeId)),
+      );
+
+      const selected = await vscode.window.showQuickPick(profileItems, {
+        placeHolder: 'Select a profile to export',
+      });
+
+      if (!selected || !selected.profile) {
+        return;
+      }
+
+      const bundle = await profileService.exportProfile(selected.profile.id);
+      if (!bundle) {
+        vscode.window.showErrorMessage('Failed to export profile: profile not found.');
+        return;
+      }
+
+      const profileName = selected.profile.name;
+
+      // Warn about potential secrets in MCP env vars
+      const proceed = await vscode.window.showWarningMessage(
+        'This export may contain API keys in MCP server environment variables. Review the file before sharing.',
+        'Continue',
+        'Cancel',
+      );
+      if (proceed !== 'Continue') {
+        return;
+      }
+
+      const defaultDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? os.homedir();
+      const defaultUri = vscode.Uri.file(path.join(defaultDir, `${profileName}.agent-profile.json`));
+
+      const uri = await vscode.window.showSaveDialog({
+        defaultUri,
+        filters: { 'Agent Profile': ['json'] },
+        title: `Export Profile: ${profileName}`,
+      });
+
+      if (!uri) {
+        return;
+      }
+
+      await fs.writeFile(uri.fsPath, JSON.stringify(bundle));
+      vscode.window.showInformationMessage(`Profile "${profileName}" exported to ${uri.fsPath}`);
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Import Profile
+  // ---------------------------------------------------------------------------
+
+  const importCmd = vscode.commands.registerCommand(
+    'agent-config-keeper.importProfile',
+    async () => {
+      const uris = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        filters: { 'Agent Profile': ['json'] },
+        title: 'Import Profile',
+      });
+
+      if (!uris || uris.length === 0) {
+        return;
+      }
+
+      // Read and validate bundle
+      let raw: string;
+      try {
+        raw = await fs.readFile(uris[0].fsPath, 'utf-8');
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Failed to read file: ${msg}`);
+        return;
+      }
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        vscode.window.showErrorMessage('Invalid JSON file.');
+        return;
+      }
+
+      const validation = ProfileExportBundleSchema.safeParse(parsed);
+      if (!validation.success) {
+        vscode.window.showErrorMessage(
+          `Invalid profile bundle: ${validation.error.message}`,
+        );
+        return;
+      }
+
+      const bundle = validation.data;
+
+      // Name collision check
+      let finalName = bundle.profile.name;
+      const existingProfiles = profileService.getProfiles();
+      const nameConflict = existingProfiles.find((p) => p.name === finalName);
+
+      if (nameConflict) {
+        const choice = await vscode.window.showQuickPick(
+          [
+            { label: 'Overwrite existing', description: `Replace "${finalName}"` },
+            { label: `Import as "${finalName} (imported)"`, description: 'Use a different name' },
+            { label: 'Cancel', description: '' },
+          ],
+          { placeHolder: `A profile named "${finalName}" already exists` },
+        );
+
+        if (!choice || choice.label === 'Cancel') {
+          return;
+        }
+
+        if (choice.label === 'Overwrite existing') {
+          await profileService.deleteProfile(nameConflict.id);
+        } else {
+          finalName = `${finalName} (imported)`;
+        }
+      }
+
+      // Analyze import
+      const analysis = await profileService.analyzeImport(bundle);
+
+      // Handle conflicts: ask per-tool
+      const resolvedConflictKeys = new Set<string>();
+      for (const conflict of analysis.conflicts) {
+        const resolution = await vscode.window.showQuickPick(
+          [
+            { label: `Use imported config for "${conflict.exported.name}"`, useImported: true },
+            { label: `Keep local config for "${conflict.exported.name}"`, useImported: false },
+          ] as Array<vscode.QuickPickItem & { useImported: boolean }>,
+          { placeHolder: `Config conflict: "${conflict.exported.name}"` },
+        );
+
+        if (!resolution) {
+          continue; // Skip this conflict (keep local)
+        }
+
+        if ((resolution as { useImported: boolean }).useImported) {
+          resolvedConflictKeys.add(conflict.exported.key);
+        }
+      }
+
+      // Handle missing tools
+      const skipped: string[] = [];
+      if (analysis.missing.length > 0) {
+        const missingNames = analysis.missing.map((t) => t.name).join(', ');
+        const install = await vscode.window.showWarningMessage(
+          `Missing tools: ${missingNames}. Try to install from marketplace?`,
+          'Yes',
+          'No',
+        );
+
+        if (install === 'Yes') {
+          try {
+            const indexes = await registryService.fetchAllIndexes(false);
+            for (const missing of analysis.missing) {
+              let found = false;
+              for (const { source, index } of indexes.values()) {
+                const entry = index.tools.find(
+                  (t) => t.name === missing.name && t.type === missing.type,
+                );
+                if (entry) {
+                  try {
+                    const manifest = await installService.getToolManifest(source, entry.contentPath);
+                    const result = await installService.install({
+                      manifest,
+                      scope: ConfigScope.User,
+                      source,
+                      contentPath: entry.contentPath,
+                    });
+                    if (result.success) {
+                      found = true;
+                      break;
+                    }
+                  } catch {
+                    // Install failed -- add to skipped
+                  }
+                }
+              }
+              if (!found) {
+                skipped.push(missing.name);
+              }
+            }
+          } catch {
+            // Registry fetch failed -- all missing become skipped
+            for (const missing of analysis.missing) {
+              skipped.push(missing.name);
+            }
+          }
+        } else {
+          for (const missing of analysis.missing) {
+            skipped.push(missing.name);
+          }
+        }
+      }
+
+      // Create the profile with resolved tool entries
+      const resolvedEntries: ProfileToolEntry[] = [];
+      for (const tool of bundle.tools) {
+        resolvedEntries.push({ key: tool.key, enabled: tool.enabled });
+      }
+
+      const newProfile = await profileService.createProfile(finalName);
+      await profileService.updateProfile(newProfile.id, { tools: resolvedEntries });
+
+      // Prompt to switch
+      const switchAction = await vscode.window.showInformationMessage(
+        `Profile "${finalName}" imported. Switch to it now?`,
+        'Switch',
+      );
+
+      if (switchAction === 'Switch') {
+        await profileService.switchProfile(newProfile.id);
+        treeProvider.setActiveProfile(finalName);
+        treeProvider.refresh();
+      }
+
+      if (skipped.length > 0) {
+        vscode.window.showWarningMessage(
+          `Import complete. Could not find: ${skipped.join(', ')}`,
+        );
+      }
+    },
+  );
+
+  context.subscriptions.push(createCmd, switchCmd, editCmd, deleteCmd, saveAsCmd, exportCmd, importCmd);
 }
 
 // ---------------------------------------------------------------------------

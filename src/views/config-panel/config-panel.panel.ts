@@ -161,6 +161,12 @@ export class ConfigPanel {
       case 'openToolFile':
         void this.handleOpenToolFile(message.filePath);
         break;
+      case 'exportProfile':
+        void vscode.commands.executeCommand('agent-config-keeper.exportProfile');
+        break;
+      case 'importProfile':
+        void vscode.commands.executeCommand('agent-config-keeper.importProfile');
+        break;
     }
   }
 

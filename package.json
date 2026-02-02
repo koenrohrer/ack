@@ -103,6 +103,14 @@
       {
         "command": "agentConfigKeeper.openConfigPanel",
         "title": "Agent Config Keeper: Configure Agent"
+      },
+      {
+        "command": "agent-config-keeper.exportProfile",
+        "title": "Agent Config Keeper: Export Profile"
+      },
+      {
+        "command": "agent-config-keeper.importProfile",
+        "title": "Agent Config Keeper: Import Profile"
       }
     ],
     "submenus": [
