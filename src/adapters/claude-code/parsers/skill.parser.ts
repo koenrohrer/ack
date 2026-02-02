@@ -19,15 +19,17 @@ export async function parseSkillDirectory(
   scope: ConfigScope,
 ): Promise<NormalizedTool> {
   const dirName = path.basename(skillDir);
+  const isDisabled = dirName.endsWith('.disabled');
+  const cleanName = isDisabled ? dirName.replace(/\.disabled$/, '') : dirName;
   const skillMdPath = path.join(skillDir, 'SKILL.md');
 
   const content = await fileIO.readTextFile(skillMdPath);
 
   if (content === null) {
     return {
-      id: `skill:${scope}:${dirName}`,
+      id: `skill:${scope}:${cleanName}`,
       type: ToolType.Skill,
-      name: dirName,
+      name: cleanName,
       scope,
       status: ToolStatus.Warning,
       statusDetail: 'Missing SKILL.md',
@@ -40,9 +42,9 @@ export async function parseSkillDirectory(
 
   if (!frontmatterResult) {
     return {
-      id: `skill:${scope}:${dirName}`,
+      id: `skill:${scope}:${cleanName}`,
       type: ToolType.Skill,
-      name: dirName,
+      name: cleanName,
       scope,
       status: ToolStatus.Warning,
       statusDetail: 'No frontmatter in SKILL.md',
@@ -58,9 +60,9 @@ export async function parseSkillDirectory(
       .map((i) => i.message)
       .join('; ');
     return {
-      id: `skill:${scope}:${dirName}`,
+      id: `skill:${scope}:${cleanName}`,
       type: ToolType.Skill,
-      name: frontmatterResult.frontmatter['name'] ?? dirName,
+      name: frontmatterResult.frontmatter['name'] ?? cleanName,
       scope,
       status: ToolStatus.Warning,
       statusDetail: `Invalid frontmatter: ${message}`,
@@ -82,7 +84,7 @@ export async function parseSkillDirectory(
     name: data.name,
     description: data.description,
     scope,
-    status: ToolStatus.Enabled,
+    status: isDisabled ? ToolStatus.Disabled : ToolStatus.Enabled,
     source: { filePath: skillMdPath, isDirectory: true, directoryPath: skillDir },
     metadata: {
       allowedTools: data['allowed-tools'],

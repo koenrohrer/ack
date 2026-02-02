@@ -18,7 +18,9 @@ export async function parseCommandFile(
   filePath: string,
   scope: ConfigScope,
 ): Promise<NormalizedTool> {
-  const commandName = path.basename(filePath, '.md');
+  const rawName = path.basename(filePath, '.md');
+  const isDisabled = filePath.endsWith('.disabled') || rawName.endsWith('.disabled');
+  const commandName = isDisabled ? rawName.replace(/\.disabled$/, '') : rawName;
   const content = await fileIO.readTextFile(filePath);
 
   if (content === null) {
@@ -43,7 +45,7 @@ export async function parseCommandFile(
       type: ToolType.Command,
       name: commandName,
       scope,
-      status: ToolStatus.Enabled,
+      status: isDisabled ? ToolStatus.Disabled : ToolStatus.Enabled,
       source: { filePath },
       metadata: { body: content },
     };
@@ -67,7 +69,7 @@ export async function parseCommandFile(
     name: commandName,
     description: data?.description ?? data?.['description'],
     scope,
-    status: ToolStatus.Enabled,
+    status: isDisabled ? ToolStatus.Disabled : ToolStatus.Enabled,
     source: { filePath },
     metadata: {
       argumentHint: data?.['argument-hint'],
