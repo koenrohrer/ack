@@ -399,3 +399,55 @@ body {
   font-size: 14px;
   max-width: 400px;
 }
+
+/* Search input */
+.marketplace-header__search-input {
+  flex: 1;
+  padding: 6px 10px;
+  font-family: var(--vscode-font-family);
+  font-size: 13px;
+  color: var(--vscode-input-foreground);
+  background-color: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 2px;
+  outline: none;
+}
+
+.marketplace-header__search-input:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+.marketplace-header__search-input::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+/* Install button */
+.tool-card__install-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-family: var(--vscode-font-family);
+  border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+  border-radius: 2px;
+  background-color: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  cursor: pointer;
+}
+
+.tool-card__install-btn:hover:not(:disabled) {
+  background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.tool-card__install-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.tool-card__install-btn--primary {
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border-color: var(--vscode-button-background);
+}
+
+.tool-card__install-btn--primary:hover {
+  background-color: var(--vscode-button-hoverBackground);
+}

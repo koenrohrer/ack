@@ -147,13 +147,13 @@ export class RegistryService {
    * Returns a Map keyed by source.id. Failing sources are logged but do
    * not prevent other sources from succeeding.
    */
-  async fetchAllIndexes(): Promise<
+  async fetchAllIndexes(forceRefresh = false): Promise<
     Map<string, { source: RegistrySource; index: RegistryIndex }>
   > {
     const sources = this.getSources();
     const results = await Promise.allSettled(
       sources.map(async (source) => {
-        const index = await this.fetchIndex(source);
+        const index = await this.fetchIndex(source, forceRefresh);
         return { source, index };
       }),
     );

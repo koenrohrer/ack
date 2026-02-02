@@ -1,58 +1,60 @@
-import { useState, useEffect } from 'react';
-import { useVSCodeApi } from './hooks/useVSCodeApi';
-import type { ExtensionMessage } from '../marketplace.messages';
+import { useMarketplace } from './hooks/useMarketplace';
+import { SearchBar } from './components/SearchBar';
+import { TypeTabs } from './components/TypeTabs';
+import { SortDropdown } from './components/SortDropdown';
+import { MarketplaceGrid } from './components/MarketplaceGrid';
+import { Pagination } from './components/Pagination';
+import { ToolDetailView } from './components/ToolDetailView';
 
 // Import progress ring web component
 import '@vscode-elements/elements/dist/vscode-progress-ring/index.js';
 
-/** Persisted webview state shape */
-interface MarketplaceState {
-  loading: boolean;
-}
-
 export function App() {
-  const { postMessage, getState, setState } = useVSCodeApi();
-  const [loading, setLoading] = useState(true);
+  const {
+    tools,
+    totalTools,
+    installedToolIds,
+    loading,
+    error,
 
-  // Restore persisted state on mount
-  useEffect(() => {
-    const saved = getState<MarketplaceState>();
-    if (saved) {
-      setLoading(saved.loading);
-    }
-  }, []);
+    searchQuery,
+    activeType,
+    sortBy,
+    currentPage,
+    totalPages,
 
-  // Listen for messages from extension
-  useEffect(() => {
-    const handler = (event: MessageEvent<ExtensionMessage>) => {
-      const message = event.data;
-      switch (message.type) {
-        case 'registryLoading':
-          setLoading(true);
-          break;
-        case 'registryData':
-          setLoading(false);
-          break;
-        case 'registryError':
-          setLoading(false);
-          break;
-      }
-    };
+    selectedTool,
+    readmeContent,
+    readmeLoading,
 
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, []);
+    setSearchQuery,
+    setActiveType,
+    setSortBy,
+    setCurrentPage,
 
-  // Persist state when loading changes
-  useEffect(() => {
-    setState<MarketplaceState>({ loading });
-  }, [loading]);
+    selectTool,
+    goBack,
+    refresh,
+    requestInstall,
+  } = useMarketplace();
 
-  // Signal ready to extension
-  useEffect(() => {
-    postMessage({ type: 'ready' });
-  }, []);
+  // --- Detail view ---
+  if (selectedTool) {
+    return (
+      <div className="marketplace">
+        <ToolDetailView
+          tool={selectedTool}
+          readmeContent={readmeContent}
+          readmeLoading={readmeLoading}
+          isInstalled={installedToolIds.has(selectedTool.name)}
+          onBack={goBack}
+          onInstall={() => requestInstall(selectedTool)}
+        />
+      </div>
+    );
+  }
 
+  // --- Loading state ---
   if (loading) {
     return (
       <div className="marketplace">
@@ -66,21 +68,45 @@ export function App() {
     );
   }
 
+  // --- Error state ---
+  if (error) {
+    return (
+      <div className="marketplace">
+        <div className="marketplace-error">
+          <div className="marketplace-error__message">{error}</div>
+          <button className="marketplace-filters__tab" onClick={refresh}>
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Main grid view ---
   return (
     <div className="marketplace">
       <div className="marketplace-header">
         <h1 className="marketplace-header__title">Tool Marketplace</h1>
-        <p style={{ color: 'var(--vscode-descriptionForeground)' }}>
-          Browse and install agent tools. Content coming in Plan 03.
-        </p>
-      </div>
-      <div className="marketplace-empty">
-        <div className="marketplace-empty__title">Marketplace Ready</div>
-        <div className="marketplace-empty__description">
-          The marketplace scaffold is loaded. Search, cards, and detail views
-          will be added in the next plan.
+        <SearchBar value={searchQuery} onChange={setSearchQuery} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <TypeTabs activeType={activeType} onChange={setActiveType} />
+          <SortDropdown value={sortBy} onChange={setSortBy} />
         </div>
       </div>
+
+      <MarketplaceGrid
+        tools={tools}
+        installedToolIds={installedToolIds}
+        onSelect={selectTool}
+        onInstall={requestInstall}
+      />
+
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={totalTools}
+        onPageChange={setCurrentPage}
+      />
     </div>
   );
 }

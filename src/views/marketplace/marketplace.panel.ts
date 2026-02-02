@@ -1,6 +1,14 @@
 import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
-import type { WebviewMessage } from './marketplace.messages.js';
+import type { RegistryService } from '../../services/registry.service.js';
+import type { ConfigService } from '../../services/config.service.js';
+import type { RegistrySource } from '../../services/registry.types.js';
+import { ToolType } from '../../types/enums.js';
+import type {
+  WebviewMessage,
+  ExtensionMessage,
+  RegistryEntryWithSource,
+} from './marketplace.messages.js';
 
 /**
  * Manages the marketplace webview panel lifecycle.
@@ -16,11 +24,22 @@ export class MarketplacePanel {
   private readonly panel: vscode.WebviewPanel;
   private readonly extensionUri: vscode.Uri;
   private readonly disposables: vscode.Disposable[] = [];
+  private readonly registryService: RegistryService;
+  private readonly configService: ConfigService;
+  private readonly outputChannel: vscode.OutputChannel;
+
+  /** Cached sources from last fetchAllIndexes, keyed by sourceId. */
+  private sourceMap = new Map<string, RegistrySource>();
 
   /**
    * Create a new marketplace panel or reveal the existing one.
    */
-  public static createOrShow(extensionUri: vscode.Uri): void {
+  public static createOrShow(
+    extensionUri: vscode.Uri,
+    registryService: RegistryService,
+    configService: ConfigService,
+    outputChannel: vscode.OutputChannel,
+  ): void {
     // If panel already exists, reveal it
     if (MarketplacePanel.currentPanel) {
       MarketplacePanel.currentPanel.panel.reveal(vscode.ViewColumn.One);
@@ -39,12 +58,27 @@ export class MarketplacePanel {
       },
     );
 
-    MarketplacePanel.currentPanel = new MarketplacePanel(panel, extensionUri);
+    MarketplacePanel.currentPanel = new MarketplacePanel(
+      panel,
+      extensionUri,
+      registryService,
+      configService,
+      outputChannel,
+    );
   }
 
-  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
+  private constructor(
+    panel: vscode.WebviewPanel,
+    extensionUri: vscode.Uri,
+    registryService: RegistryService,
+    configService: ConfigService,
+    outputChannel: vscode.OutputChannel,
+  ) {
     this.panel = panel;
     this.extensionUri = extensionUri;
+    this.registryService = registryService;
+    this.configService = configService;
+    this.outputChannel = outputChannel;
 
     // Set initial HTML content
     this.panel.webview.html = this.getHtmlForWebview(this.panel.webview);
@@ -66,24 +100,126 @@ export class MarketplacePanel {
   private handleMessage(message: WebviewMessage): void {
     switch (message.type) {
       case 'ready':
-        // Webview is ready -- Plan 03 wires real data here
+        void this.loadRegistryData(false);
         break;
       case 'requestRegistry':
-        // Placeholder -- Plan 03 connects to RegistryService
+        void this.loadRegistryData(message.forceRefresh ?? false);
         break;
       case 'requestReadme':
-        // Placeholder -- Plan 03 fetches and renders README
+        void this.loadReadme(
+          message.toolId,
+          message.sourceId,
+          message.readmePath,
+        );
         break;
       case 'requestInstall':
-        // Placeholder -- Phase 5 implements install flow
+        this.outputChannel.appendLine(
+          `Install requested for ${message.toolId}`,
+        );
         break;
     }
   }
 
   /**
+   * Fetch all registry indexes, flatten into RegistryEntryWithSource[],
+   * resolve installed tool IDs, and send to webview.
+   */
+  private async loadRegistryData(forceRefresh: boolean): Promise<void> {
+    this.postMessage({ type: 'registryLoading', loading: true });
+
+    try {
+      const allIndexes =
+        await this.registryService.fetchAllIndexes(forceRefresh);
+
+      // Flatten entries, adding source metadata
+      const tools: RegistryEntryWithSource[] = [];
+      this.sourceMap.clear();
+
+      for (const [sourceId, { source, index }] of allIndexes) {
+        this.sourceMap.set(sourceId, source);
+        for (const entry of index.tools) {
+          tools.push({
+            id: entry.id,
+            name: entry.name,
+            toolType: entry.type,
+            description: entry.description,
+            author: entry.author,
+            version: entry.version,
+            tags: entry.tags,
+            stars: entry.stars,
+            installs: entry.installs,
+            readmePath: entry.readmePath,
+            contentPath: entry.contentPath,
+            createdAt: entry.createdAt,
+            updatedAt: entry.updatedAt,
+            sourceId,
+            sourceName: source.name,
+          });
+        }
+      }
+
+      // Resolve installed tool IDs
+      const installedIds = await this.getInstalledToolIds();
+
+      this.postMessage({ type: 'installedTools', toolIds: installedIds });
+      this.postMessage({ type: 'registryData', tools, loading: false });
+    } catch (err) {
+      const errorMsg =
+        err instanceof Error ? err.message : 'Failed to load registry';
+      this.outputChannel.appendLine(`Registry fetch error: ${errorMsg}`);
+      this.postMessage({ type: 'registryError', error: errorMsg });
+    }
+  }
+
+  /**
+   * Fetch a tool's README markdown and send to webview.
+   */
+  private async loadReadme(
+    toolId: string,
+    sourceId: string,
+    readmePath: string,
+  ): Promise<void> {
+    this.postMessage({ type: 'readmeLoading', toolId });
+
+    const source = this.sourceMap.get(sourceId);
+    if (!source) {
+      this.postMessage({
+        type: 'readmeData',
+        toolId,
+        markdown: 'Source not found.',
+      });
+      return;
+    }
+
+    const markdown = await this.registryService.fetchReadme(
+      source,
+      readmePath,
+    );
+    this.postMessage({ type: 'readmeData', toolId, markdown });
+  }
+
+  /**
+   * Collect the names of all currently installed tools across all types.
+   */
+  private async getInstalledToolIds(): Promise<string[]> {
+    const ids: string[] = [];
+    for (const type of Object.values(ToolType)) {
+      try {
+        const tools = await this.configService.readAllTools(type);
+        for (const tool of tools) {
+          ids.push(tool.name);
+        }
+      } catch {
+        // Skip types that fail to read
+      }
+    }
+    return ids;
+  }
+
+  /**
    * Send a typed message to the webview.
    */
-  public postMessage(message: unknown): Thenable<boolean> {
+  public postMessage(message: ExtensionMessage): Thenable<boolean> {
     return this.panel.webview.postMessage(message);
   }
 

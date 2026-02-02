@@ -10,7 +10,7 @@ export type ExtensionMessage =
   | { type: 'registryData'; tools: RegistryEntryWithSource[]; loading: false }
   | { type: 'registryLoading'; loading: true }
   | { type: 'registryError'; error: string }
-  | { type: 'readmeData'; toolId: string; html: string }
+  | { type: 'readmeData'; toolId: string; markdown: string }
   | { type: 'readmeLoading'; toolId: string }
   | { type: 'installedTools'; toolIds: string[] };
 
