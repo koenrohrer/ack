@@ -51,8 +51,80 @@
         "command": "agent-config-keeper.refreshToolTree",
         "title": "Agent Config Keeper: Refresh Tool Tree",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "agent-config-keeper.toggleTool",
+        "title": "Toggle Enable/Disable",
+        "icon": "$(symbol-boolean)"
+      },
+      {
+        "command": "agent-config-keeper.deleteTool",
+        "title": "Delete Tool"
+      },
+      {
+        "command": "agent-config-keeper.moveToolToUser",
+        "title": "Global (User)"
+      },
+      {
+        "command": "agent-config-keeper.moveToolToProject",
+        "title": "Project"
+      },
+      {
+        "command": "agent-config-keeper.installTool",
+        "title": "Install...",
+        "icon": "$(add)"
       }
     ],
+    "submenus": [
+      {
+        "id": "agent-config-keeper.moveTo",
+        "label": "Move To..."
+      }
+    ],
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "agent-config-keeper.toggleTool",
+          "when": "view == agent-config-keeper.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project|local)$/",
+          "group": "inline"
+        },
+        {
+          "command": "agent-config-keeper.installTool",
+          "when": "view == agent-config-keeper.toolTree && viewItem =~ /^group:/",
+          "group": "inline"
+        },
+        {
+          "command": "agent-config-keeper.toggleTool",
+          "when": "view == agent-config-keeper.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project|local)$/",
+          "group": "1_toggle"
+        },
+        {
+          "submenu": "agent-config-keeper.moveTo",
+          "when": "view == agent-config-keeper.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project)$/",
+          "group": "2_scope"
+        },
+        {
+          "command": "agent-config-keeper.deleteTool",
+          "when": "view == agent-config-keeper.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project|local)$/",
+          "group": "3_danger"
+        },
+        {
+          "command": "agent-config-keeper.installTool",
+          "when": "view == agent-config-keeper.toolTree && viewItem =~ /^group:/",
+          "group": "1_install"
+        }
+      ],
+      "agent-config-keeper.moveTo": [
+        {
+          "command": "agent-config-keeper.moveToolToUser",
+          "when": "viewItem =~ /:project$/"
+        },
+        {
+          "command": "agent-config-keeper.moveToolToProject",
+          "when": "viewItem =~ /:user$/"
+        }
+      ]
+    },
     "configuration": {
       "title": "Agent Config Keeper",
       "properties": {
@@ -60,6 +132,11 @@
           "type": "boolean",
           "default": true,
           "description": "Show notifications when agent config files change externally"
+        },
+        "agentConfigKeeper.skipDeleteConfirmation": {
+          "type": "boolean",
+          "default": false,
+          "description": "Skip confirmation dialog when deleting tools"
         }
       }
     },
