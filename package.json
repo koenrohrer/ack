@@ -184,12 +184,15 @@
     "package": "npm run compile -- --minify"
   },
   "dependencies": {
+    "dompurify": "^3.3.1",
     "jsonc-parser": "^3.3.1",
+    "marked": "^17.0.1",
     "write-file-atomic": "^6.0",
     "zod": "^4.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.0",
+    "@types/dompurify": "^3.0.5",
     "@types/node": "^22",
     "@types/vscode": "^1.105.0",
     "@types/write-file-atomic": "^4.0.3",
