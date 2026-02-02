@@ -3,6 +3,7 @@ import { useVSCodeApi } from './useVSCodeApi';
 import type {
   ConfigPanelExtMessage,
   ConfigPanelWebMessage,
+  McpSettingsInfo,
   ProfileInfo,
   ProfileToolInfo,
   ToolInfo,
@@ -14,6 +15,7 @@ export type TabId = 'profiles' | 'tools';
 interface PersistedState {
   activeTab: TabId;
   selectedProfileId: string | null;
+  selectedToolKey: string | null;
 }
 
 /**
@@ -37,6 +39,11 @@ export function useConfigPanel() {
   const [profileTools, setProfileTools] = useState<ProfileToolInfo[]>([]);
   const [switching, setSwitching] = useState(false);
 
+  // --- Tool settings state ---
+  const [selectedToolKey, setSelectedToolKeyState] = useState<string | null>(null);
+  const [mcpSettings, setMcpSettings] = useState<McpSettingsInfo | null>(null);
+  const [toolSettingsLoading, setToolSettingsLoading] = useState(false);
+
   // --- UI state ---
   const [activeTab, setActiveTabState] = useState<TabId>('profiles');
 
@@ -49,12 +56,15 @@ export function useConfigPanel() {
     if (saved?.selectedProfileId) {
       setSelectedProfileIdState(saved.selectedProfileId);
     }
+    if (saved?.selectedToolKey) {
+      setSelectedToolKeyState(saved.selectedToolKey);
+    }
   }, []);
 
   // --- Persist state on change ---
   useEffect(() => {
-    setState<PersistedState>({ activeTab, selectedProfileId });
-  }, [activeTab, selectedProfileId]);
+    setState<PersistedState>({ activeTab, selectedProfileId, selectedToolKey });
+  }, [activeTab, selectedProfileId, selectedToolKey]);
 
   // --- Listen for extension messages ---
   useEffect(() => {
@@ -74,6 +84,12 @@ export function useConfigPanel() {
             setProfileTools(message.tools);
           }
           break;
+        case 'mcpSettings':
+          if (message.toolKey === selectedToolKey) {
+            setMcpSettings(message.settings);
+            setToolSettingsLoading(false);
+          }
+          break;
         case 'profileSwitching':
           setSwitching(true);
           break;
@@ -91,7 +107,7 @@ export function useConfigPanel() {
 
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [selectedProfileId]);
+  }, [selectedProfileId, selectedToolKey]);
 
   // --- Signal ready on mount ---
   useEffect(() => {
@@ -110,6 +126,31 @@ export function useConfigPanel() {
     }
   }, [selectedProfileId]);
 
+  // --- Request MCP settings when a tool is selected ---
+  useEffect(() => {
+    if (selectedToolKey) {
+      // Check if the selected tool is an MCP server
+      const tool = tools.find((t) => t.key === selectedToolKey);
+      if (tool && tool.type === 'mcp_server') {
+        // Use the tool name directly as serverName (it is the MCP server name)
+        setToolSettingsLoading(true);
+        setMcpSettings(null);
+        postMessage({
+          type: 'requestMcpSettings',
+          toolKey: selectedToolKey,
+          serverName: tool.name,
+          scope: tool.scope,
+        } satisfies ConfigPanelWebMessage);
+      } else {
+        setMcpSettings(null);
+        setToolSettingsLoading(false);
+      }
+    } else {
+      setMcpSettings(null);
+      setToolSettingsLoading(false);
+    }
+  }, [selectedToolKey, tools]);
+
   // --- Tab switching ---
   const setActiveTab = useCallback((tab: TabId) => {
     setActiveTabState(tab);
@@ -118,6 +159,11 @@ export function useConfigPanel() {
   // --- Selected profile ---
   const setSelectedProfileId = useCallback((id: string | null) => {
     setSelectedProfileIdState(id);
+  }, []);
+
+  // --- Selected tool ---
+  const setSelectedToolKey = useCallback((key: string | null) => {
+    setSelectedToolKeyState(key);
   }, []);
 
   // --- Post message helper ---
@@ -141,6 +187,12 @@ export function useConfigPanel() {
     setSelectedProfileId,
     profileTools,
     switching,
+
+    // Tool settings
+    selectedToolKey,
+    setSelectedToolKey,
+    mcpSettings,
+    toolSettingsLoading,
 
     // UI state
     activeTab,

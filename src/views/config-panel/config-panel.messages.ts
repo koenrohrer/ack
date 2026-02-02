@@ -27,6 +27,7 @@ export interface ToolInfo {
   status: string;
   isManaged: boolean;
   hasEditableSettings: boolean;
+  filePath: string;
 }
 
 /** Tool entry within a profile (key + enabled flag + display info). */
@@ -85,5 +86,5 @@ export type ConfigPanelWebMessage =
   | { type: 'updateProfileTools'; id: string; tools: { key: string; enabled: boolean }[] }
   | { type: 'requestTools' }
   | { type: 'requestMcpSettings'; toolKey: string; serverName: string; scope: string }
-  | { type: 'updateMcpEnv'; serverName: string; scope: string; env: Record<string, string>; disabled?: boolean }
+  | { type: 'updateMcpEnv'; toolKey: string; serverName: string; scope: string; env: Record<string, string>; disabled?: boolean }
   | { type: 'openToolFile'; filePath: string };

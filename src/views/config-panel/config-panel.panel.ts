@@ -3,11 +3,13 @@ import * as crypto from 'node:crypto';
 import type { ProfileService } from '../../services/profile.service.js';
 import type { ConfigService } from '../../services/config.service.js';
 import type { ToolManagerService } from '../../services/tool-manager.service.js';
-import { ToolType, ConfigScope } from '../../types/enums.js';
+import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { canonicalKey } from '../../utils/tool-key.utils.js';
+import { ClaudeCodePaths } from '../../adapters/claude-code/paths.js';
 import type {
   ConfigPanelWebMessage,
   ConfigPanelExtMessage,
+  McpSettingsInfo,
   ProfileInfo,
   ProfileToolInfo,
   ToolInfo,
@@ -145,16 +147,13 @@ export class ConfigPanel {
         void this.handleUpdateProfileTools(message.id, message.tools);
         break;
       case 'requestMcpSettings':
-        this.outputChannel.appendLine(`[ConfigPanel] TODO: requestMcpSettings ${message.toolKey}`);
-        this.postMessage({ type: 'operationError', op: 'requestMcpSettings', error: 'Not yet implemented (07-03)' });
+        void this.handleRequestMcpSettings(message.toolKey, message.serverName, message.scope);
         break;
       case 'updateMcpEnv':
-        this.outputChannel.appendLine(`[ConfigPanel] TODO: updateMcpEnv ${message.serverName}`);
-        this.postMessage({ type: 'operationError', op: 'updateMcpEnv', error: 'Not yet implemented (07-03)' });
+        void this.handleUpdateMcpEnv(message.toolKey, message.serverName, message.scope, message.env, message.disabled);
         break;
       case 'openToolFile':
-        this.outputChannel.appendLine(`[ConfigPanel] TODO: openToolFile ${message.filePath}`);
-        this.postMessage({ type: 'operationError', op: 'openToolFile', error: 'Not yet implemented (07-03)' });
+        void this.handleOpenToolFile(message.filePath);
         break;
     }
   }
@@ -374,6 +373,150 @@ export class ConfigPanel {
   }
 
   // ---------------------------------------------------------------------------
+  // Tool settings handlers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Read MCP server settings from the appropriate scope and send to webview.
+   *
+   * Uses ConfigService.readToolsByScope to get parsed tool data, then extracts
+   * settings from the NormalizedTool metadata (populated by the MCP parser).
+   */
+  private async handleRequestMcpSettings(
+    toolKey: string,
+    serverName: string,
+    scope: string,
+  ): Promise<void> {
+    try {
+      const configScope = scope as ConfigScope;
+      const tools = await this.configService.readToolsByScope(ToolType.McpServer, configScope);
+      const tool = tools.find((t) => t.name === serverName);
+
+      if (!tool) {
+        this.postMessage({ type: 'operationError', op: 'requestMcpSettings', error: `Server "${serverName}" not found in ${scope} config` });
+        return;
+      }
+
+      const settings: McpSettingsInfo = {
+        command: (tool.metadata.command as string) ?? '',
+        args: (tool.metadata.args as string[]) ?? [],
+        env: (tool.metadata.env as Record<string, string>) ?? {},
+        transport: (tool.metadata.transport as string) ?? undefined,
+        url: (tool.metadata.url as string) ?? undefined,
+        disabled: tool.status === ToolStatus.Disabled,
+      };
+
+      this.outputChannel.appendLine(`[ConfigPanel] Loaded MCP settings for "${serverName}" (${scope})`);
+      this.postMessage({ type: 'mcpSettings', toolKey, settings });
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load MCP settings';
+      this.outputChannel.appendLine(`[ConfigPanel] requestMcpSettings error: ${errorMsg}`);
+      this.postMessage({ type: 'operationError', op: 'requestMcpSettings', error: errorMsg });
+    }
+  }
+
+  /**
+   * Update MCP server environment variables (and optionally disabled state)
+   * by writing to the appropriate config file.
+   */
+  private async handleUpdateMcpEnv(
+    toolKey: string,
+    serverName: string,
+    scope: string,
+    env: Record<string, string>,
+    disabled?: boolean,
+  ): Promise<void> {
+    try {
+      const filePath = this.getMcpFilePath(scope);
+      if (!filePath) {
+        this.postMessage({ type: 'operationError', op: 'updateMcpEnv', error: `Unknown scope: ${scope}` });
+        return;
+      }
+
+      const { schemaKey } = this.getMcpSchemaKey(scope);
+
+      await this.configService.writeConfigFile(filePath, schemaKey, (current: Record<string, unknown>) => {
+        const updated = { ...current };
+        const servers = { ...((updated.mcpServers as Record<string, Record<string, unknown>>) ?? {}) };
+
+        if (servers[serverName]) {
+          servers[serverName] = { ...servers[serverName], env };
+
+          // Set or remove disabled field
+          if (disabled !== undefined) {
+            if (disabled) {
+              servers[serverName].disabled = true;
+            } else {
+              delete servers[serverName].disabled;
+            }
+          }
+        }
+
+        updated.mcpServers = servers;
+        return updated;
+      });
+
+      this.outputChannel.appendLine(`[ConfigPanel] Updated MCP env for "${serverName}" (${scope})`);
+      this.postMessage({ type: 'operationSuccess', op: 'updateMcpEnv', message: 'Settings saved' });
+
+      // Re-send settings so the form shows the updated values
+      await this.handleRequestMcpSettings(toolKey, serverName, scope);
+
+      // Re-send tools data since status may have changed
+      await this.sendToolsData();
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to update MCP settings';
+      this.outputChannel.appendLine(`[ConfigPanel] updateMcpEnv error: ${errorMsg}`);
+      this.postMessage({ type: 'operationError', op: 'updateMcpEnv', error: errorMsg });
+    }
+  }
+
+  /**
+   * Open a tool's source file in the VS Code editor.
+   */
+  private async handleOpenToolFile(filePath: string): Promise<void> {
+    try {
+      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+      await vscode.window.showTextDocument(doc);
+      this.outputChannel.appendLine(`[ConfigPanel] Opened file: ${filePath}`);
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to open file';
+      this.outputChannel.appendLine(`[ConfigPanel] openToolFile error: ${errorMsg}`);
+      this.postMessage({ type: 'operationError', op: 'openToolFile', error: errorMsg });
+    }
+  }
+
+  /**
+   * Determine the MCP config file path for a given scope.
+   */
+  private getMcpFilePath(scope: string): string | null {
+    switch (scope) {
+      case ConfigScope.User:
+        return ClaudeCodePaths.userClaudeJson;
+      case ConfigScope.Project: {
+        const folders = vscode.workspace.workspaceFolders;
+        if (!folders || folders.length === 0) {
+          return null;
+        }
+        return ClaudeCodePaths.projectMcpJson(folders[0].uri.fsPath);
+      }
+      case ConfigScope.Managed:
+        return ClaudeCodePaths.managedMcpJson;
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Determine the schema key for an MCP config file based on scope.
+   */
+  private getMcpSchemaKey(scope: string): { schemaKey: string } {
+    return {
+      schemaKey: scope === ConfigScope.User ? 'claude-json' : 'mcp-file',
+    };
+  }
+
+  // ---------------------------------------------------------------------------
   // Data senders
   // ---------------------------------------------------------------------------
 
@@ -420,6 +563,7 @@ export class ConfigPanel {
               status: tool.status,
               isManaged: tool.scope === ConfigScope.Managed,
               hasEditableSettings: tool.type === ToolType.McpServer,
+              filePath: tool.source.filePath,
             });
           }
         } catch {

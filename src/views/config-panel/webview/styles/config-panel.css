@@ -217,3 +217,312 @@ body {
   gap: 8px;
   padding: 8px 0;
 }
+
+/* ---------------------------------------------------------------------------
+ * Tool List
+ * --------------------------------------------------------------------------- */
+
+.tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tool-list__group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tool-list__group-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+  padding: 8px 0 4px;
+  border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  margin-bottom: 4px;
+}
+
+.tool-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.tool-list__item:hover {
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.tool-list__item:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.tool-list__item--selected {
+  background-color: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+  border-color: var(--vscode-focusBorder);
+}
+
+.tool-list__item-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.tool-list__item-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-list__item-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.tool-list__badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.tool-list__badge--enabled {
+  background-color: var(--vscode-testing-iconPassed, #388a34);
+  color: #fff;
+}
+
+.tool-list__badge--disabled {
+  background-color: var(--vscode-descriptionForeground);
+  color: var(--vscode-editor-background);
+}
+
+.tool-list__badge--error {
+  background-color: var(--vscode-errorForeground, #f44747);
+  color: #fff;
+}
+
+.tool-list__badge--scope {
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+
+.tool-list__badge--editable {
+  background-color: var(--vscode-testing-iconPassed, #388a34);
+  color: #fff;
+}
+
+.tool-list__badge--view {
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+
+.tool-list__badge--managed {
+  background-color: var(--vscode-editorWarning-foreground, #cca700);
+  color: #000;
+}
+
+.tool-list__empty {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+  padding: 16px 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * MCP Settings Form
+ * --------------------------------------------------------------------------- */
+
+.mcp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mcp-form__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mcp-form__title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.mcp-form__info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  background-color: var(--vscode-textBlockQuote-background, rgba(127, 127, 127, 0.1));
+  border-radius: 4px;
+}
+
+.mcp-form__info-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.mcp-form__info-label {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.mcp-form__info-value {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.mcp-form__toggle {
+  padding: 4px 0;
+}
+
+.mcp-form__env {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcp-form__env-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.mcp-form__env-empty {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+  font-size: 13px;
+}
+
+.mcp-form__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.mcp-form__row-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.mcp-form__row-remove {
+  flex-shrink: 0;
+  margin-bottom: 2px;
+}
+
+.mcp-form__actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.mcp-form__managed-note {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Tool Settings View (read-only)
+ * --------------------------------------------------------------------------- */
+
+.tool-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tool-view__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tool-view__title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.tool-view__details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: var(--vscode-textBlockQuote-background, rgba(127, 127, 127, 0.1));
+  border-radius: 4px;
+}
+
+.tool-view__detail {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.tool-view__detail-label {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  min-width: 60px;
+  flex-shrink: 0;
+}
+
+.tool-view__detail-value {
+  font-size: 13px;
+}
+
+.tool-view__detail-path {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.tool-view__badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.tool-view__badge--enabled {
+  background-color: var(--vscode-testing-iconPassed, #388a34);
+  color: #fff;
+}
+
+.tool-view__badge--disabled {
+  background-color: var(--vscode-descriptionForeground);
+  color: var(--vscode-editor-background);
+}
+
+.tool-view__badge--error {
+  background-color: var(--vscode-errorForeground, #f44747);
+  color: #fff;
+}
+
+.tool-view__note {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+  font-size: 13px;
+  padding: 4px 0;
+}
