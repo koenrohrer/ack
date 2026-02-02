@@ -80,6 +80,25 @@ export const ProfileStoreSchema = z.object({
 }).passthrough();
 
 // ---------------------------------------------------------------------------
+// Switch result types
+// ---------------------------------------------------------------------------
+
+/**
+ * Result of a profile switch operation.
+ *
+ * Tracks how many tools were toggled, how many profile entries had no
+ * matching tool in the current environment (silently skipped), and any
+ * toggle failures with error details.
+ */
+export interface SwitchResult {
+  success: boolean;
+  toggled: number;
+  skipped: number;
+  failed: number;
+  errors: string[];
+}
+
+// ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 

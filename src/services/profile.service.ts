@@ -1,6 +1,8 @@
 import * as crypto from 'crypto';
 import type * as vscode from 'vscode';
 import type { ConfigService } from './config.service.js';
+import type { ToolManagerService } from './tool-manager.service.js';
+import type { NormalizedTool } from '../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../types/enums.js';
 import { canonicalKey } from '../utils/tool-key.utils.js';
 import {
@@ -8,7 +10,7 @@ import {
   DEFAULT_PROFILE_STORE,
   ProfileStoreSchema,
 } from './profile.types.js';
-import type { Profile, ProfileToolEntry, ProfileStore } from './profile.types.js';
+import type { Profile, ProfileToolEntry, ProfileStore, SwitchResult } from './profile.types.js';
 
 /**
  * Manages named profiles -- preset collections of tool enabled/disabled states.
@@ -27,6 +29,7 @@ export class ProfileService {
   constructor(
     private readonly globalState: vscode.Memento,
     private readonly configService: ConfigService,
+    private readonly toolManager: ToolManagerService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -172,6 +175,100 @@ export class ProfileService {
 
     store.activeProfileId = id;
     await this.saveStore(store);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Profile switching
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Switch to a profile by computing a diff against current tool states and
+   * applying only the necessary toggles.
+   *
+   * Pass `null` to deactivate the current profile without changing any tools.
+   *
+   * The diff compares each profile tool entry against the current environment:
+   * - Missing tools (profile references a tool that no longer exists) are
+   *   silently skipped and counted in `result.skipped`.
+   * - Tools already in the desired state are not toggled.
+   * - Toggles execute **sequentially** to avoid race conditions on shared
+   *   config files (e.g. two MCP servers in the same .claude.json).
+   */
+  async switchProfile(profileId: string | null): Promise<SwitchResult> {
+    // Deactivate: clear active profile, no tool changes
+    if (profileId === null) {
+      await this.setActiveProfileId(null);
+      return { success: true, toggled: 0, skipped: 0, failed: 0, errors: [] };
+    }
+
+    // Load target profile
+    const profile = this.getProfile(profileId);
+    if (!profile) {
+      return { success: false, toggled: 0, skipped: 0, failed: 0, errors: ['Profile not found'] };
+    }
+
+    // Read current tool states across all types
+    const currentTools: NormalizedTool[] = [];
+    for (const type of [ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command]) {
+      const tools = await this.configService.readAllTools(type);
+      currentTools.push(...tools);
+    }
+
+    // Build lookup map of current tools by canonical key, excluding managed-scope
+    const toolsByKey = new Map<string, NormalizedTool>();
+    for (const tool of currentTools) {
+      if (tool.scope === ConfigScope.Managed) {
+        continue;
+      }
+      toolsByKey.set(canonicalKey(tool), tool);
+    }
+
+    // Compute diff: which tools need toggling?
+    interface ToggleOp {
+      tool: NormalizedTool;
+      targetEnabled: boolean;
+    }
+    const ops: ToggleOp[] = [];
+    let skipped = 0;
+
+    for (const entry of profile.tools) {
+      const tool = toolsByKey.get(entry.key);
+      if (!tool) {
+        // Tool no longer exists in the environment -- silently skip
+        skipped++;
+        continue;
+      }
+
+      const currentlyEnabled = tool.status === ToolStatus.Enabled;
+      if (currentlyEnabled === entry.enabled) {
+        // Already in desired state -- no toggle needed
+        continue;
+      }
+
+      ops.push({ tool, targetEnabled: entry.enabled });
+    }
+
+    // Execute toggles sequentially to prevent race conditions on shared config files
+    let toggled = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    for (const op of ops) {
+      const result = await this.toolManager.toggleTool(op.tool);
+      if (result.success) {
+        toggled++;
+      } else {
+        failed++;
+        if (!result.success) {
+          errors.push(result.error);
+        }
+      }
+    }
+
+    // Set the active profile after all toggles complete
+    await this.setActiveProfileId(profileId);
+
+    return { success: failed === 0, toggled, skipped, failed, errors };
   }
 
   // ---------------------------------------------------------------------------
