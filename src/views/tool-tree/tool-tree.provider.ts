@@ -107,26 +107,25 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
    */
   async refresh(): Promise<void> {
     this._onDidChangeTreeData.fire(undefined);
-    // Re-assert the description after firing the change event.
-    // VS Code can reset the description during tree data refresh,
-    // so we re-apply whatever was last set.
+    // Re-assert the title after firing the change event to prevent
+    // VS Code from resetting it during tree data refresh.
     if (this.treeView && this.activeProfileName !== undefined) {
-      this.treeView.description = this.activeProfileName ?? 'Current Environment';
+      this.treeView.title = this.activeProfileName ?? 'Default';
     }
   }
 
   /**
-   * Update the sidebar header description to show the active profile name.
+   * Update the sidebar header title to show the active profile name.
    *
-   * When a profile is active, the header shows its name (e.g., "Full Setup").
-   * When no profile is active (null), reverts to the default "Current Environment".
+   * When a profile is active, the title shows its name (e.g., "Full Setup").
+   * When no profile is active (null), shows "Default".
    */
   setActiveProfile(profileName: string | null): void {
     this.activeProfileName = profileName;
     if (!this.treeView) {
       return;
     }
-    this.treeView.description = profileName ?? 'Current Environment';
+    this.treeView.title = profileName ?? 'Default';
   }
 
   /**
@@ -144,7 +143,7 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
         showCollapseAll: true,
       },
     );
-    this.treeView.description = 'Current Environment';
+    this.treeView.title = this.activeProfileName ?? 'Default';
     context.subscriptions.push(this.treeView);
   }
 
