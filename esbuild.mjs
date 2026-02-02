@@ -15,7 +15,7 @@ const buildOptions = {
   outfile: 'dist/extension.js',
   external: ['vscode'],
   logLevel: 'info',
-  mainFields: ['module', 'main'],
+  mainFields: ['main', 'module'],
   target: 'node18',
 };
 

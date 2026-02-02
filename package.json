@@ -203,7 +203,7 @@
     ]
   },
   "scripts": {
-    "compile:ext": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+    "compile:ext": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --main-fields=module,main",
     "compile:webview": "node esbuild.webview.mjs",
     "compile": "npm run compile:ext && npm run compile:webview",
     "watch:ext": "npm run compile:ext -- --watch",
