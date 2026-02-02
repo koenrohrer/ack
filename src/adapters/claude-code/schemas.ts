@@ -20,7 +20,7 @@ export const HookEntrySchema = z.object({
 export const HookMatcherSchema = z.object({
   matcher: z.string().default(''),
   hooks: z.array(HookEntrySchema),
-});
+}).passthrough();
 
 /**
  * Hook configuration -- maps event names to arrays of matchers.
