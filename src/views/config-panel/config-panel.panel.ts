@@ -3,6 +3,7 @@ import * as crypto from 'node:crypto';
 import type { ProfileService } from '../../services/profile.service.js';
 import type { ConfigService } from '../../services/config.service.js';
 import type { ToolManagerService } from '../../services/tool-manager.service.js';
+import type { ToolTreeProvider } from '../tool-tree/tool-tree.provider.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { canonicalKey } from '../../utils/tool-key.utils.js';
 import { ClaudeCodePaths } from '../../adapters/claude-code/paths.js';
@@ -32,6 +33,7 @@ export class ConfigPanel {
   private readonly profileService: ProfileService;
   private readonly configService: ConfigService;
   private readonly toolManager: ToolManagerService;
+  private readonly treeProvider: ToolTreeProvider;
   private readonly outputChannel: vscode.OutputChannel;
 
   /**
@@ -42,6 +44,7 @@ export class ConfigPanel {
     profileService: ProfileService,
     configService: ConfigService,
     toolManager: ToolManagerService,
+    treeProvider: ToolTreeProvider,
     outputChannel: vscode.OutputChannel,
   ): void {
     // If panel already exists, reveal it
@@ -68,6 +71,7 @@ export class ConfigPanel {
       profileService,
       configService,
       toolManager,
+      treeProvider,
       outputChannel,
     );
   }
@@ -78,6 +82,7 @@ export class ConfigPanel {
     profileService: ProfileService,
     configService: ConfigService,
     toolManager: ToolManagerService,
+    treeProvider: ToolTreeProvider,
     outputChannel: vscode.OutputChannel,
   ) {
     this.panel = panel;
@@ -85,6 +90,7 @@ export class ConfigPanel {
     this.profileService = profileService;
     this.configService = configService;
     this.toolManager = toolManager;
+    this.treeProvider = treeProvider;
     this.outputChannel = outputChannel;
 
     // Set initial HTML content
@@ -251,6 +257,12 @@ export class ConfigPanel {
       // Refresh both profiles (active changed) and tools (states changed)
       await this.sendProfilesData();
       await this.sendToolsData();
+
+      // Refresh sidebar tree to reflect tool state changes
+      this.refreshTree();
+      // Update sidebar header with active profile name
+      const activeProfile = id ? this.profileService.getProfile(id) : null;
+      this.treeProvider.setActiveProfile(activeProfile?.name ?? null);
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to switch profile';
       this.outputChannel.appendLine(`[ConfigPanel] switchProfile error: ${errorMsg}`);
@@ -464,6 +476,9 @@ export class ConfigPanel {
 
       // Re-send tools data since status may have changed
       await this.sendToolsData();
+
+      // Refresh sidebar tree to reflect status changes
+      this.refreshTree();
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to update MCP settings';
       this.outputChannel.appendLine(`[ConfigPanel] updateMcpEnv error: ${errorMsg}`);
@@ -514,6 +529,18 @@ export class ConfigPanel {
     return {
       schemaKey: scope === ConfigScope.User ? 'claude-json' : 'mcp-file',
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sidebar tree refresh
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Refresh the sidebar tree view to reflect tool state changes
+   * made from the config panel (e.g., enable/disable, profile switch).
+   */
+  private refreshTree(): void {
+    void this.treeProvider.refresh();
   }
 
   // ---------------------------------------------------------------------------

@@ -162,12 +162,11 @@ export function ProfileList({
         <div className="profile-list__actions">
           {activeProfileId !== null && (
             <vscode-button
-              appearance="icon"
-              title="Switch to current environment (deactivate profile)"
+              appearance="secondary"
               disabled={switching}
               onClick={() => handleSwitch(null)}
             >
-              <vscode-icon name="debug-start" />
+              Switch
             </vscode-button>
           )}
         </div>
@@ -229,49 +228,44 @@ export function ProfileList({
                   {/* Switch to / Deactivate */}
                   {isActive ? (
                     <vscode-button
-                      appearance="icon"
-                      title="Deactivate profile"
+                      appearance="secondary"
                       disabled={switching}
                       onClick={() => handleSwitch(null)}
                     >
-                      <vscode-icon name="debug-stop" />
+                      Deactivate
                     </vscode-button>
                   ) : (
                     <vscode-button
-                      appearance="icon"
-                      title="Switch to this profile"
+                      appearance="secondary"
                       disabled={switching}
                       onClick={() => handleSwitch(profile.id)}
                     >
-                      <vscode-icon name="debug-start" />
+                      Switch
                     </vscode-button>
                   )}
 
                   {/* Edit tools */}
                   <vscode-button
-                    appearance="icon"
-                    title="Edit tools"
+                    appearance="secondary"
                     onClick={() => onSelectProfile(profile.id)}
                   >
-                    <vscode-icon name="edit" />
+                    Edit
                   </vscode-button>
 
                   {/* Rename */}
                   <vscode-button
-                    appearance="icon"
-                    title="Rename"
+                    appearance="secondary"
                     onClick={() => startRename(profile.id, profile.name)}
                   >
-                    <vscode-icon name="symbol-text" />
+                    Rename
                   </vscode-button>
 
                   {/* Delete */}
                   <vscode-button
-                    appearance="icon"
-                    title="Delete"
+                    appearance="secondary"
                     onClick={() => handleDelete(profile.id, profile.name)}
                   >
-                    <vscode-icon name="trash" />
+                    Delete
                   </vscode-button>
                 </div>
               )}

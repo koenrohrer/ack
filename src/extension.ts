@@ -142,6 +142,7 @@ export function activate(context: vscode.ExtensionContext): void {
         profileService,
         configService,
         toolManager,
+        treeProvider,
         outputChannel,
       ),
   );

@@ -26,6 +26,7 @@ declare module 'react' {
           value?: string;
           type?: string;
           autofocus?: boolean;
+          readonly?: boolean;
         },
         HTMLElement
       >;
