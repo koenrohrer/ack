@@ -35,6 +35,9 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
    */
   treeView: vscode.TreeView<TreeNode> | undefined;
 
+  /** Tracks the last profile name set via setActiveProfile for re-assertion after refresh. */
+  private activeProfileName: string | null | undefined;
+
   constructor(
     private readonly configService: ConfigService,
     private readonly registry: AdapterRegistry,
@@ -104,6 +107,12 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
    */
   async refresh(): Promise<void> {
     this._onDidChangeTreeData.fire(undefined);
+    // Re-assert the description after firing the change event.
+    // VS Code can reset the description during tree data refresh,
+    // so we re-apply whatever was last set.
+    if (this.treeView && this.activeProfileName !== undefined) {
+      this.treeView.description = this.activeProfileName ?? 'Current Environment';
+    }
   }
 
   /**
@@ -113,6 +122,7 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
    * When no profile is active (null), reverts to the default "Current Environment".
    */
   setActiveProfile(profileName: string | null): void {
+    this.activeProfileName = profileName;
     if (!this.treeView) {
       return;
     }
