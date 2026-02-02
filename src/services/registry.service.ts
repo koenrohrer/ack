@@ -10,7 +10,7 @@ import { ToolManifestSchema } from './install.types.js';
 const DEFAULT_REGISTRY: RegistrySource = {
   id: 'community',
   name: 'Community Registry',
-  owner: 'agent-config-keeper',
+  owner: 'koenrohrer',
   repo: 'tool-registry',
   branch: 'main',
   indexPath: 'registry.json',

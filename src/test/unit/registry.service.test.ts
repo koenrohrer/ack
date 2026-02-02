@@ -11,7 +11,7 @@ import { RegistryService } from '../../services/registry.service.js';
 const COMMUNITY_SOURCE: RegistrySource = {
   id: 'community',
   name: 'Community Registry',
-  owner: 'agent-config-keeper',
+  owner: 'koenrohrer',
   repo: 'tool-registry',
   branch: 'main',
   indexPath: 'registry.json',
@@ -207,7 +207,7 @@ describe('RegistryService', () => {
 
     const communityIndex = makeIndex();
     const communityUrl =
-      'https://api.github.com/repos/agent-config-keeper/tool-registry/contents/registry.json?ref=main';
+      'https://api.github.com/repos/koenrohrer/tool-registry/contents/registry.json?ref=main';
     const customUrl =
       'https://api.github.com/repos/my-org/my-registry/contents/index.json?ref=main';
 

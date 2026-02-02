@@ -593,6 +593,19 @@ export class MarketplacePanel {
         }
       }
 
+      // If all sources failed, surface an error instead of an empty list
+      if (allIndexes.size === 0) {
+        this.outputChannel.appendLine(
+          'Registry fetch: all sources returned empty or failed',
+        );
+        this.postMessage({
+          type: 'registryError',
+          error:
+            'No registry sources responded. Check your network connection or registry configuration.',
+        });
+        return;
+      }
+
       // Resolve installed tools with type and scope info
       const installedTools = await this.getInstalledTools();
 
