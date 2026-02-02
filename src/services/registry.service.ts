@@ -23,6 +23,14 @@ const BASE_HEADERS: Record<string, string> = {
 };
 
 /**
+ * Optional configuration reader, injectable for testability.
+ * Defaults to using `vscode.workspace.getConfiguration` at runtime.
+ */
+export interface RegistryConfigReader {
+  getCustomSources(): RegistrySource[];
+}
+
+/**
  * Fetches, caches, and serves tool registry data from GitHub-hosted registries.
  *
  * All marketplace UI work consumes RegistryEntry[] from this service.
@@ -31,8 +39,13 @@ const BASE_HEADERS: Record<string, string> = {
 export class RegistryService {
   private readonly indexCache = new Map<string, RegistryCache>();
   private readonly readmeCache = new Map<string, string>();
+  private readonly configReader: RegistryConfigReader;
 
-  constructor(private readonly context: vscode.ExtensionContext) {
+  constructor(
+    private readonly context: vscode.ExtensionContext,
+    configReader?: RegistryConfigReader,
+  ) {
+    this.configReader = configReader ?? RegistryService.defaultConfigReader();
     this.restoreEtags();
   }
 
@@ -42,18 +55,28 @@ export class RegistryService {
 
   /** Returns all configured registry sources, always including the default. */
   getSources(): RegistrySource[] {
-    // Dynamic import avoided -- vscode is only used as a type here;
-    // at runtime the constructor receives a real ExtensionContext.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const vscodeApi = require('vscode') as typeof vscode;
-
-    const custom =
-      vscodeApi.workspace
-        .getConfiguration('agentConfigKeeper')
-        .get<RegistrySource[]>('registrySources') ?? [];
+    const custom = this.configReader.getCustomSources();
 
     const hasDefault = custom.some((s) => s.id === DEFAULT_REGISTRY.id);
     return hasDefault ? [...custom] : [DEFAULT_REGISTRY, ...custom];
+  }
+
+  /**
+   * Default config reader that delegates to vscode.workspace.getConfiguration.
+   * Separated so the constructor can accept an override for testing.
+   */
+  private static defaultConfigReader(): RegistryConfigReader {
+    return {
+      getCustomSources(): RegistrySource[] {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const vscodeApi = require('vscode') as typeof vscode;
+        return (
+          vscodeApi.workspace
+            .getConfiguration('agentConfigKeeper')
+            .get<RegistrySource[]>('registrySources') ?? []
+        );
+      },
+    };
   }
 
   // ---------------------------------------------------------------------------
