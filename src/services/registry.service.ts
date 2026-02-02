@@ -4,6 +4,8 @@ import type {
   RegistryIndex,
   RegistrySource,
 } from './registry.types.js';
+import type { ToolManifest } from './install.types.js';
+import { ToolManifestSchema } from './install.types.js';
 
 const DEFAULT_REGISTRY: RegistrySource = {
   id: 'community',
@@ -212,6 +214,99 @@ export class RegistryService {
     } catch {
       return 'README could not be loaded.';
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Tool content fetching (for install)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Fetch a tool's manifest.json from the registry.
+   *
+   * Downloads `{contentPath}/manifest.json` using the GitHub Contents API
+   * with raw JSON Accept header. Validates the response with ToolManifestSchema.
+   * Throws on HTTP error or validation failure.
+   *
+   * No caching -- tool content should always be fresh at install time.
+   */
+  async fetchToolManifest(
+    source: RegistrySource,
+    contentPath: string,
+  ): Promise<ToolManifest> {
+    const manifestPath = `${contentPath}/manifest.json`;
+    const url = this.contentsUrl(source, manifestPath);
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        headers: {
+          ...BASE_HEADERS,
+          Accept: 'application/vnd.github.raw+json',
+        },
+      });
+    } catch (err) {
+      throw new Error(
+        `Network error fetching manifest for "${contentPath}": ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch manifest for "${contentPath}": HTTP ${response.status}`,
+      );
+    }
+
+    const raw: unknown = await response.json();
+    const parsed = ToolManifestSchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new Error(
+        `Invalid tool manifest at "${contentPath}": ${parsed.error.message}`,
+      );
+    }
+
+    return parsed.data as ToolManifest;
+  }
+
+  /**
+   * Fetch a raw file from the registry (e.g., SKILL.md, command.md).
+   *
+   * Downloads the file at the given path using the GitHub Contents API
+   * with raw Accept header. Returns the file content as a string.
+   * Throws on HTTP error.
+   *
+   * No caching -- tool content should always be fresh at install time.
+   */
+  async fetchToolFile(
+    source: RegistrySource,
+    filePath: string,
+  ): Promise<string> {
+    const url = this.contentsUrl(source, filePath);
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        headers: {
+          ...BASE_HEADERS,
+          Accept: 'application/vnd.github.raw',
+        },
+      });
+    } catch (err) {
+      throw new Error(
+        `Network error fetching file "${filePath}": ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch file "${filePath}": HTTP ${response.status}`,
+      );
+    }
+
+    return await response.text();
   }
 
   // ---------------------------------------------------------------------------
