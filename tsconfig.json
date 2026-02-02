@@ -15,5 +15,5 @@
     "declarationMap": true
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "src/test/**", "src/views/marketplace/webview/**"]
+  "exclude": ["node_modules", "dist", "src/test/**", "src/views/marketplace/webview/**", "src/views/config-panel/webview/**"]
 }

@@ -31,3 +31,32 @@ body {
   padding: 12px 0;
   color: var(--vscode-foreground);
 }
+
+/* Tab content area */
+.config-panel__tab-content {
+  padding: 16px 0;
+}
+
+/* Loading state */
+.config-panel__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* Error state */
+.config-panel__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 12px;
+  color: var(--vscode-errorForeground);
+  text-align: center;
+  padding: 32px;
+}

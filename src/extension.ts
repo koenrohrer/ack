@@ -14,6 +14,7 @@ import { ToolManagerService } from './services/tool-manager.service.js';
 import { ProfileService } from './services/profile.service.js';
 import { FileWatcherManager } from './views/file-watcher.manager.js';
 import { MarketplacePanel } from './views/marketplace/marketplace.panel.js';
+import { ConfigPanel } from './views/config-panel/config-panel.panel.js';
 import { RegistryService } from './services/registry.service.js';
 import { InstallService } from './services/install.service.js';
 
@@ -132,7 +133,21 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(openMarketplace);
 
-  // 15. File watcher for auto-refresh on config changes
+  // 15b. Config panel command
+  const openConfigPanel = vscode.commands.registerCommand(
+    'agentConfigKeeper.openConfigPanel',
+    () =>
+      ConfigPanel.createOrShow(
+        context.extensionUri,
+        profileService,
+        configService,
+        toolManager,
+        outputChannel,
+      ),
+  );
+  context.subscriptions.push(openConfigPanel);
+
+  // 16. File watcher for auto-refresh on config changes
   const fileWatcher = new FileWatcherManager(
     () => treeProvider.refresh(),
     () => {
