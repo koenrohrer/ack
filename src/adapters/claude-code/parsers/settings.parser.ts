@@ -3,6 +3,11 @@ import type { SchemaService } from '../../../services/schema.service.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../../types/enums.js';
 import type { NormalizedTool } from '../../../types/config.js';
 
+interface HookMatcherEntry {
+  matcher: string;
+  hooks: Array<{ type: string; command?: string; prompt?: string; timeout?: number }>;
+}
+
 /**
  * Parse a Claude Code settings JSON file and extract hook definitions
  * as NormalizedTool entries.
@@ -10,6 +15,9 @@ import type { NormalizedTool } from '../../../types/config.js';
  * Returns an empty array if the file does not exist (not an error --
  * config files are optional). Returns a single Error-status tool if
  * the file exists but fails validation.
+ *
+ * Also reads `_disabledHooks` (extension-managed stash for per-hook
+ * disable) and returns those entries with Disabled status.
  */
 export async function parseSettingsFile(
   fileIO: FileIOService,
@@ -37,37 +45,28 @@ export async function parseSettingsFile(
   }
 
   const data = validation.data as {
-    hooks?: Record<string, Array<{ matcher: string; hooks: Array<{ type: string; command?: string; prompt?: string; timeout?: number }> }>>;
+    hooks?: Record<string, HookMatcherEntry[]>;
+    _disabledHooks?: Record<string, HookMatcherEntry[]>;
     disabledMcpServers?: string[];
   };
 
-  if (!data.hooks) {
-    return [];
-  }
-
   const tools: NormalizedTool[] = [];
 
-  for (const [eventName, matchers] of Object.entries(data.hooks)) {
-    for (let i = 0; i < matchers.length; i++) {
-      const matcherEntry = matchers[i];
-      const matcherLabel = matcherEntry.matcher
-        ? ` (${matcherEntry.matcher})`
-        : '';
+  // Parse active hooks
+  if (data.hooks) {
+    for (const [eventName, matchers] of Object.entries(data.hooks)) {
+      for (let i = 0; i < matchers.length; i++) {
+        tools.push(makeHookTool(matchers[i], eventName, i, scope, filePath, ToolStatus.Enabled, false));
+      }
+    }
+  }
 
-      tools.push({
-        id: `hook:${scope}:${eventName}:${i}`,
-        type: ToolType.Hook,
-        name: `${eventName}${matcherLabel}`,
-        scope,
-        status: ToolStatus.Enabled,
-        source: { filePath },
-        metadata: {
-          eventName,
-          matcher: matcherEntry.matcher,
-          hooks: matcherEntry.hooks,
-          type: matcherEntry.hooks[0]?.type,
-        },
-      });
+  // Parse stashed (disabled) hooks
+  if (data._disabledHooks) {
+    for (const [eventName, matchers] of Object.entries(data._disabledHooks)) {
+      for (let i = 0; i < matchers.length; i++) {
+        tools.push(makeHookTool(matchers[i], eventName, i, scope, filePath, ToolStatus.Disabled, true));
+      }
     }
   }
 
@@ -96,6 +95,35 @@ export async function readDisabledMcpServers(
 
   const data = validation.data as { disabledMcpServers?: string[] };
   return data.disabledMcpServers ?? [];
+}
+
+function makeHookTool(
+  entry: HookMatcherEntry,
+  eventName: string,
+  index: number,
+  scope: ConfigScope,
+  filePath: string,
+  status: ToolStatus,
+  stashed: boolean,
+): NormalizedTool {
+  const matcherLabel = entry.matcher ? ` (${entry.matcher})` : '';
+  const idPrefix = stashed ? 'hook-stashed' : 'hook';
+
+  return {
+    id: `${idPrefix}:${scope}:${eventName}:${index}`,
+    type: ToolType.Hook,
+    name: `${eventName}${matcherLabel}`,
+    scope,
+    status,
+    source: { filePath },
+    metadata: {
+      eventName,
+      matcher: entry.matcher,
+      hooks: entry.hooks,
+      type: entry.hooks[0]?.type,
+      stashed,
+    },
+  };
 }
 
 function makeErrorTool(filePath: string, scope: ConfigScope, detail: string): NormalizedTool {

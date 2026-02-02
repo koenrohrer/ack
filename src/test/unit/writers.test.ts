@@ -181,7 +181,7 @@ describe('MCP Writer', () => {
 // ---------------------------------------------------------------------------
 
 describe('Settings Writer', () => {
-  it('toggleHook sets disabled:true on matcher group', async () => {
+  it('toggleHook moves matcher from hooks to _disabledHooks on disable', async () => {
     const filePath = path.join(tmpDir, 'settings.json');
     await fileIO.writeJsonFile(filePath, {
       hooks: {
@@ -196,17 +196,25 @@ describe('Settings Writer', () => {
     const result = await fileIO.readJsonFile<Record<string, unknown>>(filePath);
     expect(result.success).toBe(true);
     if (result.success) {
-      const data = result.data as { hooks: Record<string, Array<{ disabled?: boolean }>> };
-      expect(data.hooks.PreToolUse[0].disabled).toBe(true);
+      const data = result.data as {
+        hooks: Record<string, unknown[]>;
+        _disabledHooks: Record<string, Array<{ matcher: string }>>;
+      };
+      // Hook removed from active hooks
+      expect(data.hooks.PreToolUse).toBeUndefined();
+      // Hook moved to stash
+      expect(data._disabledHooks.PreToolUse).toHaveLength(1);
+      expect(data._disabledHooks.PreToolUse[0].matcher).toBe('Bash');
     }
   });
 
-  it('toggleHook sets disabled:false on a disabled matcher group', async () => {
+  it('toggleHook moves matcher from _disabledHooks to hooks on enable', async () => {
     const filePath = path.join(tmpDir, 'settings.json');
     await fileIO.writeJsonFile(filePath, {
-      hooks: {
+      hooks: {},
+      _disabledHooks: {
         PreToolUse: [
-          { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo check' }], disabled: true },
+          { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo check' }] },
         ],
       },
     });
@@ -216,8 +224,15 @@ describe('Settings Writer', () => {
     const result = await fileIO.readJsonFile<Record<string, unknown>>(filePath);
     expect(result.success).toBe(true);
     if (result.success) {
-      const data = result.data as { hooks: Record<string, Array<{ disabled?: boolean }>> };
-      expect(data.hooks.PreToolUse[0].disabled).toBe(false);
+      const data = result.data as {
+        hooks: Record<string, Array<{ matcher: string }>>;
+        _disabledHooks?: Record<string, unknown>;
+      };
+      // Hook restored to active hooks
+      expect(data.hooks.PreToolUse).toHaveLength(1);
+      expect(data.hooks.PreToolUse[0].matcher).toBe('Bash');
+      // Stash cleaned up when empty
+      expect(data._disabledHooks).toBeUndefined();
     }
   });
 
@@ -332,7 +347,7 @@ describe('Settings Writer', () => {
     }
   });
 
-  it('disabled field preserved through validation via passthrough', async () => {
+  it('toggleHook strips stale disabled field when stashing', async () => {
     const filePath = path.join(tmpDir, 'settings.json');
     await fileIO.writeJsonFile(filePath, {
       hooks: {
@@ -342,15 +357,18 @@ describe('Settings Writer', () => {
       },
     });
 
-    // Re-read and re-validate via toggleHook (which writes through ConfigService)
-    await toggleHook(configService, filePath, 'PreToolUse', 0, false);
+    // Disable moves to stash and strips the old disabled field
+    await toggleHook(configService, filePath, 'PreToolUse', 0, true);
 
     const result = await fileIO.readJsonFile<Record<string, unknown>>(filePath);
     expect(result.success).toBe(true);
     if (result.success) {
-      const data = result.data as { hooks: Record<string, Array<{ disabled?: boolean }>> };
-      // The disabled field should be present (preserved by passthrough) and set to false
-      expect(data.hooks.PreToolUse[0].disabled).toBe(false);
+      const data = result.data as {
+        _disabledHooks: Record<string, Array<{ matcher: string; disabled?: boolean }>>;
+      };
+      expect(data._disabledHooks.PreToolUse[0].matcher).toBe('Bash');
+      // Old disabled field should be stripped
+      expect(data._disabledHooks.PreToolUse[0].disabled).toBeUndefined();
     }
   });
 });

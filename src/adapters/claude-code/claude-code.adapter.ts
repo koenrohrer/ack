@@ -300,10 +300,11 @@ export class ClaudeCodeAdapter implements IPlatformAdapter {
   private async removeHookTool(tool: NormalizedTool): Promise<void> {
     const filePath = this.getSettingsFilePath(tool.scope);
     const eventName = tool.metadata.eventName as string;
-    // Extract matcher index from tool ID (format: "hook:{scope}:{eventName}:{index}")
+    const stashed = tool.metadata.stashed === true;
+    // Extract matcher index from tool ID (format: "hook:{scope}:{eventName}:{index}" or "hook-stashed:...")
     const parts = tool.id.split(':');
     const matcherIndex = parseInt(parts[parts.length - 1], 10);
-    await removeHook(this.configService!, filePath, eventName, matcherIndex);
+    await removeHook(this.configService!, filePath, eventName, matcherIndex, stashed);
   }
 
   private async removeSkillTool(tool: NormalizedTool): Promise<void> {
