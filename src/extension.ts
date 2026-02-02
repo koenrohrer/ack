@@ -9,7 +9,9 @@ import { claudeCodeSchemas } from './adapters/claude-code/schemas.js';
 import { ToolTreeProvider } from './views/tool-tree/tool-tree.provider.js';
 import { registerToolTreeCommands } from './views/tool-tree/tool-tree.commands.js';
 import { registerManagementCommands } from './views/tool-tree/tool-tree.management.js';
+import { registerProfileCommands } from './views/tool-tree/tool-tree.profile-commands.js';
 import { ToolManagerService } from './services/tool-manager.service.js';
+import { ProfileService } from './services/profile.service.js';
 import { FileWatcherManager } from './views/file-watcher.manager.js';
 import { MarketplacePanel } from './views/marketplace/marketplace.panel.js';
 import { RegistryService } from './services/registry.service.js';
@@ -89,6 +91,9 @@ export function activate(context: vscode.ExtensionContext): void {
     registryService, configService, registry, fileIO, workspaceRoot,
   );
 
+  // 9b. Profile service for named tool presets
+  const profileService = new ProfileService(context.globalState, configService, toolManager);
+
   // 10. Store services for cross-module access
   services = { configService, registry, toolManager, registryService, outputChannel };
 
@@ -102,7 +107,10 @@ export function activate(context: vscode.ExtensionContext): void {
   // 13. Management commands (toggle, delete, move, install)
   registerManagementCommands(context, toolManager);
 
-  // 14. Marketplace panel command
+  // 14. Profile commands (create, switch, edit, delete, save-as)
+  registerProfileCommands(context, profileService, configService);
+
+  // 15. Marketplace panel command
   const openMarketplace = vscode.commands.registerCommand(
     'agent-config-keeper.openMarketplace',
     () =>

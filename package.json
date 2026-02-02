@@ -78,6 +78,26 @@
         "command": "agent-config-keeper.openMarketplace",
         "title": "Agent Config Keeper: Open Marketplace",
         "icon": "$(extensions)"
+      },
+      {
+        "command": "agent-config-keeper.createProfile",
+        "title": "Agent Config Keeper: Create Profile"
+      },
+      {
+        "command": "agent-config-keeper.switchProfile",
+        "title": "Agent Config Keeper: Switch Profile"
+      },
+      {
+        "command": "agent-config-keeper.editProfile",
+        "title": "Agent Config Keeper: Edit Profile"
+      },
+      {
+        "command": "agent-config-keeper.deleteProfile",
+        "title": "Agent Config Keeper: Delete Profile"
+      },
+      {
+        "command": "agent-config-keeper.saveAsProfile",
+        "title": "Agent Config Keeper: Save Current State as Profile"
       }
     ],
     "submenus": [
