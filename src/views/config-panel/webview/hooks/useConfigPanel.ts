@@ -4,6 +4,7 @@ import type {
   ConfigPanelExtMessage,
   ConfigPanelWebMessage,
   ProfileInfo,
+  ProfileToolInfo,
   ToolInfo,
 } from '../../config-panel.messages';
 
@@ -12,6 +13,7 @@ export type TabId = 'profiles' | 'tools';
 /** Persisted state shape for VS Code webview state API. */
 interface PersistedState {
   activeTab: TabId;
+  selectedProfileId: string | null;
 }
 
 /**
@@ -30,6 +32,11 @@ export function useConfigPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // --- Profile editor state ---
+  const [selectedProfileId, setSelectedProfileIdState] = useState<string | null>(null);
+  const [profileTools, setProfileTools] = useState<ProfileToolInfo[]>([]);
+  const [switching, setSwitching] = useState(false);
+
   // --- UI state ---
   const [activeTab, setActiveTabState] = useState<TabId>('profiles');
 
@@ -39,12 +46,15 @@ export function useConfigPanel() {
     if (saved?.activeTab) {
       setActiveTabState(saved.activeTab);
     }
+    if (saved?.selectedProfileId) {
+      setSelectedProfileIdState(saved.selectedProfileId);
+    }
   }, []);
 
-  // --- Persist activeTab on change ---
+  // --- Persist state on change ---
   useEffect(() => {
-    setState<PersistedState>({ activeTab });
-  }, [activeTab]);
+    setState<PersistedState>({ activeTab, selectedProfileId });
+  }, [activeTab, selectedProfileId]);
 
   // --- Listen for extension messages ---
   useEffect(() => {
@@ -59,6 +69,17 @@ export function useConfigPanel() {
           setTools(message.tools);
           setLoading(false);
           break;
+        case 'profileToolsData':
+          if (message.profileId === selectedProfileId) {
+            setProfileTools(message.tools);
+          }
+          break;
+        case 'profileSwitching':
+          setSwitching(true);
+          break;
+        case 'profileSwitchComplete':
+          setSwitching(false);
+          break;
         case 'operationSuccess':
           setError(null);
           break;
@@ -70,16 +91,33 @@ export function useConfigPanel() {
 
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, []);
+  }, [selectedProfileId]);
 
   // --- Signal ready on mount ---
   useEffect(() => {
     postMessage({ type: 'ready' } satisfies ConfigPanelWebMessage);
   }, []);
 
+  // --- Request profile tools when selectedProfileId changes ---
+  useEffect(() => {
+    if (selectedProfileId) {
+      postMessage({
+        type: 'requestProfileTools',
+        id: selectedProfileId,
+      } satisfies ConfigPanelWebMessage);
+    } else {
+      setProfileTools([]);
+    }
+  }, [selectedProfileId]);
+
   // --- Tab switching ---
   const setActiveTab = useCallback((tab: TabId) => {
     setActiveTabState(tab);
+  }, []);
+
+  // --- Selected profile ---
+  const setSelectedProfileId = useCallback((id: string | null) => {
+    setSelectedProfileIdState(id);
   }, []);
 
   // --- Post message helper ---
@@ -97,6 +135,12 @@ export function useConfigPanel() {
     tools,
     loading,
     error,
+
+    // Profile editor
+    selectedProfileId,
+    setSelectedProfileId,
+    profileTools,
+    switching,
 
     // UI state
     activeTab,

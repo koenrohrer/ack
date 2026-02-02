@@ -60,3 +60,160 @@ body {
   text-align: center;
   padding: 32px;
 }
+
+/* ---------------------------------------------------------------------------
+ * Profile List
+ * --------------------------------------------------------------------------- */
+
+.profile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  transition: background-color 0.1s;
+}
+
+.profile-list__item:hover {
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.profile-list__item--active {
+  background-color: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+  border-color: var(--vscode-focusBorder);
+}
+
+.profile-list__item-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-list__item-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-list__item--active .profile-list__item-name {
+  font-weight: 700;
+}
+
+.profile-list__item-tools {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+.profile-list__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.profile-list__create {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.profile-list__create-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.profile-list__rename {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.profile-list__empty {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+  padding: 16px 0;
+}
+
+.profile-list__switching {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* ---------------------------------------------------------------------------
+ * Profile Editor
+ * --------------------------------------------------------------------------- */
+
+.profile-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-editor__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-editor__title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.profile-editor__empty {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+  padding: 16px 0;
+}
+
+.profile-editor__group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profile-editor__group-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+  padding: 8px 0 4px;
+  border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  margin-bottom: 4px;
+}
+
+.profile-editor__tool {
+  padding: 4px 8px;
+  border-radius: 3px;
+}
+
+.profile-editor__tool:hover {
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.profile-editor__tool--stale {
+  opacity: 0.6;
+}
+
+.profile-editor__actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px 0;
+}

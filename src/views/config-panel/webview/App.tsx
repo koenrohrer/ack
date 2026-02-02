@@ -1,6 +1,8 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useMemo } from 'react';
 import { useConfigPanel } from './hooks/useConfigPanel';
 import type { TabId } from './hooks/useConfigPanel';
+import { ProfileList } from './components/ProfileList';
+import { ProfileEditor } from './components/ProfileEditor';
 
 // Import tab web components
 import '@vscode-elements/elements/dist/vscode-tabs/index.js';
@@ -11,10 +13,17 @@ const TAB_IDS: TabId[] = ['profiles', 'tools'];
 
 export function App() {
   const {
+    profiles,
+    activeProfileId,
     loading,
     error,
     activeTab,
     setActiveTab,
+    selectedProfileId,
+    setSelectedProfileId,
+    profileTools,
+    switching,
+    postMessage,
   } = useConfigPanel();
 
   const tabsRef = useRef<HTMLElement>(null);
@@ -48,6 +57,12 @@ export function App() {
     };
   }, [handleTabSelect]);
 
+  // Find the selected profile info for the editor header
+  const selectedProfile = useMemo(
+    () => profiles.find((p) => p.id === selectedProfileId) ?? null,
+    [profiles, selectedProfileId],
+  );
+
   // --- Loading state ---
   if (loading) {
     return (
@@ -74,6 +89,9 @@ export function App() {
 
   const selectedIndex = TAB_IDS.indexOf(activeTab);
 
+  // Determine which profile view to show
+  const showEditor = selectedProfileId !== null && selectedProfile !== null && profileTools.length >= 0;
+
   return (
     <div className="config-panel">
       <h1 className="config-panel__title">Configure Agent</h1>
@@ -86,7 +104,22 @@ export function App() {
         <vscode-tab-header slot="header">Tool Settings</vscode-tab-header>
         <vscode-tab-panel>
           <div className="config-panel__tab-content">
-            <p>Profile management coming soon.</p>
+            {showEditor && selectedProfile ? (
+              <ProfileEditor
+                profile={selectedProfile}
+                profileTools={profileTools}
+                postMessage={postMessage}
+                onBack={() => setSelectedProfileId(null)}
+              />
+            ) : (
+              <ProfileList
+                profiles={profiles}
+                activeProfileId={activeProfileId}
+                switching={switching}
+                postMessage={postMessage}
+                onSelectProfile={setSelectedProfileId}
+              />
+            )}
           </div>
         </vscode-tab-panel>
         <vscode-tab-panel>
