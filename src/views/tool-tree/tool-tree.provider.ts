@@ -181,6 +181,8 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     // Scope is communicated entirely via the composite icon
     if (tool.status === ToolStatus.Error) {
       item.description = tool.statusDetail ?? 'Error';
+    } else if (tool.status === ToolStatus.Disabled) {
+      item.description = '(disabled)';
     } else if (node.isEffective) {
       item.description = '(active)';
     }
