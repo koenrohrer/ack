@@ -12,11 +12,11 @@ This roadmap delivers a VS Code extension that lets developers discover, install
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Extension Scaffold & Config I/O** - Project setup, config file reading/writing, and the Claude Code adapter
-- [ ] **Phase 2: Sidebar Environment View** - Tree view showing installed tools grouped by type with status and scope
-- [ ] **Phase 3: Tool Management** - Enable/disable, delete, and scope controls for individual tools
-- [ ] **Phase 4: Marketplace Registry & Discovery** - GitHub registry integration, searchable marketplace webview with filtering
-- [ ] **Phase 5: One-Click Install** - Install tools from the marketplace into the local environment
+- [x] **Phase 1: Extension Scaffold & Config I/O** - Project setup, config file reading/writing, and the Claude Code adapter
+- [x] **Phase 2: Sidebar Environment View** - Tree view showing installed tools grouped by type with status and scope
+- [x] **Phase 3: Tool Management** - Enable/disable, delete, and scope controls for individual tools
+- [x] **Phase 4: Marketplace Registry & Discovery** - GitHub registry integration, searchable marketplace webview with filtering
+- [x] **Phase 5: One-Click Install** - Install tools from the marketplace into the local environment
 - [ ] **Phase 6: Profile System** - Named profiles for switching between tool sets
 - [ ] **Phase 7: Configuration Panel** - Rich webview panel for managing extension settings and per-tool configuration
 - [ ] **Phase 8: Profile Portability & Polish** - Import/export profiles and workspace-profile association
@@ -33,13 +33,13 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Extension writes config files using atomic write (write-to-temp-then-rename) with backup-before-write, and validates against schemas before writing
   4. A ClaudeCodeAdapter class maps all Claude Code-specific formats to normalized internal types, and no other module references Claude Code file paths directly
   5. Extension correctly distinguishes and reads from user, project, local, and managed config scopes (settings, MCP, skills/commands as applicable)
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 01-01: VS Code extension scaffold, build tooling, and project structure
-- [ ] 01-02: FileIOService with atomic writes, backups, and schema validation
-- [ ] 01-03: ClaudeCodeAdapter and ConfigService for reading/normalizing all tool types
-- [ ] 01-04: Dual-scope config resolution (global + project)
+- [x] 01-01-PLAN.md -- VS Code extension scaffold, types, utilities, and build tooling
+- [x] 01-02-PLAN.md -- FileIOService, BackupService, SchemaService, and Zod schemas
+- [x] 01-03-PLAN.md -- ClaudeCodeAdapter with all parsers and AdapterRegistry
+- [x] 01-04-PLAN.md -- ConfigService with scope resolution and extension wiring
 
 ### Phase 2: Sidebar Environment View
 **Goal**: Users can see their full Claude Code tool inventory in a sidebar tree, grouped by type, with file preview and status indicators
@@ -51,12 +51,12 @@ Plans:
   3. Sidebar header displays the current profile name, or "Current Environment" when no profile is active
   4. Each tool in the tree shows a status indicator (enabled, disabled, or error) and a scope badge (global or project)
   5. Tree auto-refreshes when config files change externally (e.g., edited in terminal or by Claude Code)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: TreeDataProvider with grouped tool inventory and expand/collapse
-- [ ] 02-02: File preview, status indicators, scope badges, and header display
-- [ ] 02-03: FileSystemWatcher integration for live config change detection
+- [x] 02-01-PLAN.md -- Tree node types, model, provider, SVG icons, and package.json manifest
+- [x] 02-02-PLAN.md -- File preview commands (markdown preview, JSON scroll-to-key with highlight)
+- [x] 02-03-PLAN.md -- FileWatcherManager with debounced refresh and extension.ts wiring
 
 ### Phase 3: Tool Management
 **Goal**: Users can enable, disable, delete, and change the scope of individual tools from the sidebar
@@ -67,12 +67,12 @@ Plans:
   2. User can delete/uninstall a tool, which removes its files and config entries, with a confirmation prompt
   3. User can change a tool's scope between global and project-level, and the tool's config entries move to the appropriate location
   4. Sidebar tree reflects all management actions immediately without manual refresh
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: ToolManager service with enable/disable/delete operations
-- [ ] 03-02: Scope management (global to project and vice versa)
-- [ ] 03-03: Sidebar context menus, inline actions, and install shortcut (TOOL-02 marketplace link)
+- [x] 03-01-PLAN.md -- Adapter writer modules (settings, MCP, skill, command) and ClaudeCodeAdapter writeTool/removeTool implementation
+- [x] 03-02-PLAN.md -- ToolManagerService with toggle/delete/move orchestration, type-aware utils, and unit tests
+- [x] 03-03-PLAN.md -- package.json context menus, inline actions, Move To submenu, command handlers, and extension.ts wiring
 
 ### Phase 4: Marketplace Registry & Discovery
 **Goal**: Users can browse, search, and filter available tools in a marketplace panel backed by a GitHub registry
@@ -84,12 +84,12 @@ Plans:
   3. User can filter marketplace listings by tool type (skills, MCP servers, hooks, commands) using tabs or a dropdown
   4. User can click a tool listing to view its full description, README content, and metadata before deciding to install
   5. Marketplace data is cached locally with ETag-based revalidation, so browsing does not exhaust GitHub API rate limits
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: GitHub registry structure, index format, and RegistryService with caching
-- [ ] 04-02: Marketplace webview scaffold (React, typed message protocol, CSP, state persistence)
-- [ ] 04-03: Search, type filtering, and tool detail view
+- [x] 04-01-PLAN.md -- RegistryService with GitHub fetch, ETag caching, multi-source support, and unit tests
+- [x] 04-02-PLAN.md -- Marketplace webview scaffold (React, dual esbuild, typed messages, CSP, state persistence)
+- [x] 04-03-PLAN.md -- All UI components (search, type tabs, sort, card grid, pagination, detail view) and RegistryService wiring
 
 ### Phase 5: One-Click Install
 **Goal**: Users can install any tool from the marketplace into their environment with a single click
@@ -100,12 +100,12 @@ Plans:
   2. If a tool requires configuration (e.g., MCP server API keys), the user is prompted for required values during install
   3. User sees progress feedback during install and a clear success or error message on completion
   4. After install, the tool appears immediately in the sidebar tree as enabled
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: Install orchestrator for all four tool types (skills, MCP, hooks, commands)
-- [ ] 05-02: Configuration prompts, progress feedback, and error handling
-- [ ] 05-03: Post-install verification and sidebar refresh
+- [x] 05-01-PLAN.md -- InstallService orchestrator, install types/manifest schema, RegistryService extension
+- [x] 05-02-PLAN.md -- Webview install UI (message protocol, InstallButton, ConfigForm, install state tracking)
+- [x] 05-03-PLAN.md -- MarketplacePanel install handlers, scope prompt, uninstall, extension.ts wiring, checkpoint
 
 ### Phase 6: Profile System
 **Goal**: Users can create named profiles (preset tool collections) and switch between them to manage their agent context
@@ -162,11 +162,11 @@ Note: Phase 4 depends on Phase 1 (not Phase 3), so Phases 3 and 4 could theoreti
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Extension Scaffold & Config I/O | 0/4 | Not started | - |
-| 2. Sidebar Environment View | 0/3 | Not started | - |
-| 3. Tool Management | 0/3 | Not started | - |
-| 4. Marketplace Registry & Discovery | 0/3 | Not started | - |
-| 5. One-Click Install | 0/3 | Not started | - |
+| 1. Extension Scaffold & Config I/O | 4/4 | Complete | 2026-02-01 |
+| 2. Sidebar Environment View | 3/3 | Complete | 2026-02-01 |
+| 3. Tool Management | 3/3 | Complete | 2026-02-01 |
+| 4. Marketplace Registry & Discovery | 3/3 | Complete | 2026-02-02 |
+| 5. One-Click Install | 3/3 | Complete | 2026-02-02 |
 | 6. Profile System | 0/3 | Not started | - |
 | 7. Configuration Panel | 0/3 | Not started | - |
 | 8. Profile Portability & Polish | 0/2 | Not started | - |

@@ -7,35 +7,35 @@
 
 ### Foundation
 
-- [ ] **CORE-01**: Extension reads and parses all Claude Code config file types (skills `SKILL.md` in `~/.claude/skills/<skill>/` and `.claude/skills/<skill>/`, slash commands in `.claude/commands/`, hooks in settings files, MCP in `~/.claude.json` and `.mcp.json`, and managed settings/MCP files)
-- [ ] **CORE-02**: Extension writes config files with atomic writes and backup-before-write to prevent corruption
-- [ ] **CORE-03**: Extension validates config files against schemas before writing
-- [ ] **CORE-04**: Extension implements Claude Code adapter that maps agent-specific formats to normalized internal types
-- [ ] **CORE-05**: Extension supports user, project, local, and managed config scopes: `~/.claude/settings.json`, `.claude/settings.json`, `.claude/settings.local.json`, `~/.claude.json`, `.mcp.json`, plus managed settings/MCP files in system locations
+- [x] **CORE-01**: Extension reads and parses all Claude Code config file types (skills `SKILL.md` in `~/.claude/skills/<skill>/` and `.claude/skills/<skill>/`, slash commands in `.claude/commands/`, hooks in settings files, MCP in `~/.claude.json` and `.mcp.json`, and managed settings/MCP files)
+- [x] **CORE-02**: Extension writes config files with atomic writes and backup-before-write to prevent corruption
+- [x] **CORE-03**: Extension validates config files against schemas before writing
+- [x] **CORE-04**: Extension implements Claude Code adapter that maps agent-specific formats to normalized internal types
+- [x] **CORE-05**: Extension supports user, project, local, and managed config scopes: `~/.claude/settings.json`, `.claude/settings.json`, `.claude/settings.local.json`, `~/.claude.json`, `.mcp.json`, plus managed settings/MCP files in system locations
 
 ### Sidebar & Environment View
 
-- [ ] **SIDE-01**: User can see installed tools in a sidebar tree view grouped by type (Skills, MCP, Hooks, Commands)
-- [ ] **SIDE-02**: User can expand each tool group to see file/directory structure (skill directories with files, hook types with commands)
-- [ ] **SIDE-03**: User can click an .md file in the tree to preview its contents
-- [ ] **SIDE-04**: Sidebar header shows current profile name (or "Current Environment" if no profile active)
-- [ ] **SIDE-05**: Each tool shows status indicator (enabled/disabled/error)
-- [ ] **SIDE-06**: Each tool shows scope indicator (global or project-level)
+- [x] **SIDE-01**: User can see installed tools in a sidebar tree view grouped by type (Skills, MCP, Hooks, Commands)
+- [x] **SIDE-02**: User can expand each tool group to see file/directory structure (skill directories with files, hook types with commands)
+- [x] **SIDE-03**: User can click an .md file in the tree to preview its contents
+- [x] **SIDE-04**: Sidebar header shows current profile name (or "Current Environment" if no profile active)
+- [x] **SIDE-05**: Each tool shows status indicator (enabled/disabled/error)
+- [x] **SIDE-06**: Each tool shows scope indicator (global or project-level)
 
 ### Tool Management
 
-- [ ] **TOOL-01**: User can enable or disable individual tools via toggle
+- [x] **TOOL-01**: User can enable or disable individual tools via toggle
 - [ ] **TOOL-02**: User can install a new tool by clicking install which opens the marketplace filtered to that tool type
-- [ ] **TOOL-03**: User can uninstall/delete a tool from their environment
-- [ ] **TOOL-04**: User can set a tool's scope as global or per-project
+- [x] **TOOL-03**: User can uninstall/delete a tool from their environment
+- [x] **TOOL-04**: User can set a tool's scope as global or per-project
 
 ### Marketplace
 
-- [ ] **MRKT-01**: User can browse available tools in a searchable marketplace panel
-- [ ] **MRKT-02**: User can filter marketplace listings by tool type (skills, MCP, hooks, commands)
-- [ ] **MRKT-03**: User can install a tool from the marketplace with one click
-- [ ] **MRKT-04**: Marketplace sources tools from a GitHub-based community registry
-- [ ] **MRKT-05**: User can view tool descriptions and README content before installing
+- [x] **MRKT-01**: User can browse available tools in a searchable marketplace panel
+- [x] **MRKT-02**: User can filter marketplace listings by tool type (skills, MCP, hooks, commands)
+- [x] **MRKT-03**: User can install a tool from the marketplace with one click
+- [x] **MRKT-04**: Marketplace sources tools from a GitHub-based community registry
+- [x] **MRKT-05**: User can view tool descriptions and README content before installing
 
 ### Profile System
 
@@ -85,11 +85,11 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CORE-01 | Phase 1 | Pending |
-| CORE-02 | Phase 1 | Pending |
-| CORE-03 | Phase 1 | Pending |
-| CORE-04 | Phase 1 | Pending |
-| CORE-05 | Phase 1 | Pending |
+| CORE-01 | Phase 1 | Complete |
+| CORE-02 | Phase 1 | Complete |
+| CORE-03 | Phase 1 | Complete |
+| CORE-04 | Phase 1 | Complete |
+| CORE-05 | Phase 1 | Complete |
 | SIDE-01 | Phase 2 | Pending |
 | SIDE-02 | Phase 2 | Pending |
 | SIDE-03 | Phase 2 | Pending |
@@ -102,7 +102,7 @@
 | TOOL-04 | Phase 3 | Pending |
 | MRKT-01 | Phase 4 | Pending |
 | MRKT-02 | Phase 4 | Pending |
-| MRKT-03 | Phase 5 | Pending |
+| MRKT-03 | Phase 5 | Complete |
 | MRKT-04 | Phase 4 | Pending |
 | MRKT-05 | Phase 4 | Pending |
 | PROF-01 | Phase 6 | Pending |

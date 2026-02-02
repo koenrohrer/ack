@@ -4,6 +4,7 @@ import type { SchemaService } from './schema.service.js';
 import type { AdapterRegistry } from '../adapters/adapter.registry.js';
 import type { NormalizedTool, ScopeEntry } from '../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../types/enums.js';
+import { canonicalKey } from '../utils/tool-key.utils.js';
 
 /**
  * Scope precedence order (highest first).
@@ -210,25 +211,10 @@ export class ConfigService {
   /**
    * Derive a canonical key for grouping tools across scopes.
    *
-   * The key identifies the "same" tool regardless of which scope it
-   * appears in. Format: `{type}:{name}` for most types, with special
-   * handling for hooks which include the event name and index.
+   * Delegates to the shared canonicalKey utility to ensure consistent
+   * key format between ConfigService and ProfileService.
    */
   private canonicalKey(tool: NormalizedTool): string {
-    // Hook IDs include scope info -- strip it to get canonical form.
-    // Format from parser: "hook:EventName:index:scope" -> canonical: "hook:EventName:index"
-    if (tool.type === ToolType.Hook) {
-      const parts = tool.id.split(':');
-      // Use type + event name + matcher for hook identity
-      const eventName = tool.metadata.eventName as string | undefined;
-      const matcher = tool.metadata.matcher as string | undefined;
-      if (eventName) {
-        return `hook:${eventName}:${matcher ?? ''}`;
-      }
-      // Fallback: strip last segment (scope) from id
-      return parts.slice(0, -1).join(':');
-    }
-
-    return `${tool.type}:${tool.name}`;
+    return canonicalKey(tool);
   }
 }

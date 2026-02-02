@@ -37,7 +37,7 @@ Developers can discover, install, configure, and switch between sets of agent to
 
 ## Context
 
-- Claude Code's tool ecosystem includes skills (~/.claude/commands/, project .claude/commands/), MCP servers (claude_desktop_config.json, .mcp.json), hooks (settings.json hooks config), and slash commands (.claude/commands/)
+- Claude Code's tool ecosystem includes skills (`~/.claude/skills/<skill>/SKILL.md`, `.claude/skills/<skill>/SKILL.md`), slash commands (`.claude/commands/` is still supported), hooks in settings files (`~/.claude/settings.json`, `.claude/settings.json`, `.claude/settings.local.json`, managed settings), and MCP servers (`~/.claude.json`, `.mcp.json`, managed-mcp.json)
 - Current pain points: discovery requires browser search across multiple sources, installation is terminal-based with restarts, toggling tools requires navigating Claude Code's /plugin command, viewing tool contents requires opening files in a separate editor, constant /clear and tool disabling to manage context window size
 - No unified marketplace exists for hooks or slash commands today
 - The GitHub-based registry model (like Homebrew formulas) keeps infrastructure simple while enabling community contributions
@@ -46,7 +46,7 @@ Developers can discover, install, configure, and switch between sets of agent to
 ## Constraints
 
 - **Platform**: VS Code extension (Extension API) — must work with VS Code's extension model
-- **Agent v1**: Claude Code — reads/writes Claude Code config files (~/.claude/, .claude/, .mcp.json)
+- **Agent v1**: Claude Code — reads/writes Claude Code config files (skills in `~/.claude/skills` and `.claude/skills`, commands in `.claude/commands`, settings in `~/.claude/settings.json`, `.claude/settings.json`, `.claude/settings.local.json`, MCP in `~/.claude.json` and `.mcp.json`; managed settings/MCP are system-level)
 - **Registry**: GitHub-based — a GitHub repository serves as the tool index/registry
 - **Architecture**: Agent-agnostic internals — tool management layer must not be hard-coded to Claude Code, even though v1 only implements Claude Code adapters
 
