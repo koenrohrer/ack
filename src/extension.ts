@@ -108,7 +108,14 @@ export function activate(context: vscode.ExtensionContext): void {
   registerManagementCommands(context, toolManager);
 
   // 14. Profile commands (create, switch, edit, delete, save-as)
-  registerProfileCommands(context, profileService, configService);
+  registerProfileCommands(context, profileService, configService, treeProvider);
+
+  // 14b. Restore active profile name in sidebar header on startup
+  const activeId = profileService.getActiveProfileId();
+  if (activeId) {
+    const activeProfile = profileService.getProfile(activeId);
+    treeProvider.setActiveProfile(activeProfile?.name ?? null);
+  }
 
   // 15. Marketplace panel command
   const openMarketplace = vscode.commands.registerCommand(

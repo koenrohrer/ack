@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { ProfileService } from '../../services/profile.service.js';
 import type { Profile } from '../../services/profile.types.js';
 import type { ConfigService } from '../../services/config.service.js';
+import type { ToolTreeProvider } from './tool-tree.provider.js';
 import type { ProfileToolEntry } from '../../services/profile.types.js';
 import { ToolType, ConfigScope } from '../../types/enums.js';
 import { canonicalKey } from '../../utils/tool-key.utils.js';
@@ -30,6 +31,7 @@ export function registerProfileCommands(
   context: vscode.ExtensionContext,
   profileService: ProfileService,
   configService: ConfigService,
+  treeProvider: ToolTreeProvider,
 ): void {
   // ---------------------------------------------------------------------------
   // Create Profile
@@ -116,11 +118,13 @@ export function registerProfileCommands(
       );
 
       if (targetId === null) {
+        treeProvider.setActiveProfile(null);
         vscode.window.showInformationMessage('Profile deactivated');
         return;
       }
 
       const profileName = selected.profile!.name;
+      treeProvider.setActiveProfile(profileName);
       const parts = [`Switched to "${profileName}": ${result.toggled} tools changed`];
       if (result.skipped) {
         parts.push(`${result.skipped} not found`);
@@ -200,6 +204,10 @@ export function registerProfileCommands(
           }
 
           await profileService.updateProfile(profile.id, { name: trimmedName });
+          // Update sidebar header if the renamed profile is the active one
+          if (profileService.getActiveProfileId() === profile.id) {
+            treeProvider.setActiveProfile(trimmedName);
+          }
           vscode.window.showInformationMessage(`Profile renamed to "${trimmedName}"`);
           break;
         }
@@ -210,6 +218,7 @@ export function registerProfileCommands(
         }
 
         case 'Delete': {
+          const wasActive = profileService.getActiveProfileId() === profile.id;
           const confirm = await vscode.window.showWarningMessage(
             `Delete profile "${profile.name}"?`,
             { modal: true, detail: 'This action cannot be undone.' },
@@ -221,6 +230,10 @@ export function registerProfileCommands(
           }
 
           await profileService.deleteProfile(profile.id);
+          // Clear sidebar header if the deleted profile was active
+          if (wasActive) {
+            treeProvider.setActiveProfile(null);
+          }
           vscode.window.showInformationMessage(`Profile "${profile.name}" deleted`);
           break;
         }
@@ -256,6 +269,7 @@ export function registerProfileCommands(
       }
 
       const profile = selected.profile;
+      const wasActive = profileService.getActiveProfileId() === profile.id;
       const confirm = await vscode.window.showWarningMessage(
         `Delete profile "${profile.name}"?`,
         { modal: true, detail: 'This action cannot be undone.' },
@@ -267,6 +281,10 @@ export function registerProfileCommands(
       }
 
       await profileService.deleteProfile(profile.id);
+      // Clear sidebar header if the deleted profile was active
+      if (wasActive) {
+        treeProvider.setActiveProfile(null);
+      }
       vscode.window.showInformationMessage(`Profile "${profile.name}" deleted`);
     },
   );

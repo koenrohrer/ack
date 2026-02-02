@@ -107,6 +107,19 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   }
 
   /**
+   * Update the sidebar header description to show the active profile name.
+   *
+   * When a profile is active, the header shows its name (e.g., "Full Setup").
+   * When no profile is active (null), reverts to the default "Current Environment".
+   */
+  setActiveProfile(profileName: string | null): void {
+    if (!this.treeView) {
+      return;
+    }
+    this.treeView.description = profileName ?? 'Current Environment';
+  }
+
+  /**
    * Register the tree view with VS Code.
    *
    * Creates the tree view instance with collapse-all button,

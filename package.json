@@ -85,7 +85,8 @@
       },
       {
         "command": "agent-config-keeper.switchProfile",
-        "title": "Agent Config Keeper: Switch Profile"
+        "title": "Agent Config Keeper: Switch Profile",
+        "icon": "$(account)"
       },
       {
         "command": "agent-config-keeper.editProfile",
@@ -108,6 +109,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "agent-config-keeper.switchProfile",
+          "when": "view == agent-config-keeper.toolTree",
+          "group": "navigation"
+        },
         {
           "command": "agent-config-keeper.openMarketplace",
           "when": "view == agent-config-keeper.toolTree",
