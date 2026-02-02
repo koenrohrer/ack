@@ -1,0 +1,33 @@
+/* Base reset and body -- uses VS Code theme variables */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background-color: var(--vscode-editor-background);
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+/* Layout container */
+.config-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 0 16px;
+}
+
+/* Title */
+.config-panel__title {
+  font-size: 18px;
+  font-weight: 600;
+  padding: 12px 0;
+  color: var(--vscode-foreground);
+}

@@ -99,6 +99,10 @@
       {
         "command": "agent-config-keeper.saveAsProfile",
         "title": "Agent Config Keeper: Save Current State as Profile"
+      },
+      {
+        "command": "agentConfigKeeper.openConfigPanel",
+        "title": "Agent Config Keeper: Configure Agent"
       }
     ],
     "submenus": [
