@@ -6,6 +6,8 @@ import type { InstallService } from '../../services/install.service.js';
 import type { ToolManagerService } from '../../services/tool-manager.service.js';
 import type { RegistrySource } from '../../services/registry.types.js';
 import type { ToolManifest, ConfigField } from '../../services/install.types.js';
+import type { GitHubSearchService } from '../../services/github-search.service.js';
+import type { GitHubToolType } from '../../services/github-search.types.js';
 import { ToolType, ConfigScope } from '../../types/enums.js';
 import type {
   WebviewMessage,
@@ -54,6 +56,7 @@ export class MarketplacePanel {
   private readonly configService: ConfigService;
   private readonly installService: InstallService;
   private readonly toolManager: ToolManagerService;
+  private readonly githubSearch: GitHubSearchService;
   private readonly outputChannel: vscode.OutputChannel;
 
   /** Cached sources from last fetchAllIndexes, keyed by sourceId. */
@@ -65,6 +68,9 @@ export class MarketplacePanel {
   /** In-progress installs waiting for config form submission, keyed by toolId. */
   private pendingInstalls = new Map<string, PendingInstall>();
 
+  /** Whether GitHub search integration is enabled (defaults ON). */
+  private githubEnabled = true;
+
   /**
    * Create a new marketplace panel or reveal the existing one.
    */
@@ -75,6 +81,7 @@ export class MarketplacePanel {
     outputChannel: vscode.OutputChannel,
     installService: InstallService,
     toolManager: ToolManagerService,
+    githubSearch: GitHubSearchService,
   ): void {
     // If panel already exists, reveal it
     if (MarketplacePanel.currentPanel) {
@@ -102,6 +109,7 @@ export class MarketplacePanel {
       outputChannel,
       installService,
       toolManager,
+      githubSearch,
     );
   }
 
@@ -113,6 +121,7 @@ export class MarketplacePanel {
     outputChannel: vscode.OutputChannel,
     installService: InstallService,
     toolManager: ToolManagerService,
+    githubSearch: GitHubSearchService,
   ) {
     this.panel = panel;
     this.extensionUri = extensionUri;
@@ -121,6 +130,7 @@ export class MarketplacePanel {
     this.outputChannel = outputChannel;
     this.installService = installService;
     this.toolManager = toolManager;
+    this.githubSearch = githubSearch;
 
     // Set initial HTML content
     this.panel.webview.html = this.getHtmlForWebview(this.panel.webview);
@@ -165,6 +175,21 @@ export class MarketplacePanel {
         break;
       case 'requestUninstall':
         void this.handleRequestUninstall(message.toolId);
+        break;
+      case 'searchGitHub':
+        void this.loadGitHubResults(message.query, message.typeFilter);
+        break;
+      case 'requestGitHubReadme':
+        void this.loadGitHubReadme(message.repoFullName, message.defaultBranch);
+        break;
+      case 'authenticateGitHub':
+        void this.handleGitHubAuth();
+        break;
+      case 'toggleGitHub':
+        this.githubEnabled = message.enabled;
+        break;
+      case 'openExternal':
+        void vscode.env.openExternal(vscode.Uri.parse(message.url));
         break;
     }
   }
@@ -597,6 +622,8 @@ export class MarketplacePanel {
             updatedAt: entry.updatedAt,
             sourceId,
             sourceName: source.name,
+            source: 'registry' as const,
+            relevanceScore: 100 + Math.log2(entry.stars + 1) * 10 + Math.log2(entry.installs + 1) * 5,
           };
           tools.push(entryWithSource);
           this.toolEntryMap.set(entry.id, entryWithSource);
@@ -654,6 +681,138 @@ export class MarketplacePanel {
       readmePath,
     );
     this.postMessage({ type: 'readmeData', toolId, markdown });
+  }
+
+  // ---------------------------------------------------------------------------
+  // GitHub search handlers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Search GitHub for tools and send results to the webview.
+   *
+   * Maps GitHubSearchResult[] to RegistryEntryWithSource[] for unified display.
+   * Includes relevance scoring for interleaved sort with registry results.
+   */
+  private async loadGitHubResults(query?: string, typeFilter?: string): Promise<void> {
+    this.postMessage({ type: 'githubLoading', loading: true });
+
+    try {
+      const results = await this.githubSearch.search({
+        query: query || undefined,
+        typeFilter: typeFilter as GitHubToolType | undefined,
+        maxResults: 30,
+      });
+
+      const now = Date.now();
+      const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+      const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+
+      const mapped: RegistryEntryWithSource[] = results.map((result) => {
+        // Recency bonus for relevance scoring
+        const updatedAgo = now - new Date(result.lastUpdated).getTime();
+        let recencyBonus = 0;
+        if (updatedAgo < THIRTY_DAYS_MS) {
+          recencyBonus = 20;
+        } else if (updatedAgo < NINETY_DAYS_MS) {
+          recencyBonus = 10;
+        }
+
+        // Map 'profile' to 'command' since profile is not a RegistryEntryWithSource toolType
+        const toolType: 'skill' | 'mcp_server' | 'hook' | 'command' =
+          result.detectedType === 'profile' ? 'command' : result.detectedType;
+
+        return {
+          id: result.id,
+          name: result.name,
+          toolType,
+          description: result.description,
+          author: result.author,
+          version: '',
+          tags: result.topics,
+          stars: result.stars,
+          installs: 0,
+          readmePath: 'README.md',
+          contentPath: '',
+          createdAt: result.lastUpdated,
+          updatedAt: result.lastUpdated,
+          sourceId: 'github',
+          sourceName: 'GitHub',
+          source: 'github' as const,
+          repoUrl: result.repoUrl,
+          repoFullName: result.repoFullName,
+          language: result.language,
+          defaultBranch: result.defaultBranch,
+          relevanceScore: 50 + Math.log2(result.stars + 1) * 10 + recencyBonus,
+        };
+      });
+
+      const rateLimitWarning = this.githubSearch.isNearRateLimit()
+        ? 'GitHub API rate limit nearly exhausted'
+        : undefined;
+
+      this.postMessage({
+        type: 'githubResults',
+        tools: mapped,
+        loading: false,
+        rateLimitWarning,
+      });
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'GitHub search failed';
+      this.outputChannel.appendLine(`GitHub search error: ${errorMsg}`);
+      this.postMessage({ type: 'githubError', error: errorMsg });
+    }
+  }
+
+  /**
+   * Fetch a GitHub repository's README and send to the webview.
+   *
+   * Uses the GitHub REST API readme endpoint with raw content accept header.
+   * Authenticates via the shared GitHubSearchService auth headers.
+   */
+  private async loadGitHubReadme(repoFullName: string, _defaultBranch: string): Promise<void> {
+    const toolId = `github:${repoFullName}`;
+    this.postMessage({ type: 'readmeLoading', toolId });
+
+    try {
+      const headers = this.githubSearch.getAuthHeaders();
+      headers['Accept'] = 'application/vnd.github.raw';
+
+      const response = await fetch(
+        `https://api.github.com/repos/${repoFullName}/readme`,
+        { headers },
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const markdown = await response.text();
+      this.postMessage({ type: 'readmeData', toolId, markdown });
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      this.outputChannel.appendLine(
+        `GitHub README fetch error for ${repoFullName}: ${errorMsg}`,
+      );
+      this.postMessage({
+        type: 'readmeData',
+        toolId,
+        markdown: 'README could not be loaded.',
+      });
+    }
+  }
+
+  /**
+   * Handle GitHub authentication request from the webview.
+   *
+   * Prompts the user via VS Code's GitHub auth provider. On success,
+   * refreshes GitHub results to use the authenticated rate limit.
+   */
+  private async handleGitHubAuth(): Promise<void> {
+    const authenticated = await this.githubSearch.promptForAuth();
+    if (authenticated) {
+      // Refresh with authenticated rate limits
+      await this.loadGitHubResults();
+    }
   }
 
   /**
