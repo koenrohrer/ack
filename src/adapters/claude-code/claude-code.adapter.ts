@@ -37,9 +37,19 @@ export class ClaudeCodeAdapter implements IPlatformAdapter {
     private readonly fileIO: FileIOService,
     private readonly schemaService: SchemaService,
     private readonly workspaceRoot?: string,
-    private readonly configService?: ConfigService,
-    private readonly backupService?: BackupService,
+    private configService?: ConfigService,
+    private backupService?: BackupService,
   ) {}
+
+  /**
+   * Inject write-time dependencies after construction.
+   * Needed because ConfigService depends on AdapterRegistry, creating
+   * a circular init order. Call this once after ConfigService is created.
+   */
+  setWriteServices(configService: ConfigService, backupService: BackupService): void {
+    this.configService = configService;
+    this.backupService = backupService;
+  }
 
   /**
    * Read all tools of a given type within a scope.

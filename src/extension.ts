@@ -75,6 +75,9 @@ export function activate(context: vscode.ExtensionContext): void {
   // 6. Config service (the main API for reading/writing tool configs)
   const configService = new ConfigService(fileIO, backup, schemas, registry);
 
+  // 6b. Inject write services into adapter now that configService exists
+  claudeAdapter.setWriteServices(configService, backup);
+
   // 7. Tool management service
   const toolManager = new ToolManagerService(configService, registry);
 
