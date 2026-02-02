@@ -2,14 +2,34 @@ import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
 import type { RegistryService } from '../../services/registry.service.js';
 import type { ConfigService } from '../../services/config.service.js';
+import type { InstallService } from '../../services/install.service.js';
+import type { ToolManagerService } from '../../services/tool-manager.service.js';
 import type { RegistrySource } from '../../services/registry.types.js';
-import { ToolType } from '../../types/enums.js';
+import type { ToolManifest, ConfigField } from '../../services/install.types.js';
+import { ToolType, ConfigScope } from '../../types/enums.js';
 import type {
   WebviewMessage,
   ExtensionMessage,
   RegistryEntryWithSource,
   InstalledToolInfo,
 } from './marketplace.messages.js';
+
+/** Map manifest type strings to ToolType enum values. */
+const MANIFEST_TYPE_TO_TOOL_TYPE: Record<string, ToolType> = {
+  skill: ToolType.Skill,
+  mcp_server: ToolType.McpServer,
+  hook: ToolType.Hook,
+  command: ToolType.Command,
+};
+
+/** Pending install context for tools awaiting config form submission. */
+interface PendingInstall {
+  manifest: ToolManifest;
+  scope: ConfigScope;
+  source: RegistrySource;
+  contentPath: string;
+  existingEnvValues?: Record<string, string>;
+}
 
 /**
  * Manages the marketplace webview panel lifecycle.
@@ -27,10 +47,18 @@ export class MarketplacePanel {
   private readonly disposables: vscode.Disposable[] = [];
   private readonly registryService: RegistryService;
   private readonly configService: ConfigService;
+  private readonly installService: InstallService;
+  private readonly toolManager: ToolManagerService;
   private readonly outputChannel: vscode.OutputChannel;
 
   /** Cached sources from last fetchAllIndexes, keyed by sourceId. */
   private sourceMap = new Map<string, RegistrySource>();
+
+  /** Cached registry entries from last fetchAllIndexes, keyed by entry id. */
+  private toolEntryMap = new Map<string, RegistryEntryWithSource>();
+
+  /** In-progress installs waiting for config form submission, keyed by toolId. */
+  private pendingInstalls = new Map<string, PendingInstall>();
 
   /**
    * Create a new marketplace panel or reveal the existing one.
@@ -40,6 +68,8 @@ export class MarketplacePanel {
     registryService: RegistryService,
     configService: ConfigService,
     outputChannel: vscode.OutputChannel,
+    installService: InstallService,
+    toolManager: ToolManagerService,
   ): void {
     // If panel already exists, reveal it
     if (MarketplacePanel.currentPanel) {
@@ -65,6 +95,8 @@ export class MarketplacePanel {
       registryService,
       configService,
       outputChannel,
+      installService,
+      toolManager,
     );
   }
 
@@ -74,12 +106,16 @@ export class MarketplacePanel {
     registryService: RegistryService,
     configService: ConfigService,
     outputChannel: vscode.OutputChannel,
+    installService: InstallService,
+    toolManager: ToolManagerService,
   ) {
     this.panel = panel;
     this.extensionUri = extensionUri;
     this.registryService = registryService;
     this.configService = configService;
     this.outputChannel = outputChannel;
+    this.installService = installService;
+    this.toolManager = toolManager;
 
     // Set initial HTML content
     this.panel.webview.html = this.getHtmlForWebview(this.panel.webview);
@@ -114,12 +150,407 @@ export class MarketplacePanel {
         );
         break;
       case 'requestInstall':
-        this.outputChannel.appendLine(
-          `Install requested for ${message.toolId}`,
-        );
+        void this.handleRequestInstall(message.toolId, message.sourceId);
+        break;
+      case 'submitConfig':
+        void this.handleSubmitConfig(message.toolId, message.values);
+        break;
+      case 'retryInstall':
+        void this.handleRequestInstall(message.toolId, message.sourceId);
+        break;
+      case 'requestUninstall':
+        void this.handleRequestUninstall(message.toolId);
         break;
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Install flow handlers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Handle requestInstall: fetch manifest, runtime check, scope prompt,
+   * conflict detection, config form, or direct install.
+   */
+  private async handleRequestInstall(
+    toolId: string,
+    sourceId: string,
+  ): Promise<void> {
+    this.outputChannel.appendLine(`Install requested for ${toolId}`);
+
+    // a. Look up source
+    const source = this.sourceMap.get(sourceId);
+    if (!source) {
+      this.postMessage({
+        type: 'installError',
+        toolId,
+        error: 'Registry source not found',
+      });
+      return;
+    }
+
+    // b. Look up tool entry from cached registry data to get contentPath
+    const toolEntry = this.toolEntryMap.get(toolId);
+    if (!toolEntry) {
+      this.postMessage({
+        type: 'installError',
+        toolId,
+        error: 'Tool not found in registry cache',
+      });
+      return;
+    }
+    const contentPath = toolEntry.contentPath;
+
+    // c. Send downloading progress
+    this.postMessage({ type: 'installProgress', toolId, status: 'downloading' });
+
+    try {
+      // d. Fetch manifest
+      const manifest = await this.installService.getToolManifest(
+        source,
+        contentPath,
+      );
+
+      // e. Runtime pre-check (MCP servers only)
+      if (manifest.type === 'mcp_server' && manifest.runtime) {
+        const runtimeResult = await this.installService.checkRuntime(
+          manifest.runtime,
+        );
+        if (!runtimeResult.available) {
+          const choice = await vscode.window.showWarningMessage(
+            `Runtime "${manifest.runtime}" not found on your system. The tool may not work correctly.`,
+            'Install Anyway',
+            'Cancel',
+          );
+          if (choice !== 'Install Anyway') {
+            this.postMessage({ type: 'installCancelled', toolId });
+            return;
+          }
+        }
+      }
+
+      // f. Scope selection
+      const scope = await this.promptForScope(manifest.name);
+      if (scope === undefined) {
+        this.postMessage({ type: 'installCancelled', toolId });
+        return;
+      }
+
+      // g. Conflict check
+      const toolType = MANIFEST_TYPE_TO_TOOL_TYPE[manifest.type];
+      if (toolType) {
+        const hasConflict = await this.installService.checkConflict(
+          manifest.name,
+          manifest.type,
+          scope,
+        );
+        if (hasConflict) {
+          const conflictChoice = await vscode.window.showWarningMessage(
+            `"${manifest.name}" already exists at ${scope} scope.`,
+            'Update',
+            'Cancel',
+          );
+          if (conflictChoice !== 'Update') {
+            this.postMessage({ type: 'installCancelled', toolId });
+            return;
+          }
+          // On Update for MCP servers, preserve existing env values
+          if (manifest.type === 'mcp_server') {
+            const existingEnvValues =
+              await this.installService.getExistingEnvValues(
+                manifest.name,
+                scope,
+              );
+            // Store for later use in executeInstall
+            this.pendingInstalls.set(toolId, {
+              manifest,
+              scope,
+              source,
+              contentPath,
+              existingEnvValues,
+            });
+          }
+        }
+      }
+
+      // h. Config form (only if manifest has required configFields)
+      if (manifest.configFields && manifest.configFields.length > 0) {
+        const hasRequired = manifest.configFields.some((f) => f.required);
+        if (hasRequired) {
+          // Send config form to webview
+          this.postMessage({
+            type: 'installConfigRequired',
+            toolId,
+            fields: manifest.configFields,
+          });
+          // Store pending context (may already be stored from conflict flow)
+          if (!this.pendingInstalls.has(toolId)) {
+            this.pendingInstalls.set(toolId, {
+              manifest,
+              scope,
+              source,
+              contentPath,
+            });
+          }
+          // Wait for submitConfig message
+          return;
+        }
+        // Optional-only fields: skip form, proceed with defaults
+      }
+
+      // i. No required config fields -- proceed directly
+      // Check if pending was set from conflict flow
+      const pendingFromConflict = this.pendingInstalls.get(toolId);
+      if (pendingFromConflict) {
+        this.pendingInstalls.delete(toolId);
+        await this.executeInstall(
+          toolId,
+          pendingFromConflict.manifest,
+          pendingFromConflict.scope,
+          pendingFromConflict.source,
+          pendingFromConflict.contentPath,
+          undefined,
+          pendingFromConflict.existingEnvValues,
+        );
+      } else {
+        await this.executeInstall(
+          toolId,
+          manifest,
+          scope,
+          source,
+          contentPath,
+        );
+      }
+    } catch (err: unknown) {
+      const errorMsg =
+        err instanceof Error ? err.message : 'Install failed';
+      this.outputChannel.appendLine(`Install error for ${toolId}: ${errorMsg}`);
+      this.postMessage({ type: 'installError', toolId, error: errorMsg });
+    }
+  }
+
+  /**
+   * Handle submitConfig: retrieve pending context and execute install.
+   */
+  private async handleSubmitConfig(
+    toolId: string,
+    configValues: Record<string, string>,
+  ): Promise<void> {
+    const pending = this.pendingInstalls.get(toolId);
+    if (!pending) {
+      this.postMessage({
+        type: 'installError',
+        toolId,
+        error: 'No pending install found for this tool',
+      });
+      return;
+    }
+
+    this.pendingInstalls.delete(toolId);
+
+    try {
+      await this.executeInstall(
+        toolId,
+        pending.manifest,
+        pending.scope,
+        pending.source,
+        pending.contentPath,
+        configValues,
+        pending.existingEnvValues,
+      );
+    } catch (err: unknown) {
+      const errorMsg =
+        err instanceof Error ? err.message : 'Install failed';
+      this.outputChannel.appendLine(`Install error for ${toolId}: ${errorMsg}`);
+      this.postMessage({ type: 'installError', toolId, error: errorMsg });
+    }
+  }
+
+  /**
+   * Handle requestUninstall: find the installed tool by name and remove it.
+   */
+  private async handleRequestUninstall(toolId: string): Promise<void> {
+    this.outputChannel.appendLine(`Uninstall requested for ${toolId}`);
+
+    try {
+      // Find the tool entry to get the name
+      const toolEntry = this.toolEntryMap.get(toolId);
+      const toolName = toolEntry?.name ?? toolId;
+
+      // Search across all types/scopes for a tool with this name
+      let found = false;
+      for (const type of Object.values(ToolType)) {
+        try {
+          const tools = await this.configService.readAllTools(type);
+          const match = tools.find((t) => t.name === toolName);
+          if (match) {
+            const result = await this.toolManager.deleteTool(match);
+            if (result.success) {
+              found = true;
+              void vscode.window.showInformationMessage(
+                `Uninstalled "${toolName}"`,
+              );
+              // Refresh installed tools and notify webview
+              const installedTools = await this.getInstalledTools();
+              this.postMessage({
+                type: 'installedTools',
+                tools: installedTools,
+              });
+              // Reset install state to idle
+              this.postMessage({ type: 'installCancelled', toolId });
+              // Refresh sidebar tree
+              void vscode.commands.executeCommand(
+                'agent-config-keeper.refreshToolTree',
+              );
+            } else {
+              void vscode.window.showErrorMessage(
+                `Failed to uninstall "${toolName}": ${result.error}`,
+              );
+              this.postMessage({
+                type: 'installError',
+                toolId,
+                error: result.error,
+              });
+            }
+            break;
+          }
+        } catch {
+          // Skip types that fail to read
+        }
+      }
+
+      if (!found) {
+        void vscode.window.showErrorMessage(
+          `Tool "${toolName}" not found in any configuration`,
+        );
+        this.postMessage({
+          type: 'installError',
+          toolId,
+          error: 'Tool not found in configuration',
+        });
+      }
+    } catch (err: unknown) {
+      const errorMsg =
+        err instanceof Error ? err.message : 'Uninstall failed';
+      this.outputChannel.appendLine(
+        `Uninstall error for ${toolId}: ${errorMsg}`,
+      );
+      void vscode.window.showErrorMessage(`Uninstall failed: ${errorMsg}`);
+      this.postMessage({ type: 'installError', toolId, error: errorMsg });
+    }
+  }
+
+  /**
+   * Execute the actual install via InstallService.
+   *
+   * Sends progress to the webview, calls installService.install(),
+   * and handles success/failure with notifications and tree refresh.
+   */
+  private async executeInstall(
+    toolId: string,
+    manifest: ToolManifest,
+    scope: ConfigScope,
+    source: RegistrySource,
+    contentPath: string,
+    configValues?: Record<string, string>,
+    existingEnvValues?: Record<string, string>,
+  ): Promise<void> {
+    // a. Send writing progress
+    this.postMessage({ type: 'installProgress', toolId, status: 'writing' });
+
+    // b. Call install service
+    const result = await this.installService.install({
+      manifest,
+      scope,
+      source,
+      contentPath,
+      configValues,
+      existingEnvValues,
+    });
+
+    if (result.success) {
+      // c. Success
+      this.postMessage({
+        type: 'installComplete',
+        toolId,
+        scope: scope as string,
+      });
+      void vscode.window.showInformationMessage(
+        `Installed "${manifest.name}" at ${scope} scope`,
+      );
+
+      // Refresh installed tools list
+      const installedTools = await this.getInstalledTools();
+      this.postMessage({ type: 'installedTools', tools: installedTools });
+
+      // Refresh sidebar tree
+      void vscode.commands.executeCommand(
+        'agent-config-keeper.refreshToolTree',
+      );
+    } else {
+      // d. Failure
+      this.outputChannel.appendLine(
+        `Install failed for ${toolId}: ${result.error}`,
+      );
+      this.postMessage({
+        type: 'installError',
+        toolId,
+        error: result.error ?? 'Unknown error',
+      });
+      const action = await vscode.window.showErrorMessage(
+        `Failed to install "${manifest.name}": ${result.error}`,
+        'Show Output',
+      );
+      if (action === 'Show Output') {
+        this.outputChannel.show();
+      }
+    }
+  }
+
+  /**
+   * Prompt the user to select a scope (Global / Project).
+   *
+   * When no workspace is open, only Global is available.
+   * Returns undefined if the user dismisses the picker.
+   */
+  private async promptForScope(
+    toolName: string,
+  ): Promise<ConfigScope | undefined> {
+    const hasWorkspace =
+      vscode.workspace.workspaceFolders !== undefined &&
+      vscode.workspace.workspaceFolders.length > 0;
+
+    const items: vscode.QuickPickItem[] = [
+      {
+        label: 'Global',
+        description: 'Available in all projects (~/.claude)',
+      },
+    ];
+
+    if (hasWorkspace) {
+      items.push({
+        label: 'Project',
+        description: 'Available only in this workspace (.claude/)',
+      });
+    }
+
+    const pick = await vscode.window.showQuickPick(items, {
+      title: `Install "${toolName}" -- select scope`,
+      placeHolder: hasWorkspace
+        ? 'Choose where to install'
+        : '(Project scope requires an open workspace)',
+    });
+
+    if (!pick) {
+      return undefined;
+    }
+
+    return pick.label === 'Global' ? ConfigScope.User : ConfigScope.Project;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Registry data loading
+  // ---------------------------------------------------------------------------
 
   /**
    * Fetch all registry indexes, flatten into RegistryEntryWithSource[],
@@ -135,11 +566,12 @@ export class MarketplacePanel {
       // Flatten entries, adding source metadata
       const tools: RegistryEntryWithSource[] = [];
       this.sourceMap.clear();
+      this.toolEntryMap.clear();
 
       for (const [sourceId, { source, index }] of allIndexes) {
         this.sourceMap.set(sourceId, source);
         for (const entry of index.tools) {
-          tools.push({
+          const entryWithSource: RegistryEntryWithSource = {
             id: entry.id,
             name: entry.name,
             toolType: entry.type,
@@ -155,7 +587,9 @@ export class MarketplacePanel {
             updatedAt: entry.updatedAt,
             sourceId,
             sourceName: source.name,
-          });
+          };
+          tools.push(entryWithSource);
+          this.toolEntryMap.set(entry.id, entryWithSource);
         }
       }
 
@@ -267,6 +701,7 @@ export class MarketplacePanel {
    */
   private dispose(): void {
     MarketplacePanel.currentPanel = undefined;
+    this.pendingInstalls.clear();
 
     this.panel.dispose();
     for (const d of this.disposables) {

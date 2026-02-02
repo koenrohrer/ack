@@ -13,6 +13,7 @@ import { ToolManagerService } from './services/tool-manager.service.js';
 import { FileWatcherManager } from './views/file-watcher.manager.js';
 import { MarketplacePanel } from './views/marketplace/marketplace.panel.js';
 import { RegistryService } from './services/registry.service.js';
+import { InstallService } from './services/install.service.js';
 
 /**
  * Service container for cross-module access to initialized services.
@@ -80,20 +81,25 @@ export function activate(context: vscode.ExtensionContext): void {
   // 8. Registry service for marketplace data
   const registryService = new RegistryService(context);
 
-  // 9. Store services for cross-module access
+  // 9. Install service for one-click marketplace installs
+  const installService = new InstallService(
+    registryService, configService, registry, fileIO, workspaceRoot,
+  );
+
+  // 10. Store services for cross-module access
   services = { configService, registry, toolManager, registryService, outputChannel };
 
-  // 10. Tree view provider
+  // 11. Tree view provider
   const treeProvider = new ToolTreeProvider(configService, registry, context.extensionUri);
   treeProvider.register(context);
 
-  // 11. Tree commands (open file, refresh)
+  // 12. Tree commands (open file, refresh)
   registerToolTreeCommands(context, treeProvider);
 
-  // 12. Management commands (toggle, delete, move, install)
+  // 13. Management commands (toggle, delete, move, install)
   registerManagementCommands(context, toolManager);
 
-  // 13. Marketplace panel command
+  // 14. Marketplace panel command
   const openMarketplace = vscode.commands.registerCommand(
     'agent-config-keeper.openMarketplace',
     () =>
@@ -102,11 +108,13 @@ export function activate(context: vscode.ExtensionContext): void {
         registryService,
         configService,
         outputChannel,
+        installService,
+        toolManager,
       ),
   );
   context.subscriptions.push(openMarketplace);
 
-  // 14. File watcher for auto-refresh on config changes
+  // 15. File watcher for auto-refresh on config changes
   const fileWatcher = new FileWatcherManager(
     () => treeProvider.refresh(),
     () => {
@@ -120,7 +128,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(fileWatcher);
 
-  // 15. Auto-detect platform, then setup watchers and initial tree load
+  // 16. Auto-detect platform, then setup watchers and initial tree load
   registry
     .detectAndActivate()
     .then((adapter) => {
@@ -136,7 +144,7 @@ export function activate(context: vscode.ExtensionContext): void {
       outputChannel.appendLine(`Platform detection error: ${err}`);
     });
 
-  // 16. Test command (temporary, for manual verification during development)
+  // 17. Test command (temporary, for manual verification during development)
   const testCmd = vscode.commands.registerCommand(
     'agent-config-keeper.testReadAll',
     async () => {
