@@ -233,7 +233,8 @@ export class RegistryService {
     source: RegistrySource,
     contentPath: string,
   ): Promise<ToolManifest> {
-    const manifestPath = `${contentPath}/manifest.json`;
+    const normalizedPath = contentPath.replace(/\/+$/, '');
+    const manifestPath = `${normalizedPath}/manifest.json`;
     const url = this.contentsUrl(source, manifestPath);
 
     let response: Response;

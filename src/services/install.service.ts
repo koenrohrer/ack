@@ -63,22 +63,27 @@ export class InstallService {
    * try/catch to return structured results rather than throwing.
    */
   async install(request: InstallRequest): Promise<InstallResult> {
+    // Normalize contentPath to avoid double slashes
+    const normalizedRequest = {
+      ...request,
+      contentPath: request.contentPath.replace(/\/+$/, ''),
+    };
     try {
-      switch (request.manifest.type) {
+      switch (normalizedRequest.manifest.type) {
         case 'mcp_server':
-          return await this.installMcpServer(request);
+          return await this.installMcpServer(normalizedRequest);
         case 'skill':
-          return await this.installSkill(request);
+          return await this.installSkill(normalizedRequest);
         case 'command':
-          return await this.installCommand(request);
+          return await this.installCommand(normalizedRequest);
         case 'hook':
-          return await this.installHook(request);
+          return await this.installHook(normalizedRequest);
         default:
           return {
             success: false,
-            error: `Unsupported tool type: ${request.manifest.type}`,
-            toolName: request.manifest.name,
-            scope: request.scope,
+            error: `Unsupported tool type: ${normalizedRequest.manifest.type}`,
+            toolName: normalizedRequest.manifest.name,
+            scope: normalizedRequest.scope,
           };
       }
     } catch (err: unknown) {
@@ -86,8 +91,8 @@ export class InstallService {
       return {
         success: false,
         error: message,
-        toolName: request.manifest.name,
-        scope: request.scope,
+        toolName: normalizedRequest.manifest.name,
+        scope: normalizedRequest.scope,
       };
     }
   }
