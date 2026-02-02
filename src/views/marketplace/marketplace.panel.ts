@@ -8,6 +8,7 @@ import type {
   WebviewMessage,
   ExtensionMessage,
   RegistryEntryWithSource,
+  InstalledToolInfo,
 } from './marketplace.messages.js';
 
 /**
@@ -158,10 +159,10 @@ export class MarketplacePanel {
         }
       }
 
-      // Resolve installed tool IDs
-      const installedIds = await this.getInstalledToolIds();
+      // Resolve installed tools with type and scope info
+      const installedTools = await this.getInstalledTools();
 
-      this.postMessage({ type: 'installedTools', toolIds: installedIds });
+      this.postMessage({ type: 'installedTools', tools: installedTools });
       this.postMessage({ type: 'registryData', tools, loading: false });
     } catch (err) {
       const errorMsg =
@@ -199,21 +200,25 @@ export class MarketplacePanel {
   }
 
   /**
-   * Collect the names of all currently installed tools across all types.
+   * Collect installed tool info (name, type, scope) across all types.
    */
-  private async getInstalledToolIds(): Promise<string[]> {
-    const ids: string[] = [];
+  private async getInstalledTools(): Promise<InstalledToolInfo[]> {
+    const result: InstalledToolInfo[] = [];
     for (const type of Object.values(ToolType)) {
       try {
         const tools = await this.configService.readAllTools(type);
         for (const tool of tools) {
-          ids.push(tool.name);
+          result.push({
+            name: tool.name,
+            type: tool.type,
+            scope: tool.scope,
+          });
         }
       } catch {
         // Skip types that fail to read
       }
     }
-    return ids;
+    return result;
   }
 
   /**

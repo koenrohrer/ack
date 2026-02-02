@@ -24,7 +24,20 @@ declare module 'react' {
         React.HTMLAttributes<HTMLElement> & {
           placeholder?: string;
           value?: string;
+          type?: string;
           autofocus?: boolean;
+        },
+        HTMLElement
+      >;
+      'vscode-form-group': React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLElement> & {
+          variant?: 'horizontal' | 'vertical';
+        },
+        HTMLElement
+      >;
+      'vscode-label': React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLElement> & {
+          required?: boolean;
         },
         HTMLElement
       >;

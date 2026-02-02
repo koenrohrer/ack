@@ -4,10 +4,21 @@ import { useDebounce } from './useDebounce';
 import type {
   ExtensionMessage,
   RegistryEntryWithSource,
+  ConfigField,
+  InstalledToolInfo,
 } from '../../marketplace.messages';
 
 export type ToolTypeFilter = 'all' | 'skill' | 'mcp_server' | 'hook' | 'command';
 export type SortOption = 'popular' | 'recent' | 'alphabetical';
+
+/** Per-tool install state tracked independently for parallel install support. */
+export interface InstallState {
+  status: 'idle' | 'downloading' | 'configuring' | 'writing' | 'verifying' | 'installed' | 'error';
+  error?: string;
+  configFields?: ConfigField[];
+}
+
+const DEFAULT_INSTALL_STATE: InstallState = { status: 'idle' };
 
 const ITEMS_PER_PAGE = 24;
 
@@ -30,9 +41,16 @@ export function useMarketplace() {
 
   // --- Core data ---
   const [tools, setTools] = useState<RegistryEntryWithSource[]>([]);
-  const [installedToolIds, setInstalledToolIds] = useState<Set<string>>(new Set());
+  const [installedTools, setInstalledTools] = useState<InstalledToolInfo[]>([]);
+  const [installStates, setInstallStates] = useState<Map<string, InstallState>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Derived Set of installed tool names for backward-compatible lookup
+  const installedToolIds = useMemo(
+    () => new Set(installedTools.map((t) => t.name)),
+    [installedTools],
+  );
 
   // --- UI state ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -87,7 +105,33 @@ export function useMarketplace() {
           setError(message.error);
           break;
         case 'installedTools':
-          setInstalledToolIds(new Set(message.toolIds));
+          setInstalledTools(message.tools);
+          break;
+        case 'installProgress':
+          setInstallStates((prev) => new Map(prev).set(message.toolId, { status: message.status }));
+          break;
+        case 'installComplete':
+          setInstallStates((prev) => new Map(prev).set(message.toolId, { status: 'installed' }));
+          setInstalledTools((prev) => [
+            ...prev,
+            { name: message.toolId, type: '', scope: message.scope },
+          ]);
+          break;
+        case 'installError':
+          setInstallStates((prev) =>
+            new Map(prev).set(message.toolId, { status: 'error', error: message.error }),
+          );
+          break;
+        case 'installCancelled':
+          setInstallStates((prev) => new Map(prev).set(message.toolId, { status: 'idle' }));
+          break;
+        case 'installConfigRequired':
+          setInstallStates((prev) =>
+            new Map(prev).set(message.toolId, {
+              status: 'configuring',
+              configFields: message.fields,
+            }),
+          );
           break;
         case 'readmeLoading':
           setReadmeLoading(true);
@@ -200,6 +244,41 @@ export function useMarketplace() {
     [postMessage],
   );
 
+  const submitConfig = useCallback(
+    (toolId: string, sourceId: string, values: Record<string, string>) => {
+      postMessage({ type: 'submitConfig', toolId, sourceId, values });
+    },
+    [postMessage],
+  );
+
+  const retryInstall = useCallback(
+    (toolId: string, sourceId: string) => {
+      postMessage({ type: 'retryInstall', toolId, sourceId });
+    },
+    [postMessage],
+  );
+
+  const requestUninstall = useCallback(
+    (toolId: string) => {
+      postMessage({ type: 'requestUninstall', toolId });
+    },
+    [postMessage],
+  );
+
+  const getInstallState = useCallback(
+    (toolId: string): InstallState => {
+      return installStates.get(toolId) ?? DEFAULT_INSTALL_STATE;
+    },
+    [installStates],
+  );
+
+  const getInstalledInfo = useCallback(
+    (toolName: string): InstalledToolInfo | undefined => {
+      return installedTools.find((t) => t.name === toolName);
+    },
+    [installedTools],
+  );
+
   // --- Reset page when search/type changes ---
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
@@ -216,6 +295,8 @@ export function useMarketplace() {
     tools: paginatedTools,
     totalTools: filteredTools.length,
     installedToolIds,
+    installedTools,
+    installStates,
     loading,
     error,
 
@@ -242,5 +323,10 @@ export function useMarketplace() {
     goBack,
     refresh,
     requestInstall,
+    submitConfig,
+    retryInstall,
+    requestUninstall,
+    getInstallState,
+    getInstalledInfo,
   };
 }
