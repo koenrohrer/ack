@@ -18,6 +18,27 @@ interface ProfileQuickPickItem extends vscode.QuickPickItem {
 }
 
 /**
+ * Build a QuickPick item for a profile, reconciling tool counts against the
+ * current environment. Stale entries (tools deleted since profile creation)
+ * are pruned automatically.
+ */
+async function reconcileAndBuildItem(
+  p: Profile,
+  profileService: ProfileService,
+  activeId: string | null,
+): Promise<ProfileQuickPickItem> {
+  const { valid, removed } = await profileService.reconcileProfile(p.id);
+  // Re-read profile after reconciliation to get updated data
+  const updated = profileService.getProfile(p.id) ?? p;
+  const desc = p.id === activeId
+    ? '(active)'
+    : removed > 0
+      ? `${valid} tools (${removed} removed)`
+      : `${valid} tools`;
+  return { label: updated.name, description: desc, profile: updated };
+}
+
+/**
  * Register all profile management command handlers.
  *
  * Commands:
@@ -80,17 +101,17 @@ export function registerProfileCommands(
 
       const activeId = profileService.getActiveProfileId();
 
+      const profileItems = await Promise.all(
+        profiles.map((p) => reconcileAndBuildItem(p, profileService, activeId)),
+      );
+
       const items: ProfileQuickPickItem[] = [
         {
           label: 'Current Environment (No Profile)',
           description: !activeId ? '(active)' : undefined,
           profile: null,
         },
-        ...profiles.map((p): ProfileQuickPickItem => ({
-          label: p.name,
-          description: p.id === activeId ? '(active)' : `${p.tools.length} tools`,
-          profile: p,
-        })),
+        ...profileItems,
       ];
 
       const selected = await vscode.window.showQuickPick(items, {
@@ -152,12 +173,11 @@ export function registerProfileCommands(
         return;
       }
 
-      // Select which profile to edit
-      const profileItems: ProfileQuickPickItem[] = profiles.map((p) => ({
-        label: p.name,
-        description: `${p.tools.length} tools`,
-        profile: p,
-      }));
+      // Select which profile to edit (reconcile to show accurate counts)
+      const activeId = profileService.getActiveProfileId();
+      const profileItems = await Promise.all(
+        profiles.map((p) => reconcileAndBuildItem(p, profileService, activeId)),
+      );
 
       const selectedProfile = await vscode.window.showQuickPick(profileItems, {
         placeHolder: 'Select a profile to edit',
@@ -254,11 +274,10 @@ export function registerProfileCommands(
         return;
       }
 
-      const items: ProfileQuickPickItem[] = profiles.map((p) => ({
-        label: p.name,
-        description: `${p.tools.length} tools`,
-        profile: p,
-      }));
+      const activeId = profileService.getActiveProfileId();
+      const items = await Promise.all(
+        profiles.map((p) => reconcileAndBuildItem(p, profileService, activeId)),
+      );
 
       const selected = await vscode.window.showQuickPick(items, {
         placeHolder: 'Select a profile to delete',

@@ -178,6 +178,44 @@ export class ProfileService {
   }
 
   // ---------------------------------------------------------------------------
+  // Reconciliation
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Reconcile a profile against the current tool inventory.
+   *
+   * Removes entries that reference tools no longer present in the environment.
+   * Returns the count of valid and removed entries. If entries were removed,
+   * the profile is updated in the store automatically.
+   */
+  async reconcileProfile(id: string): Promise<{ valid: number; removed: number }> {
+    const profile = this.getProfile(id);
+    if (!profile) {
+      return { valid: 0, removed: 0 };
+    }
+
+    // Read current tool keys
+    const currentKeys = new Set<string>();
+    for (const type of [ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command]) {
+      const tools = await this.configService.readAllTools(type);
+      for (const tool of tools) {
+        if (tool.scope !== ConfigScope.Managed) {
+          currentKeys.add(canonicalKey(tool));
+        }
+      }
+    }
+
+    const validEntries = profile.tools.filter((e) => currentKeys.has(e.key));
+    const removed = profile.tools.length - validEntries.length;
+
+    if (removed > 0) {
+      await this.updateProfile(id, { tools: validEntries });
+    }
+
+    return { valid: validEntries.length, removed };
+  }
+
+  // ---------------------------------------------------------------------------
   // Profile switching
   // ---------------------------------------------------------------------------
 
