@@ -11,6 +11,7 @@ import { registerToolTreeCommands } from './views/tool-tree/tool-tree.commands.j
 import { registerManagementCommands } from './views/tool-tree/tool-tree.management.js';
 import { ToolManagerService } from './services/tool-manager.service.js';
 import { FileWatcherManager } from './views/file-watcher.manager.js';
+import { MarketplacePanel } from './views/marketplace/marketplace.panel.js';
 
 /**
  * Service container for cross-module access to initialized services.
@@ -86,7 +87,14 @@ export function activate(context: vscode.ExtensionContext): void {
   // 11. Management commands (toggle, delete, move, install)
   registerManagementCommands(context, toolManager);
 
-  // 12. File watcher for auto-refresh on config changes
+  // 12. Marketplace panel command
+  const openMarketplace = vscode.commands.registerCommand(
+    'agent-config-keeper.openMarketplace',
+    () => MarketplacePanel.createOrShow(context.extensionUri),
+  );
+  context.subscriptions.push(openMarketplace);
+
+  // 13. File watcher for auto-refresh on config changes
   const fileWatcher = new FileWatcherManager(
     () => treeProvider.refresh(),
     () => {
@@ -100,7 +108,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(fileWatcher);
 
-  // 13. Auto-detect platform, then setup watchers and initial tree load
+  // 14. Auto-detect platform, then setup watchers and initial tree load
   registry
     .detectAndActivate()
     .then((adapter) => {
@@ -116,7 +124,7 @@ export function activate(context: vscode.ExtensionContext): void {
       outputChannel.appendLine(`Platform detection error: ${err}`);
     });
 
-  // 14. Test command (temporary, for manual verification during development)
+  // 15. Test command (temporary, for manual verification during development)
   const testCmd = vscode.commands.registerCommand(
     'agent-config-keeper.testReadAll',
     async () => {

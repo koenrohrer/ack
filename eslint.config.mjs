@@ -18,6 +18,19 @@ export default tseslint.config(
     },
   },
   {
+    files: ['src/**/*.tsx'],
+    languageOptions: {
+      parserOptions: {
+        project: 'tsconfig.webview.json',
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-explicit-any': 'warn',
+    },
+  },
+  {
     ignores: ['dist/**', 'node_modules/**', '*.mjs'],
   }
 );

@@ -73,6 +73,11 @@
         "command": "agent-config-keeper.installTool",
         "title": "Install...",
         "icon": "$(add)"
+      },
+      {
+        "command": "agent-config-keeper.openMarketplace",
+        "title": "Agent Config Keeper: Open Marketplace",
+        "icon": "$(extensions)"
       }
     ],
     "submenus": [
@@ -82,6 +87,13 @@
       }
     ],
     "menus": {
+      "view/title": [
+        {
+          "command": "agent-config-keeper.openMarketplace",
+          "when": "view == agent-config-keeper.toolTree",
+          "group": "navigation"
+        }
+      ],
       "view/item/context": [
         {
           "command": "agent-config-keeper.toggleTool",
@@ -137,6 +149,23 @@
           "type": "boolean",
           "default": false,
           "description": "Skip confirmation dialog when deleting tools"
+        },
+        "agentConfigKeeper.registrySources": {
+          "type": "array",
+          "default": [],
+          "description": "Additional tool registry sources (GitHub repositories). The default community registry is always included.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "description": "Unique identifier for this source" },
+              "name": { "type": "string", "description": "Display name" },
+              "owner": { "type": "string", "description": "GitHub repository owner" },
+              "repo": { "type": "string", "description": "GitHub repository name" },
+              "branch": { "type": "string", "default": "main", "description": "Git branch" },
+              "indexPath": { "type": "string", "default": "registry.json", "description": "Path to registry.json in repo" }
+            },
+            "required": ["id", "name", "owner", "repo"]
+          }
         }
       }
     },
@@ -174,19 +203,26 @@
     ]
   },
   "scripts": {
-    "compile": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
-    "watch": "npm run compile -- --watch",
+    "compile:ext": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+    "compile:webview": "node esbuild.webview.mjs",
+    "compile": "npm run compile:ext && npm run compile:webview",
+    "watch:ext": "npm run compile:ext -- --watch",
+    "watch:webview": "node esbuild.webview.mjs --watch",
+    "watch": "npm-run-all --parallel watch:ext watch:webview check-types",
     "check-types": "tsc --noEmit",
     "lint": "eslint src/",
     "test:unit": "vitest run",
     "test:integration": "vscode-test",
     "dev": "npm-run-all --parallel watch check-types",
-    "package": "npm run compile -- --minify"
+    "package": "npm run compile:ext -- --minify && node esbuild.webview.mjs --minify"
   },
   "dependencies": {
+    "@vscode-elements/elements": "^2.4.0",
     "dompurify": "^3.3.1",
     "jsonc-parser": "^3.3.1",
     "marked": "^17.0.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "write-file-atomic": "^6.0",
     "zod": "^4.3"
   },
@@ -194,6 +230,8 @@
     "@eslint/js": "^9.0",
     "@types/dompurify": "^3.0.5",
     "@types/node": "^22",
+    "@types/react": "^19.2.10",
+    "@types/react-dom": "^19.2.3",
     "@types/vscode": "^1.105.0",
     "@types/write-file-atomic": "^4.0.3",
     "@vscode/test-cli": "^0.0.10",
