@@ -133,9 +133,11 @@ export class ConfigPanel {
       case 'ready':
         void this.sendProfilesData();
         void this.sendToolsData();
+        void this.sendWorkspaceAssociation();
         break;
       case 'requestProfiles':
         void this.sendProfilesData();
+        void this.sendWorkspaceAssociation();
         break;
       case 'requestTools':
         void this.sendToolsData();
@@ -172,6 +174,9 @@ export class ConfigPanel {
         break;
       case 'importProfile':
         void vscode.commands.executeCommand('agent-config-keeper.importProfile');
+        break;
+      case 'associateProfile':
+        void this.handleAssociateProfile(message.profileId);
         break;
     }
   }
@@ -405,6 +410,59 @@ export class ConfigPanel {
       const errorMsg = err instanceof Error ? err.message : 'Failed to update profile tools';
       this.outputChannel.appendLine(`[ConfigPanel] updateProfileTools error: ${errorMsg}`);
       this.postMessage({ type: 'operationError', op: 'updateProfileTools', error: errorMsg });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Workspace association handlers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Associate (or disassociate) a profile with the current workspace.
+   */
+  private async handleAssociateProfile(profileId: string | null): Promise<void> {
+    try {
+      const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (!wsRoot) {
+        this.postMessage({ type: 'operationError', op: 'associateProfile', error: 'No workspace folder open' });
+        return;
+      }
+
+      if (profileId === null) {
+        await this.workspaceProfileService.removeAssociation(wsRoot);
+        this.postMessage({ type: 'workspaceAssociation', profileName: null });
+        this.outputChannel.appendLine('[ConfigPanel] Removed workspace profile association');
+      } else {
+        const profile = this.profileService.getProfile(profileId);
+        if (!profile) {
+          this.postMessage({ type: 'operationError', op: 'associateProfile', error: 'Profile not found' });
+          return;
+        }
+        await this.workspaceProfileService.setAssociation(wsRoot, profile.name);
+        this.postMessage({ type: 'workspaceAssociation', profileName: profile.name });
+        this.outputChannel.appendLine(`[ConfigPanel] Associated workspace with profile "${profile.name}"`);
+      }
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to associate profile';
+      this.outputChannel.appendLine(`[ConfigPanel] associateProfile error: ${errorMsg}`);
+      this.postMessage({ type: 'operationError', op: 'associateProfile', error: errorMsg });
+    }
+  }
+
+  /**
+   * Send current workspace association state to webview.
+   */
+  private async sendWorkspaceAssociation(): Promise<void> {
+    try {
+      const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (!wsRoot) {
+        this.postMessage({ type: 'workspaceAssociation', profileName: null });
+        return;
+      }
+      const association = await this.workspaceProfileService.getAssociation(wsRoot);
+      this.postMessage({ type: 'workspaceAssociation', profileName: association?.profileName ?? null });
+    } catch {
+      this.postMessage({ type: 'workspaceAssociation', profileName: null });
     }
   }
 

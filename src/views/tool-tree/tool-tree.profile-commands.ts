@@ -167,6 +167,21 @@ export function registerProfileCommands(
           `${result.failed} toggle(s) failed: ${result.errors.join('; ')}`,
         );
       }
+
+      // Track manual override if workspace has an association
+      const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (wsRoot) {
+        const assoc = await workspaceProfileService.getAssociation(wsRoot);
+        if (assoc) {
+          if (profileName === assoc.profileName) {
+            // User switched back to the associated profile -- clear override
+            await workspaceProfileService.clearOverride(wsRoot);
+          } else {
+            // User switched away from the associated profile -- record override
+            await workspaceProfileService.setOverride(wsRoot, profileName);
+          }
+        }
+      }
     },
   );
 
@@ -233,10 +248,19 @@ export function registerProfileCommands(
             return;
           }
 
+          const oldName = profile.name;
           await profileService.updateProfile(profile.id, { name: trimmedName });
           // Update sidebar header if the renamed profile is the active one
           if (profileService.getActiveProfileId() === profile.id) {
             treeProvider.setActiveProfile(trimmedName);
+          }
+          // Update workspace association if it references the old name
+          const renameWsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+          if (renameWsRoot) {
+            const assoc = await workspaceProfileService.getAssociation(renameWsRoot);
+            if (assoc && assoc.profileName === oldName) {
+              await workspaceProfileService.setAssociation(renameWsRoot, trimmedName);
+            }
           }
           vscode.window.showInformationMessage(`Profile renamed to "${trimmedName}"`);
           break;
@@ -568,7 +592,61 @@ export function registerProfileCommands(
     },
   );
 
-  context.subscriptions.push(createCmd, switchCmd, editCmd, deleteCmd, saveAsCmd, exportCmd, importCmd);
+  // ---------------------------------------------------------------------------
+  // Associate Profile with Workspace
+  // ---------------------------------------------------------------------------
+
+  const associateCmd = vscode.commands.registerCommand(
+    'agent-config-keeper.associateProfile',
+    async () => {
+      const folders = vscode.workspace.workspaceFolders;
+      if (!folders || folders.length === 0) {
+        vscode.window.showWarningMessage('No workspace folder open');
+        return;
+      }
+
+      const wsRoot = folders[0].uri.fsPath;
+      const profiles = profileService.getProfiles();
+      if (profiles.length === 0) {
+        vscode.window.showInformationMessage('No profiles saved. Create one first.');
+        return;
+      }
+
+      const activeId = profileService.getActiveProfileId();
+      const profileItems = await Promise.all(
+        profiles.map((p) => reconcileAndBuildItem(p, profileService, activeId)),
+      );
+
+      const items: ProfileQuickPickItem[] = [
+        {
+          label: 'None (remove association)',
+          description: undefined,
+          profile: null,
+        },
+        ...profileItems,
+      ];
+
+      const selected = await vscode.window.showQuickPick(items, {
+        placeHolder: 'Select a profile to associate with this workspace',
+      });
+
+      if (!selected) {
+        return;
+      }
+
+      if (selected.profile === null) {
+        await workspaceProfileService.removeAssociation(wsRoot);
+        vscode.window.showInformationMessage('Workspace profile association removed');
+      } else {
+        await workspaceProfileService.setAssociation(wsRoot, selected.profile.name);
+        vscode.window.showInformationMessage(
+          `Workspace associated with profile "${selected.profile.name}"`,
+        );
+      }
+    },
+  );
+
+  context.subscriptions.push(createCmd, switchCmd, editCmd, deleteCmd, saveAsCmd, exportCmd, importCmd, associateCmd);
 }
 
 // ---------------------------------------------------------------------------
