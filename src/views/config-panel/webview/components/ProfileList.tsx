@@ -89,10 +89,8 @@ export function ProfileList({
   );
 
   const handleDelete = useCallback(
-    (id: string, name: string) => {
-      if (window.confirm(`Delete profile "${name}"? This cannot be undone.`)) {
-        postMessage({ type: 'deleteProfile', id });
-      }
+    (id: string) => {
+      postMessage({ type: 'deleteProfile', id });
     },
     [postMessage],
   );
@@ -263,7 +261,7 @@ export function ProfileList({
                   {/* Delete */}
                   <vscode-button
                     appearance="secondary"
-                    onClick={() => handleDelete(profile.id, profile.name)}
+                    onClick={() => handleDelete(profile.id)}
                   >
                     Delete
                   </vscode-button>

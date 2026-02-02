@@ -208,10 +208,22 @@ export class ConfigPanel {
   }
 
   /**
-   * Delete a profile by ID.
+   * Delete a profile by ID after confirming with the user.
    */
   private async handleDeleteProfile(id: string): Promise<void> {
     try {
+      const profile = this.profileService.getProfile(id);
+      const name = profile?.name ?? id;
+
+      const answer = await vscode.window.showWarningMessage(
+        `Delete profile "${name}"? This cannot be undone.`,
+        { modal: true },
+        'Delete',
+      );
+      if (answer !== 'Delete') {
+        return;
+      }
+
       const deleted = await this.profileService.deleteProfile(id);
       if (!deleted) {
         this.postMessage({ type: 'operationError', op: 'deleteProfile', error: 'Profile not found' });
