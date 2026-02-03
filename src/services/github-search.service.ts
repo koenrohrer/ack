@@ -2,12 +2,11 @@
  * GitHub Search Discovery Service.
  *
  * Queries the GitHub REST API to discover compatible tools from public
- * repositories. Handles authentication (VS Code GitHub provider), dual
- * search strategy (repo search for broad queries, code search for
- * type-filtered filename matching), independent rate limit tracking,
- * and 30-minute result caching.
+ * repositories. Uses code search (filename: qualifier) as the primary
+ * discovery strategy — the same approach used by SkillsMP and Vercel's
+ * skills marketplace. Repository search supplements for keyword queries.
  *
- * No top-level vscode import -- dynamic require('vscode') is used inside
+ * No top-level vscode import — dynamic require('vscode') is used inside
  * methods that need the VS Code API, following the RegistryService pattern.
  */
 
@@ -39,6 +38,28 @@ const BASE_HEADERS: Record<string, string> = {
   'X-GitHub-Api-Version': '2022-11-28',
 };
 
+/**
+ * Code search queries for browse discovery, segmented to maximize coverage.
+ * Each query uses the filename: qualifier on /search/code.
+ * Segmented by tool type so each returns distinct results.
+ */
+const BROWSE_QUERIES: { query: string; type: GitHubToolType }[] = [
+  { query: 'filename:SKILL.md', type: 'skill' },
+  { query: 'filename:.mcp.json', type: 'mcp_server' },
+];
+
+/**
+ * Code search queries per tool type for filtered search.
+ * Uses filename: and optional path: qualifiers on /search/code.
+ */
+const TYPE_CODE_QUERIES: Record<GitHubToolType, string[]> = {
+  skill: ['filename:SKILL.md', 'filename:skill.md'],
+  mcp_server: ['filename:.mcp.json', 'filename:mcp.json'],
+  hook: ['filename:settings.json path:.claude'],
+  command: ['path:.claude/commands'],
+  profile: ['filename:agent-profile.json'],
+};
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
@@ -46,13 +67,17 @@ const BASE_HEADERS: Record<string, string> = {
 /**
  * Discovers compatible tools from public GitHub repositories.
  *
- * Primary public API:
- * - `search(options)` -- main entry point for all search flows
- * - `browseDiscovery()` -- trending/recent tool repos (no query)
- * - `promptForAuth()` -- prompt user for GitHub authentication
- * - `getAuthHeaders()` -- reusable headers for external consumers
- * - `getRateLimitState()` -- current rate limit snapshot
- * - `isNearRateLimit()` -- quick check for UI warning display
+ * Primary strategy: code search with filename: qualifier (like SkillsMP).
+ * This finds repos that actually contain tool files (SKILL.md, .mcp.json, etc.)
+ * rather than repos that just mention tools in their description.
+ *
+ * Public API:
+ * - `search(options)` — main entry point for all search flows
+ * - `browseDiscovery()` — discover repos containing tool files
+ * - `promptForAuth()` — prompt user for GitHub authentication
+ * - `getAuthHeaders()` — reusable headers for external consumers
+ * - `getRateLimitState()` — current rate limit snapshot
+ * - `isNearRateLimit()` — quick check for UI warning display
  */
 export class GitHubSearchService {
   private readonly searchCache = new Map<string, GitHubSearchCacheEntry>();
@@ -95,7 +120,7 @@ export class GitHubSearchService {
         return this.cachedToken;
       }
     } catch {
-      // VS Code API not available (e.g., running in tests) -- fall through
+      // VS Code API not available (e.g., running in tests) — fall through
     }
 
     this.cachedToken = null;
@@ -155,14 +180,14 @@ export class GitHubSearchService {
    * Main search entry point.
    *
    * Routing logic:
-   * 1. Check cache -- return fresh results immediately.
-   * 2. If rate-limited -- return stale cache or empty array.
-   * 3. typeFilter set + no text query -> code search (filename patterns),
-   *    falling back to repo search if code search is rate-limited.
-   * 4. text query set OR no typeFilter -> repository search.
-   * 5. Neither query nor typeFilter -> browseDiscovery().
+   * 1. Check cache — return fresh results immediately.
+   * 2. If rate-limited — return stale cache or empty array.
+   * 3. typeFilter set (with or without query) → code search with filename patterns.
+   * 4. query set without typeFilter → code search for SKILL.md + .mcp.json with query term.
+   * 5. Neither query nor typeFilter → browseDiscovery() (code search).
    *
-   * Results are cached with the search options as key.
+   * Code search is the primary strategy. Repo search is only used as
+   * supplementary source when a text query is provided.
    */
   async search(options: GitHubSearchOptions = {}): Promise<GitHubSearchResult[]> {
     const cacheKey = this.buildCacheKey(options);
@@ -173,35 +198,25 @@ export class GitHubSearchService {
       return cached.results;
     }
 
-    // Determine which search endpoint to use
     const hasQuery = !!options.query?.trim();
     const hasTypeFilter = !!options.typeFilter;
 
     let results: GitHubSearchResult[];
 
-    if (hasTypeFilter && !hasQuery) {
-      // Type-filtered without text query: prefer code search for filename matching
-      if (!this.isRateLimited(true)) {
-        results = await this.searchCode(options.typeFilter!);
-      } else if (!this.isRateLimited(false)) {
-        // Code search rate-limited -- fall back to repo search
-        results = await this.searchRepositories(options);
-      } else {
-        // Both rate-limited -- return stale cache or empty
-        return cached?.results ?? [];
-      }
-    } else if (hasQuery || hasTypeFilter) {
-      // Text query (with or without type filter): repo search
-      if (this.isRateLimited(false)) {
-        return cached?.results ?? [];
-      }
-      results = await this.searchRepositories(options);
-    } else {
-      // No query, no filter: browse discovery
-      if (this.isRateLimited(false)) {
-        return cached?.results ?? [];
-      }
+    if (this.isRateLimited(true) && this.isRateLimited(false)) {
+      // Both endpoints rate-limited — return stale cache or empty
+      return cached?.results ?? [];
+    }
+
+    if (!hasQuery && !hasTypeFilter) {
+      // Browse mode: discover repos containing tool files
       results = await this.browseDiscovery();
+    } else if (hasTypeFilter) {
+      // Type filter active: code search for that type's filename patterns
+      results = await this.searchByType(options.typeFilter!, options.query);
+    } else {
+      // Text query only: code search for common tool files + repo search supplement
+      results = await this.searchByQuery(options.query!);
     }
 
     // Cache results
@@ -214,25 +229,48 @@ export class GitHubSearchService {
   }
 
   /**
-   * Browse mode: discover trending/recent tool repos without a query.
+   * Browse mode: discover repos that contain tool files.
    *
-   * Uses repository search with topic-based queries. Does NOT use code
-   * search (per RESEARCH.md rate limit strategy).
+   * Uses code search with filename: qualifier — the same strategy as
+   * SkillsMP. Queries for SKILL.md and .mcp.json files to find repos
+   * that actually contain tools, not just repos that mention them.
+   *
+   * Multiple queries are run sequentially (not parallel) to respect
+   * the 10 req/min code search rate limit.
    */
   async browseDiscovery(): Promise<GitHubSearchResult[]> {
-    // GitHub search API does not support OR between topic: qualifiers.
-    // Use plain keywords that match against repo names and descriptions.
-    const query = 'mcp-server OR claude-skill OR claude-tools OR claude-commands in:name,description,topics';
-    const url =
-      `${GITHUB_API_BASE}/search/repositories` +
-      `?q=${encodeURIComponent(query)}` +
-      `&sort=updated&order=desc` +
-      `&per_page=${GITHUB_SEARCH_CONSTANTS.MAX_RESULTS_DEFAULT}`;
+    const allResults: GitHubSearchResult[] = [];
+    const seenRepos = new Set<string>();
 
-    const data = await this.fetchGitHub(url, false);
-    const items = (data.items ?? []) as GitHubRepoItem[];
+    for (const { query, type } of BROWSE_QUERIES) {
+      if (this.isRateLimited(true)) {
+        break;
+      }
 
-    return this.mapRepoResults(items);
+      const url =
+        `${GITHUB_API_BASE}/search/code` +
+        `?q=${encodeURIComponent(query)}` +
+        `&sort=indexed&order=desc` +
+        `&per_page=${GITHUB_SEARCH_CONSTANTS.MAX_RESULTS_DEFAULT}`;
+
+      const data = await this.fetchGitHub(url, true);
+      const items = (data.items ?? []) as GitHubCodeItem[];
+
+      for (const item of items) {
+        const repoFullName = item.repository.full_name;
+        if (seenRepos.has(repoFullName)) {
+          continue;
+        }
+        seenRepos.add(repoFullName);
+
+        allResults.push(this.codeItemToResult(item, type));
+      }
+    }
+
+    // Sort by stars descending
+    allResults.sort((a, b) => b.stars - a.stars);
+
+    return allResults.slice(0, GITHUB_SEARCH_CONSTANTS.MAX_RESULTS_DEFAULT);
   }
 
   // -------------------------------------------------------------------------
@@ -240,111 +278,149 @@ export class GitHubSearchService {
   // -------------------------------------------------------------------------
 
   /**
-   * Search GitHub repositories by keyword and/or tool type qualifiers.
+   * Search by tool type using code search with filename patterns.
    *
-   * Builds a search query with:
-   * - User text query (if provided)
-   * - in:name,description qualifier
-   * - archived:false, fork:false exclusions
-   * - Type-specific qualifiers from TOOL_DETECTION_PATTERNS (if typeFilter set)
+   * Optionally includes a text query term alongside the filename qualifier.
+   * For example: `filename:SKILL.md react` finds skills related to React.
    */
-  private async searchRepositories(
-    options: GitHubSearchOptions,
-  ): Promise<GitHubSearchResult[]> {
-    const parts: string[] = [];
-
-    if (options.query?.trim()) {
-      parts.push(options.query.trim());
-    }
-
-    // Add type-specific qualifiers
-    if (options.typeFilter) {
-      const typeQualifiers = this.buildTypeQualifiers(options.typeFilter);
-      if (typeQualifiers) {
-        parts.push(typeQualifiers);
-      }
-    }
-
-    parts.push('in:name,description');
-    parts.push('archived:false');
-    parts.push('fork:false');
-
-    const perPage = options.maxResults ?? GITHUB_SEARCH_CONSTANTS.MAX_RESULTS_DEFAULT;
-    const query = parts.join(' ');
-    const url =
-      `${GITHUB_API_BASE}/search/repositories` +
-      `?q=${encodeURIComponent(query)}` +
-      `&sort=stars&order=desc` +
-      `&per_page=${perPage}`;
-
-    const data = await this.fetchGitHub(url, false);
-    const items = (data.items ?? []) as GitHubRepoItem[];
-
-    let results = this.mapRepoResults(items);
-
-    // If type filter is active, keep only matching results
-    if (options.typeFilter) {
-      results = results.filter((r) => r.detectedType === options.typeFilter);
-    }
-
-    return results;
-  }
-
-  /**
-   * Search GitHub code by filename patterns for a specific tool type.
-   *
-   * Only called when a type filter is active without a text query.
-   * Combines all filename patterns for the type with OR and deduplicates
-   * results by repository.
-   */
-  private async searchCode(
+  private async searchByType(
     typeFilter: GitHubToolType,
+    query?: string,
   ): Promise<GitHubSearchResult[]> {
-    const patterns = TOOL_DETECTION_PATTERNS[typeFilter];
-    if (!patterns || patterns.length === 0) {
+    const codeQueries = TYPE_CODE_QUERIES[typeFilter];
+    if (!codeQueries || codeQueries.length === 0) {
       return [];
     }
 
-    // Build filename query: filename:SKILL.md OR filename:skill.md
-    const filenameParts = patterns.map((p) => `filename:${p.filePattern}`);
-    const query = filenameParts.join(' OR ');
-
-    const url =
-      `${GITHUB_API_BASE}/search/code` +
-      `?q=${encodeURIComponent(query)}` +
-      `&per_page=${GITHUB_SEARCH_CONSTANTS.MAX_RESULTS_DEFAULT}`;
-
-    const data = await this.fetchGitHub(url, true);
-    const items = (data.items ?? []) as GitHubCodeItem[];
-
-    // Deduplicate by repository -- one result per repo for the given type
+    const allResults: GitHubSearchResult[] = [];
     const seenRepos = new Set<string>();
-    const results: GitHubSearchResult[] = [];
+    const queryTerm = query?.trim() ?? '';
 
-    for (const item of items) {
-      const repoFullName = item.repository.full_name;
-      if (seenRepos.has(repoFullName)) {
-        continue;
+    for (const codeQuery of codeQueries) {
+      if (this.isRateLimited(true)) {
+        break;
       }
-      seenRepos.add(repoFullName);
 
-      results.push({
-        id: `github:${repoFullName}:${typeFilter}`,
-        name: item.repository.name,
-        description: item.repository.description ?? '',
-        detectedType: typeFilter,
-        author: item.repository.owner.login,
-        repoFullName,
-        repoUrl: item.repository.html_url,
-        stars: item.repository.stargazers_count,
-        language: item.repository.language,
-        lastUpdated: item.repository.pushed_at,
-        topics: item.repository.topics ?? [],
-        defaultBranch: item.repository.default_branch,
-      });
+      // Combine filename pattern with optional text query
+      const fullQuery = queryTerm
+        ? `${codeQuery} ${queryTerm}`
+        : codeQuery;
+
+      const url =
+        `${GITHUB_API_BASE}/search/code` +
+        `?q=${encodeURIComponent(fullQuery)}` +
+        `&per_page=${GITHUB_SEARCH_CONSTANTS.MAX_RESULTS_DEFAULT}`;
+
+      const data = await this.fetchGitHub(url, true);
+      const items = (data.items ?? []) as GitHubCodeItem[];
+
+      for (const item of items) {
+        const repoFullName = item.repository.full_name;
+        if (seenRepos.has(repoFullName)) {
+          continue;
+        }
+        seenRepos.add(repoFullName);
+
+        allResults.push(this.codeItemToResult(item, typeFilter));
+      }
     }
 
-    return results;
+    // Sort by stars descending
+    allResults.sort((a, b) => b.stars - a.stars);
+
+    return allResults;
+  }
+
+  /**
+   * Search by keyword across all tool types.
+   *
+   * Uses code search with filename patterns + the query term.
+   * Also supplements with repo search for broader coverage.
+   */
+  private async searchByQuery(
+    query: string,
+  ): Promise<GitHubSearchResult[]> {
+    const allResults: GitHubSearchResult[] = [];
+    const seenRepos = new Set<string>();
+    const trimmed = query.trim();
+
+    // 1. Code search: find SKILL.md and .mcp.json files matching the query
+    const codeSearchQueries = [
+      { q: `filename:SKILL.md ${trimmed}`, type: 'skill' as GitHubToolType },
+      { q: `filename:.mcp.json ${trimmed}`, type: 'mcp_server' as GitHubToolType },
+    ];
+
+    for (const { q, type } of codeSearchQueries) {
+      if (this.isRateLimited(true)) {
+        break;
+      }
+
+      const url =
+        `${GITHUB_API_BASE}/search/code` +
+        `?q=${encodeURIComponent(q)}` +
+        `&per_page=15`;
+
+      const data = await this.fetchGitHub(url, true);
+      const items = (data.items ?? []) as GitHubCodeItem[];
+
+      for (const item of items) {
+        const repoFullName = item.repository.full_name;
+        if (seenRepos.has(repoFullName)) {
+          continue;
+        }
+        seenRepos.add(repoFullName);
+
+        allResults.push(this.codeItemToResult(item, type));
+      }
+    }
+
+    // 2. Repo search supplement: find repos with tool-related names/topics
+    if (!this.isRateLimited(false)) {
+      const repoQuery = `${trimmed} in:name,description archived:false fork:false`;
+      const url =
+        `${GITHUB_API_BASE}/search/repositories` +
+        `?q=${encodeURIComponent(repoQuery)}` +
+        `&sort=stars&order=desc` +
+        `&per_page=15`;
+
+      const data = await this.fetchGitHub(url, false);
+      const items = (data.items ?? []) as GitHubRepoItem[];
+
+      for (const repo of items) {
+        if (seenRepos.has(repo.full_name)) {
+          continue;
+        }
+
+        const detectedTypes = this.detectToolTypes(repo);
+        if (detectedTypes.length === 0) {
+          continue;
+        }
+
+        seenRepos.add(repo.full_name);
+
+        for (const toolType of detectedTypes) {
+          allResults.push({
+            id: `github:${repo.full_name}:${toolType}`,
+            name: repo.name,
+            description: repo.description ?? '',
+            detectedType: toolType,
+            author: repo.owner.login,
+            repoFullName: repo.full_name,
+            repoUrl: repo.html_url,
+            stars: repo.stargazers_count,
+            language: repo.language,
+            lastUpdated: repo.pushed_at,
+            topics: repo.topics ?? [],
+            defaultBranch: repo.default_branch,
+          });
+        }
+      }
+    }
+
+    // Sort by stars descending
+    allResults.sort((a, b) => b.stars - a.stars);
+
+    return allResults.slice(0, GITHUB_SEARCH_CONSTANTS.MAX_RESULTS_DEFAULT);
   }
 
   // -------------------------------------------------------------------------
@@ -386,8 +462,6 @@ export class GitHubSearchService {
 
   /**
    * Check if a search endpoint is currently rate-limited.
-   *
-   * @param isCodeSearch - true for code search, false for repo search
    */
   private isRateLimited(isCodeSearch: boolean): boolean {
     const state = isCodeSearch ? this.codeSearchRateLimit : this.repoSearchRateLimit;
@@ -404,6 +478,7 @@ export class GitHubSearchService {
    * authentication and rate limit tracking.
    *
    * On rate limit (403/429): updates rate limit state, returns { items: [] }.
+   * On 422 (invalid query): returns { items: [] } (don't throw for bad queries).
    * On other HTTP errors: throws.
    */
   private async fetchGitHub(
@@ -422,8 +497,8 @@ export class GitHubSearchService {
     // Update rate limit state from response headers
     this.updateRateLimitFromHeaders(response.headers, isCodeSearch);
 
-    // Handle rate limiting gracefully
-    if (response.status === 403 || response.status === 429) {
+    // Handle rate limiting and bad queries gracefully
+    if (response.status === 403 || response.status === 429 || response.status === 422) {
       return { items: [] };
     }
 
@@ -464,45 +539,26 @@ export class GitHubSearchService {
   }
 
   /**
-   * Map GitHub repository API items to GitHubSearchResult[].
-   *
-   * For each repo, detectToolTypes() determines which types it provides.
-   * Multi-detect repos produce one result per detected type.
-   * Repos with no detected type are included with a best-guess from topics.
+   * Convert a code search result item to a GitHubSearchResult.
    */
-  private mapRepoResults(items: GitHubRepoItem[]): GitHubSearchResult[] {
-    const results: GitHubSearchResult[] = [];
-
-    for (const repo of items) {
-      const detectedTypes = this.detectToolTypes(repo);
-
-      if (detectedTypes.length === 0) {
-        // No clear signal -- include as a generic result with the first
-        // matching topic type, or skip entirely
-        continue;
-      }
-
-      // Multi-detect: one result per detected type
-      for (const toolType of detectedTypes) {
-        const suffix = detectedTypes.length > 1 ? `:${toolType}` : '';
-        results.push({
-          id: `github:${repo.full_name}:${toolType}${suffix ? '' : ''}`,
-          name: repo.name,
-          description: repo.description ?? '',
-          detectedType: toolType,
-          author: repo.owner.login,
-          repoFullName: repo.full_name,
-          repoUrl: repo.html_url,
-          stars: repo.stargazers_count,
-          language: repo.language,
-          lastUpdated: repo.pushed_at,
-          topics: repo.topics ?? [],
-          defaultBranch: repo.default_branch,
-        });
-      }
-    }
-
-    return results;
+  private codeItemToResult(
+    item: GitHubCodeItem,
+    detectedType: GitHubToolType,
+  ): GitHubSearchResult {
+    return {
+      id: `github:${item.repository.full_name}:${detectedType}`,
+      name: item.repository.name,
+      description: item.repository.description ?? '',
+      detectedType,
+      author: item.repository.owner.login,
+      repoFullName: item.repository.full_name,
+      repoUrl: item.repository.html_url,
+      stars: item.repository.stargazers_count,
+      language: item.repository.language,
+      lastUpdated: item.repository.pushed_at,
+      topics: item.repository.topics ?? [],
+      defaultBranch: item.repository.default_branch,
+    };
   }
 
   /**
@@ -513,7 +569,7 @@ export class GitHubSearchService {
    * 2. Repository topics against TOPIC_TO_TOOL_TYPE mapping
    *
    * Returns deduplicated array of detected types.
-   * Empty array means no clear signal -- repo is skipped in results.
+   * Empty array means no clear signal — repo is skipped in results.
    */
   private detectToolTypes(repo: GitHubRepoItem): GitHubToolType[] {
     const types = new Set<GitHubToolType>();
@@ -536,31 +592,6 @@ export class GitHubSearchService {
     }
 
     return [...types];
-  }
-
-  /**
-   * Build additional search qualifiers for a specific tool type.
-   *
-   * Used in repository search to narrow results based on naming
-   * conventions and topic patterns.
-   */
-  private buildTypeQualifiers(toolType: GitHubToolType): string | null {
-    // GitHub search API does not support OR between topic: qualifiers.
-    // Use plain keywords matched against repo names and descriptions.
-    switch (toolType) {
-      case 'mcp_server':
-        return 'mcp-server';
-      case 'skill':
-        return 'claude-skill OR skill';
-      case 'hook':
-        return 'claude-hooks OR hooks';
-      case 'command':
-        return 'claude-commands OR commands';
-      case 'profile':
-        return 'claude-profile OR profile';
-      default:
-        return null;
-    }
   }
 
   /**
