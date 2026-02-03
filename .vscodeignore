@@ -2,6 +2,15 @@
 src/**
 node_modules/**
 .planning/**
+.claude/**
+.git/**
+.gitignore
 tsconfig.json
+tsconfig.webview.json
 esbuild.mjs
-.eslintrc.json
+esbuild.webview.mjs
+eslint.config.mjs
+vitest.config.ts
+package-lock.json
+**/*.map
+CONTRIBUTING.md

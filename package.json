@@ -2,9 +2,31 @@
   "name": "ack",
   "displayName": "ACK - Agent Config Keeper",
   "description": "Discover, install, configure, and switch between agent tool sets",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "publisher": "koenrohrer",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/koenrohrer/ack"
+  },
+  "bugs": {
+    "url": "https://github.com/koenrohrer/ack/issues"
+  },
+  "homepage": "https://github.com/koenrohrer/ack#readme",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "mcp",
+    "agent",
+    "tools",
+    "skills",
+    "profiles",
+    "ai"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "icon": "media/ack-logo.png",
   "engines": {
     "vscode": "^1.105.0"
   },
@@ -269,7 +291,8 @@
     "test:unit": "vitest run",
     "test:integration": "vscode-test",
     "dev": "npm-run-all --parallel watch check-types",
-    "package": "npm run compile:ext -- --minify && node esbuild.webview.mjs --minify"
+    "package": "npm run compile:ext -- --minify && node esbuild.webview.mjs --minify",
+    "vsce:prepublish": "npm run package"
   },
   "dependencies": {
     "@vscode-elements/elements": "^2.4.0",
