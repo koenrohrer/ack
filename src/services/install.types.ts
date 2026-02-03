@@ -110,6 +110,40 @@ export interface RuntimeCheckResult {
 }
 
 // ---------------------------------------------------------------------------
+// Path safety validators
+// ---------------------------------------------------------------------------
+
+/** Reject path traversal sequences and unsafe characters in names/filenames. */
+const safeNameSchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .refine(
+    (s) =>
+      !s.includes('..') &&
+      !s.includes('\0') &&
+      !s.startsWith('/') &&
+      !s.startsWith('\\') &&
+      !/[<>:"|?*]/.test(s),
+    { message: 'Name contains unsafe path characters' },
+  );
+
+/** Reject traversal in file paths (allows forward slashes for subdirectories). */
+const safeFilePathSchema = z
+  .string()
+  .min(1)
+  .max(500)
+  .refine(
+    (s) =>
+      !s.includes('..') &&
+      !s.includes('\0') &&
+      !s.startsWith('/') &&
+      !s.startsWith('\\') &&
+      !/[<>:"|?*]/.test(s),
+    { message: 'File path contains unsafe characters' },
+  );
+
+// ---------------------------------------------------------------------------
 // Zod manifest validation schema
 // ---------------------------------------------------------------------------
 
@@ -146,11 +180,11 @@ const ManifestConfigSchema = z.object({
  */
 export const ToolManifestSchema = z.object({
   type: z.enum(['skill', 'mcp_server', 'hook', 'command']),
-  name: z.string(),
+  name: safeNameSchema,
   version: z.string(),
   description: z.string().optional(),
   runtime: z.string().optional(),
-  files: z.array(z.string()).optional(),
+  files: z.array(safeFilePathSchema).optional(),
   config: ManifestConfigSchema,
   configFields: z.array(ConfigFieldSchema).optional(),
 }).passthrough();

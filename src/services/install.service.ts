@@ -264,6 +264,7 @@ export class InstallService {
         : ClaudeCodePaths.projectSkillsDir(this.requireWorkspaceRoot(scope));
 
     const targetDir = path.join(baseDir, manifest.name);
+    this.assertContained(targetDir, baseDir);
 
     // Create target directory
     await fs.mkdir(targetDir, { recursive: true });
@@ -273,6 +274,7 @@ export class InstallService {
       const filePath = `${contentPath}/${file}`;
       const content = await this.registryService.fetchToolFile(source, filePath);
       const targetFile = path.join(targetDir, file);
+      this.assertContained(targetFile, targetDir);
       await this.fileIOService.writeTextFile(targetFile, content);
     }
 
@@ -308,17 +310,20 @@ export class InstallService {
       const filePath = `${contentPath}/${files[0]}`;
       const content = await this.registryService.fetchToolFile(source, filePath);
       const targetFile = path.join(baseDir, files[0]);
+      this.assertContained(targetFile, baseDir);
       await fs.mkdir(baseDir, { recursive: true });
       await this.fileIOService.writeTextFile(targetFile, content);
     } else {
       // Multi-file command: create subdirectory
       const targetDir = path.join(baseDir, manifest.name);
+      this.assertContained(targetDir, baseDir);
       await fs.mkdir(targetDir, { recursive: true });
 
       for (const file of files) {
         const filePath = `${contentPath}/${file}`;
         const content = await this.registryService.fetchToolFile(source, filePath);
         const targetFile = path.join(targetDir, file);
+        this.assertContained(targetFile, targetDir);
         await this.fileIOService.writeTextFile(targetFile, content);
       }
     }
@@ -383,5 +388,22 @@ export class InstallService {
       throw new Error('Cannot install at project scope: no workspace is open');
     }
     return this.workspaceRoot ?? '';
+  }
+
+  /**
+   * Verify that a resolved path stays within the expected base directory.
+   * Throws if the path escapes via traversal (defense-in-depth).
+   */
+  private assertContained(resolvedPath: string, baseDir: string): void {
+    const normalizedBase = path.resolve(baseDir) + path.sep;
+    const normalizedTarget = path.resolve(resolvedPath);
+    if (
+      !normalizedTarget.startsWith(normalizedBase) &&
+      normalizedTarget !== path.resolve(baseDir)
+    ) {
+      throw new Error(
+        `Path traversal detected: target escapes base directory`,
+      );
+    }
   }
 }
