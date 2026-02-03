@@ -28,6 +28,7 @@ interface ToolDetailViewProps {
   onRetry: () => void;
   onUninstall: () => void;
   onSubmitConfig: (values: Record<string, string>) => void;
+  onOpenExternal?: (url: string) => void;
 }
 
 /**
@@ -51,6 +52,7 @@ export function ToolDetailView({
   onRetry,
   onUninstall,
   onSubmitConfig,
+  onOpenExternal,
 }: ToolDetailViewProps) {
   const renderedHtml = useMemo(() => {
     if (!readmeContent) return '';
@@ -79,21 +81,40 @@ export function ToolDetailView({
           <span className={`type-badge type-badge--${tool.toolType}`}>
             {TYPE_LABELS[tool.toolType] ?? tool.toolType}
           </span>
+          {tool.source === 'github' && (
+            <span className="source-badge source-badge--github">GitHub</span>
+          )}
           <span>by {tool.author}</span>
-          <span>v{tool.version}</span>
+          {tool.source !== 'github' && <span>v{tool.version}</span>}
           <span>{tool.stars} stars</span>
-          <span>{tool.installs} installs</span>
-          <span>Source: {tool.sourceName}</span>
+          {tool.source === 'github' && tool.language && (
+            <span>{tool.language}</span>
+          )}
+          {tool.source !== 'github' && (
+            <>
+              <span>{tool.installs} installs</span>
+              <span>Source: {tool.sourceName}</span>
+            </>
+          )}
         </div>
 
-        <InstallButton
-          installState={installState}
-          isInstalled={isInstalled}
-          onInstall={onInstall}
-          onRetry={onRetry}
-          onUninstall={onUninstall}
-          variant="detail"
-        />
+        {tool.source === 'github' && tool.repoUrl ? (
+          <button
+            className="github-view-button"
+            onClick={() => onOpenExternal?.(tool.repoUrl!)}
+          >
+            View on GitHub
+          </button>
+        ) : (
+          <InstallButton
+            installState={installState}
+            isInstalled={isInstalled}
+            onInstall={onInstall}
+            onRetry={onRetry}
+            onUninstall={onUninstall}
+            variant="detail"
+          />
+        )}
 
         {tool.tags.length > 0 && (
           <div className="tool-card__tags" style={{ marginTop: '8px' }}>
