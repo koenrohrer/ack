@@ -61,14 +61,7 @@ export function ToolCard({
           ))}
         </div>
         <div className="tool-card__stats">
-          {tool.source === 'repo' ? (
-            <span title="Source">{tool.sourceName}</span>
-          ) : (
-            <>
-              <span title="Stars">{tool.stars} stars</span>
-              <span title="Installs">{tool.installs} installs</span>
-            </>
-          )}
+          <span title="Source">{tool.sourceName}</span>
         </div>
       </div>
 

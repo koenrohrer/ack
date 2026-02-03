@@ -2,7 +2,7 @@
   "name": "ack",
   "displayName": "ACK - Agent Config Keeper",
   "description": "Discover, install, configure, and switch between agent tool sets",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "koenrohrer",
   "license": "MIT",
   "repository": {
@@ -234,14 +234,39 @@
           "items": {
             "type": "object",
             "properties": {
-              "id": { "type": "string", "description": "Unique identifier for this source" },
-              "name": { "type": "string", "description": "Display name" },
-              "owner": { "type": "string", "description": "GitHub repository owner" },
-              "repo": { "type": "string", "description": "GitHub repository name" },
-              "branch": { "type": "string", "default": "main", "description": "Git branch" },
-              "indexPath": { "type": "string", "default": "registry.json", "description": "Path to registry.json in repo" }
+              "id": {
+                "type": "string",
+                "description": "Unique identifier for this source"
+              },
+              "name": {
+                "type": "string",
+                "description": "Display name"
+              },
+              "owner": {
+                "type": "string",
+                "description": "GitHub repository owner"
+              },
+              "repo": {
+                "type": "string",
+                "description": "GitHub repository name"
+              },
+              "branch": {
+                "type": "string",
+                "default": "main",
+                "description": "Git branch"
+              },
+              "indexPath": {
+                "type": "string",
+                "default": "registry.json",
+                "description": "Path to registry.json in repo"
+              }
             },
-            "required": ["id", "name", "owner", "repo"]
+            "required": [
+              "id",
+              "name",
+              "owner",
+              "repo"
+            ]
           }
         }
       }

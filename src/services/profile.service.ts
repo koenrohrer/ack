@@ -339,9 +339,6 @@ export class ProfileService {
     const ops: ToggleOp[] = [];
     let skipped = 0;
 
-    // Build set of keys the target profile knows about
-    const profileKeys = new Set(profile.tools.map((e) => e.key));
-
     for (const entry of profile.tools) {
       const tool = toolsByKey.get(entry.key);
       if (!tool) {
@@ -357,13 +354,6 @@ export class ProfileService {
       }
 
       ops.push({ tool, targetEnabled: entry.enabled });
-    }
-
-    // Disable tools that are enabled but not in the target profile
-    for (const [key, tool] of toolsByKey) {
-      if (!profileKeys.has(key) && tool.status === ToolStatus.Enabled) {
-        ops.push({ tool, targetEnabled: false });
-      }
     }
 
     // Execute toggles sequentially to prevent race conditions on shared config files

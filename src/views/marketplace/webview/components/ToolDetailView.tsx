@@ -82,11 +82,7 @@ export function ToolDetailView({
           <span>by {tool.author}</span>
           {tool.source !== 'repo' && tool.version && <span>v{tool.version}</span>}
           {tool.source !== 'repo' && (
-            <>
-              <span>{tool.stars} stars</span>
-              <span>{tool.installs} installs</span>
-              <span>Source: {tool.sourceName}</span>
-            </>
+            <span>Source: {tool.sourceName}</span>
           )}
         </div>
 
