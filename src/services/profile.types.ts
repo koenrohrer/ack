@@ -133,7 +133,7 @@ export interface ExportedTool {
  * machines and projects without requiring pre-installed tools.
  */
 export interface ProfileExportBundle {
-  bundleType: 'agent-config-keeper-profile';
+  bundleType: 'ack-profile';
   profile: {
     name: string;
     createdAt: string;
@@ -222,7 +222,7 @@ export const ExportedToolSchema = z.object({
  * Uses `.passthrough()` for forward compatibility (project convention from 01-02).
  */
 export const ProfileExportBundleSchema = z.object({
-  bundleType: z.literal('agent-config-keeper-profile'),
+  bundleType: z.literal('ack-profile'),
   profile: z.object({
     name: z.string(),
     createdAt: z.string(),
@@ -237,7 +237,7 @@ export const ProfileExportBundleSchema = z.object({
 // ---------------------------------------------------------------------------
 
 /** globalState storage key for profile data */
-export const PROFILE_STORE_KEY = 'agent-config-keeper.profiles';
+export const PROFILE_STORE_KEY = 'ack.profiles';
 
 /** Default empty store used when no profile data exists yet */
 export const DEFAULT_PROFILE_STORE: ProfileStore = {

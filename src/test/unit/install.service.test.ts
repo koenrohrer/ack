@@ -42,7 +42,7 @@ vi.mock('fs/promises', () => ({
 const TEST_SOURCE: RegistrySource = {
   id: 'community',
   name: 'Community Registry',
-  owner: 'agent-config-keeper',
+  owner: 'ack',
   repo: 'tool-registry',
   branch: 'main',
   indexPath: 'registry.json',

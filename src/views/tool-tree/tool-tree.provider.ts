@@ -59,7 +59,7 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       // Set context key for welcome view visibility
       await vscode.commands.executeCommand(
         'setContext',
-        'agent-config-keeper.noTools',
+        'ack.noTools',
         groups.length === 0,
       );
 
@@ -137,7 +137,7 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
    */
   register(context: vscode.ExtensionContext): void {
     this.treeView = vscode.window.createTreeView(
-      'agent-config-keeper.toolTree',
+      'ack.toolTree',
       {
         treeDataProvider: this,
         showCollapseAll: true,
@@ -216,7 +216,7 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     // Plan 02 will register the handler for this command
     if (!hasChildren) {
       item.command = {
-        command: 'agent-config-keeper.openToolSource',
+        command: 'ack.openToolSource',
         title: 'Open Tool Source',
         arguments: [tool],
       };

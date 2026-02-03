@@ -36,7 +36,7 @@ interface OverrideEntry {
 }
 
 /** globalState key for workspace profile overrides. */
-const OVERRIDE_KEY = 'agent-config-keeper.workspaceProfileOverrides';
+const OVERRIDE_KEY = 'ack.workspaceProfileOverrides';
 
 /** File name for workspace profile association. */
 const ASSOCIATION_FILE = path.join('.vscode', 'agent-profile.json');

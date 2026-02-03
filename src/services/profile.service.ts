@@ -445,7 +445,7 @@ export class ProfileService {
     }
 
     return {
-      bundleType: 'agent-config-keeper-profile',
+      bundleType: 'ack-profile',
       profile: {
         name: profile.name,
         createdAt: profile.createdAt,

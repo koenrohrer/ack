@@ -24,17 +24,17 @@ const highlightDecoration = vscode.window.createTextEditorDecorationType({
  * Register all tool tree command handlers.
  *
  * Commands:
- * - `agent-config-keeper.openToolSource`: Opens the source file for a tool.
+ * - `ack.openToolSource`: Opens the source file for a tool.
  *   Skills/commands open in markdown preview; MCP servers/hooks open their
  *   JSON config scrolled to the relevant entry with a brief highlight.
- * - `agent-config-keeper.refreshToolTree`: Triggers a full tree refresh.
+ * - `ack.refreshToolTree`: Triggers a full tree refresh.
  */
 export function registerToolTreeCommands(
   context: vscode.ExtensionContext,
   treeProvider: ToolTreeProvider,
 ): void {
   const openCmd = vscode.commands.registerCommand(
-    'agent-config-keeper.openToolSource',
+    'ack.openToolSource',
     async (tool: NormalizedTool) => {
       if (!tool?.source?.filePath) {
         return;
@@ -51,7 +51,7 @@ export function registerToolTreeCommands(
   );
 
   const refreshCmd = vscode.commands.registerCommand(
-    'agent-config-keeper.refreshToolTree',
+    'ack.refreshToolTree',
     async () => {
       await treeProvider.refresh();
     },

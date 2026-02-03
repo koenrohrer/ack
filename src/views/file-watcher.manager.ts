@@ -11,7 +11,7 @@ import { collectWatchDirs } from './file-watcher.utils.js';
  *
  * Rapid successive changes are coalesced into a single refresh via debouncing.
  * After refresh, an optional notification callback is invoked (controlled by
- * the agentConfigKeeper.showChangeNotifications setting in extension.ts).
+ * the ack.showChangeNotifications setting in extension.ts).
  */
 export class FileWatcherManager implements vscode.Disposable {
   private watchers: vscode.FileSystemWatcher[] = [];

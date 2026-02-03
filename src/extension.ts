@@ -60,7 +60,7 @@ export function getServices(): {
 
 export function activate(context: vscode.ExtensionContext): void {
   // 1. Output channel for diagnostics
-  const outputChannel = vscode.window.createOutputChannel('Agent Config Keeper');
+  const outputChannel = vscode.window.createOutputChannel('ACK');
   context.subscriptions.push(outputChannel);
 
   // 2. Core services
@@ -140,7 +140,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // 15. Marketplace panel command
   const openMarketplace = vscode.commands.registerCommand(
-    'agent-config-keeper.openMarketplace',
+    'ack.openMarketplace',
     () =>
       MarketplacePanel.createOrShow(
         context.extensionUri,
@@ -156,7 +156,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // 15b. Config panel command
   const openConfigPanel = vscode.commands.registerCommand(
-    'agentConfigKeeper.openConfigPanel',
+    'ack.openConfigPanel',
     () =>
       ConfigPanel.createOrShow(
         context.extensionUri,
@@ -175,10 +175,10 @@ export function activate(context: vscode.ExtensionContext): void {
     () => treeProvider.refresh(),
     () => {
       const showNotif = vscode.workspace
-        .getConfiguration('agentConfigKeeper')
+        .getConfiguration('ack')
         .get<boolean>('showChangeNotifications', true);
       if (showNotif) {
-        vscode.window.showInformationMessage('Agent Config Keeper: Config updated');
+        vscode.window.showInformationMessage('ACK: Config updated');
       }
     },
   );
@@ -215,7 +215,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // 17. Test command (temporary, for manual verification during development)
   const testCmd = vscode.commands.registerCommand(
-    'agent-config-keeper.testReadAll',
+    'ack.testReadAll',
     async () => {
       const adapter = registry.getActiveAdapter();
       if (!adapter) {
@@ -236,7 +236,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(testCmd);
 
-  outputChannel.appendLine('Agent Config Keeper activated');
+  outputChannel.appendLine('ACK activated');
 }
 
 /**
@@ -256,7 +256,7 @@ async function handleWorkspaceAutoActivation(
 ): Promise<void> {
   // 1. Check global setting -- is auto-activation enabled?
   const autoActivate = vscode.workspace
-    .getConfiguration('agentConfigKeeper')
+    .getConfiguration('ack')
     .get<boolean>('autoActivateWorkspaceProfiles', true);
   if (!autoActivate) {
     return;
@@ -309,7 +309,7 @@ async function handleWorkspaceAutoActivation(
       'Open Marketplace',
     );
     if (action === 'Open Marketplace') {
-      await vscode.commands.executeCommand('agent-config-keeper.openMarketplace');
+      await vscode.commands.executeCommand('ack.openMarketplace');
     }
   }
 }

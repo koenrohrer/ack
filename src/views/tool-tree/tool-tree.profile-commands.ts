@@ -69,7 +69,7 @@ export function registerProfileCommands(
   // ---------------------------------------------------------------------------
 
   const createCmd = vscode.commands.registerCommand(
-    'agent-config-keeper.createProfile',
+    'ack.createProfile',
     async () => {
       const name = await vscode.window.showInputBox({
         prompt: 'Profile name',
@@ -101,7 +101,7 @@ export function registerProfileCommands(
   // ---------------------------------------------------------------------------
 
   const switchCmd = vscode.commands.registerCommand(
-    'agent-config-keeper.switchProfile',
+    'ack.switchProfile',
     async () => {
       const profiles = profileService.getProfiles();
       if (profiles.length === 0) {
@@ -190,7 +190,7 @@ export function registerProfileCommands(
   // ---------------------------------------------------------------------------
 
   const editCmd = vscode.commands.registerCommand(
-    'agent-config-keeper.editProfile',
+    'ack.editProfile',
     async () => {
       const profiles = profileService.getProfiles();
       if (profiles.length === 0) {
@@ -300,7 +300,7 @@ export function registerProfileCommands(
   // ---------------------------------------------------------------------------
 
   const deleteCmd = vscode.commands.registerCommand(
-    'agent-config-keeper.deleteProfile',
+    'ack.deleteProfile',
     async () => {
       const profiles = profileService.getProfiles();
       if (profiles.length === 0) {
@@ -347,9 +347,9 @@ export function registerProfileCommands(
   // ---------------------------------------------------------------------------
 
   const saveAsCmd = vscode.commands.registerCommand(
-    'agent-config-keeper.saveAsProfile',
+    'ack.saveAsProfile',
     async () => {
-      await vscode.commands.executeCommand('agent-config-keeper.createProfile');
+      await vscode.commands.executeCommand('ack.createProfile');
     },
   );
 
@@ -358,7 +358,7 @@ export function registerProfileCommands(
   // ---------------------------------------------------------------------------
 
   const exportCmd = vscode.commands.registerCommand(
-    'agent-config-keeper.exportProfile',
+    'ack.exportProfile',
     async () => {
       const profiles = profileService.getProfiles();
       if (profiles.length === 0) {
@@ -420,7 +420,7 @@ export function registerProfileCommands(
   // ---------------------------------------------------------------------------
 
   const importCmd = vscode.commands.registerCommand(
-    'agent-config-keeper.importProfile',
+    'ack.importProfile',
     async () => {
       const uris = await vscode.window.showOpenDialog({
         canSelectMany: false,
@@ -597,7 +597,7 @@ export function registerProfileCommands(
   // ---------------------------------------------------------------------------
 
   const associateCmd = vscode.commands.registerCommand(
-    'agent-config-keeper.associateProfile',
+    'ack.associateProfile',
     async () => {
       const folders = vscode.workspace.workspaceFolders;
       if (!folders || folders.length === 0) {

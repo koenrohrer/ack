@@ -23,11 +23,11 @@ const RAW_CONTENT_BASE = 'https://raw.githubusercontent.com';
 
 const BASE_HEADERS: Record<string, string> = {
   'Accept': 'application/vnd.github+json',
-  'User-Agent': 'agent-config-keeper',
+  'User-Agent': 'ack',
   'X-GitHub-Api-Version': '2022-11-28',
 };
 
-const CACHE_KEY = 'agentConfigKeeper.repoScanCache';
+const CACHE_KEY = 'ack.repoScanCache';
 
 // ---------------------------------------------------------------------------
 // Service

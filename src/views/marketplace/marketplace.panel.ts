@@ -33,7 +33,7 @@ const MANIFEST_TYPE_TO_TOOL_TYPE: Record<string, ToolType> = {
 };
 
 /** Settings key for persisted user repositories. */
-const USER_REPOS_KEY = 'agentConfigKeeper.userRepositories';
+const USER_REPOS_KEY = 'ack.userRepositories';
 
 /** Pending install context for tools awaiting config form submission. */
 interface PendingInstall {
@@ -51,7 +51,7 @@ interface PendingInstall {
  * State persists across tab hide/show via retainContextWhenHidden.
  */
 export class MarketplacePanel {
-  public static readonly viewType = 'agentConfigKeeper.marketplace';
+  public static readonly viewType = 'ack.marketplace';
 
   private static currentPanel: MarketplacePanel | undefined;
 
@@ -495,7 +495,7 @@ export class MarketplacePanel {
       const installedTools = await this.getInstalledTools();
       this.postMessage({ type: 'installedTools', tools: installedTools });
       void vscode.commands.executeCommand(
-        'agent-config-keeper.refreshToolTree',
+        'ack.refreshToolTree',
       );
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'Install failed';
@@ -575,7 +575,7 @@ export class MarketplacePanel {
               });
               this.postMessage({ type: 'installCancelled', toolId });
               void vscode.commands.executeCommand(
-                'agent-config-keeper.refreshToolTree',
+                'ack.refreshToolTree',
               );
             } else {
               void vscode.window.showErrorMessage(
@@ -652,7 +652,7 @@ export class MarketplacePanel {
       this.postMessage({ type: 'installedTools', tools: installedTools });
 
       void vscode.commands.executeCommand(
-        'agent-config-keeper.refreshToolTree',
+        'ack.refreshToolTree',
       );
     } else {
       this.outputChannel.appendLine(

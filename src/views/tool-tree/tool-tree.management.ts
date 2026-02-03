@@ -40,7 +40,7 @@ export function registerManagementCommands(
   // ---------------------------------------------------------------------------
 
   const toggleCmd = vscode.commands.registerCommand(
-    'agent-config-keeper.toggleTool',
+    'ack.toggleTool',
     async (node: TreeNode) => {
       if (!node || node.kind !== 'tool') {
         return;
@@ -65,7 +65,7 @@ export function registerManagementCommands(
   // ---------------------------------------------------------------------------
 
   const deleteCmd = vscode.commands.registerCommand(
-    'agent-config-keeper.deleteTool',
+    'ack.deleteTool',
     async (node: TreeNode) => {
       if (!node || node.kind !== 'tool') {
         return;
@@ -74,7 +74,7 @@ export function registerManagementCommands(
       const tool = toolNode.tool;
 
       // Check skip-confirmation setting
-      const config = vscode.workspace.getConfiguration('agentConfigKeeper');
+      const config = vscode.workspace.getConfiguration('ack');
       const skipConfirmation = config.get<boolean>('skipDeleteConfirmation', false);
 
       if (!skipConfirmation) {
@@ -114,7 +114,7 @@ export function registerManagementCommands(
   // ---------------------------------------------------------------------------
 
   const moveToUserCmd = vscode.commands.registerCommand(
-    'agent-config-keeper.moveToolToUser',
+    'ack.moveToolToUser',
     async (node: TreeNode) => {
       if (!node || node.kind !== 'tool') {
         return;
@@ -147,7 +147,7 @@ export function registerManagementCommands(
   // ---------------------------------------------------------------------------
 
   const moveToProjectCmd = vscode.commands.registerCommand(
-    'agent-config-keeper.moveToolToProject',
+    'ack.moveToolToProject',
     async (node: TreeNode) => {
       if (!node || node.kind !== 'tool') {
         return;
@@ -180,7 +180,7 @@ export function registerManagementCommands(
   // ---------------------------------------------------------------------------
 
   const installCmd = vscode.commands.registerCommand(
-    'agent-config-keeper.installTool',
+    'ack.installTool',
     async (node: TreeNode) => {
       if (!node || node.kind !== 'group') {
         return;

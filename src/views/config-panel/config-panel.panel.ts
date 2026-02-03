@@ -24,7 +24,7 @@ import type {
  * State persists across tab hide/show via retainContextWhenHidden.
  */
 export class ConfigPanel {
-  public static readonly viewType = 'agentConfigKeeper.configPanel';
+  public static readonly viewType = 'ack.configPanel';
 
   private static currentPanel: ConfigPanel | undefined;
 
@@ -170,10 +170,10 @@ export class ConfigPanel {
         void this.handleOpenToolFile(message.filePath);
         break;
       case 'exportProfile':
-        void vscode.commands.executeCommand('agent-config-keeper.exportProfile');
+        void vscode.commands.executeCommand('ack.exportProfile');
         break;
       case 'importProfile':
-        void vscode.commands.executeCommand('agent-config-keeper.importProfile');
+        void vscode.commands.executeCommand('ack.importProfile');
         break;
       case 'associateProfile':
         void this.handleAssociateProfile(message.profileId);

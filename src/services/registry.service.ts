@@ -21,7 +21,7 @@ const ETAG_STATE_KEY = 'registryEtags';
 
 /** Common headers for all GitHub API requests. */
 const BASE_HEADERS: Record<string, string> = {
-  'User-Agent': 'agent-config-keeper',
+  'User-Agent': 'ack',
 };
 
 /**
@@ -74,7 +74,7 @@ export class RegistryService {
         const vscodeApi = require('vscode') as typeof vscode;
         return (
           vscodeApi.workspace
-            .getConfiguration('agentConfigKeeper')
+            .getConfiguration('ack')
             .get<RegistrySource[]>('registrySources') ?? []
         );
       },

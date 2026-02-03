@@ -1,203 +1,203 @@
 {
-  "name": "agent-config-keeper",
-  "displayName": "Agent Config Keeper",
+  "name": "ack",
+  "displayName": "ACK - Agent Config Keeper",
   "description": "Discover, install, configure, and switch between agent tool sets",
   "version": "0.0.1",
-  "publisher": "agent-config-keeper",
+  "publisher": "koenrohrer",
   "license": "MIT",
   "engines": {
     "vscode": "^1.105.0"
   },
   "activationEvents": [
     "onStartupFinished",
-    "onView:agent-config-keeper.toolTree"
+    "onView:ack.toolTree"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "agent-config-keeper",
-          "title": "Agent Config Keeper",
+          "id": "ack",
+          "title": "ACK - Agent Config Keeper",
           "icon": "media/icons/activity-bar.svg"
         }
       ]
     },
     "views": {
-      "agent-config-keeper": [
+      "ack": [
         {
-          "id": "agent-config-keeper.toolTree",
+          "id": "ack.toolTree",
           "name": "Tools"
         }
       ]
     },
     "viewsWelcome": [
       {
-        "view": "agent-config-keeper.toolTree",
+        "view": "ack.toolTree",
         "contents": "No agent tools found.\n\nConfigure Claude Code to get started.\n[Open Documentation](https://docs.anthropic.com/en/docs/claude-code)",
-        "when": "agent-config-keeper.noTools"
+        "when": "ack.noTools"
       }
     ],
     "commands": [
       {
-        "command": "agent-config-keeper.testReadAll",
-        "title": "Agent Config Keeper: Test Read All Tools"
+        "command": "ack.testReadAll",
+        "title": "ACK: Test Read All Tools"
       },
       {
-        "command": "agent-config-keeper.openToolSource",
-        "title": "Agent Config Keeper: Open Tool Source"
+        "command": "ack.openToolSource",
+        "title": "ACK: Open Tool Source"
       },
       {
-        "command": "agent-config-keeper.refreshToolTree",
-        "title": "Agent Config Keeper: Refresh Tool Tree",
+        "command": "ack.refreshToolTree",
+        "title": "ACK: Refresh Tool Tree",
         "icon": "$(refresh)"
       },
       {
-        "command": "agent-config-keeper.toggleTool",
+        "command": "ack.toggleTool",
         "title": "Toggle Enable/Disable",
         "icon": "$(symbol-boolean)"
       },
       {
-        "command": "agent-config-keeper.deleteTool",
+        "command": "ack.deleteTool",
         "title": "Delete Tool"
       },
       {
-        "command": "agent-config-keeper.moveToolToUser",
+        "command": "ack.moveToolToUser",
         "title": "Global (User)"
       },
       {
-        "command": "agent-config-keeper.moveToolToProject",
+        "command": "ack.moveToolToProject",
         "title": "Project"
       },
       {
-        "command": "agent-config-keeper.installTool",
+        "command": "ack.installTool",
         "title": "Install...",
         "icon": "$(add)"
       },
       {
-        "command": "agent-config-keeper.openMarketplace",
-        "title": "Agent Config Keeper: Open Marketplace",
+        "command": "ack.openMarketplace",
+        "title": "ACK: Open Marketplace",
         "icon": "$(extensions)"
       },
       {
-        "command": "agent-config-keeper.createProfile",
-        "title": "Agent Config Keeper: Create Profile"
+        "command": "ack.createProfile",
+        "title": "ACK: Create Profile"
       },
       {
-        "command": "agent-config-keeper.switchProfile",
-        "title": "Agent Config Keeper: Switch Profile",
+        "command": "ack.switchProfile",
+        "title": "ACK: Switch Profile",
         "icon": "$(account)"
       },
       {
-        "command": "agent-config-keeper.editProfile",
-        "title": "Agent Config Keeper: Edit Profile"
+        "command": "ack.editProfile",
+        "title": "ACK: Edit Profile"
       },
       {
-        "command": "agent-config-keeper.deleteProfile",
-        "title": "Agent Config Keeper: Delete Profile"
+        "command": "ack.deleteProfile",
+        "title": "ACK: Delete Profile"
       },
       {
-        "command": "agent-config-keeper.saveAsProfile",
-        "title": "Agent Config Keeper: Save Current State as Profile"
+        "command": "ack.saveAsProfile",
+        "title": "ACK: Save Current State as Profile"
       },
       {
-        "command": "agentConfigKeeper.openConfigPanel",
-        "title": "Agent Config Keeper: Configure Agent"
+        "command": "ack.openConfigPanel",
+        "title": "ACK: Configure Agent"
       },
       {
-        "command": "agent-config-keeper.exportProfile",
-        "title": "Agent Config Keeper: Export Profile"
+        "command": "ack.exportProfile",
+        "title": "ACK: Export Profile"
       },
       {
-        "command": "agent-config-keeper.importProfile",
-        "title": "Agent Config Keeper: Import Profile"
+        "command": "ack.importProfile",
+        "title": "ACK: Import Profile"
       },
       {
-        "command": "agent-config-keeper.associateProfile",
-        "title": "Agent Config Keeper: Associate Profile with Workspace"
+        "command": "ack.associateProfile",
+        "title": "ACK: Associate Profile with Workspace"
       }
     ],
     "submenus": [
       {
-        "id": "agent-config-keeper.moveTo",
+        "id": "ack.moveTo",
         "label": "Move To..."
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "agent-config-keeper.switchProfile",
-          "when": "view == agent-config-keeper.toolTree",
+          "command": "ack.switchProfile",
+          "when": "view == ack.toolTree",
           "group": "navigation"
         },
         {
-          "command": "agent-config-keeper.openMarketplace",
-          "when": "view == agent-config-keeper.toolTree",
+          "command": "ack.openMarketplace",
+          "when": "view == ack.toolTree",
           "group": "navigation"
         }
       ],
       "view/item/context": [
         {
-          "command": "agent-config-keeper.toggleTool",
-          "when": "view == agent-config-keeper.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project|local)$/",
+          "command": "ack.toggleTool",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project|local)$/",
           "group": "inline"
         },
         {
-          "command": "agent-config-keeper.installTool",
-          "when": "view == agent-config-keeper.toolTree && viewItem =~ /^group:/",
+          "command": "ack.installTool",
+          "when": "view == ack.toolTree && viewItem =~ /^group:/",
           "group": "inline"
         },
         {
-          "command": "agent-config-keeper.toggleTool",
-          "when": "view == agent-config-keeper.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project|local)$/",
+          "command": "ack.toggleTool",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project|local)$/",
           "group": "1_toggle"
         },
         {
-          "submenu": "agent-config-keeper.moveTo",
-          "when": "view == agent-config-keeper.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project)$/",
+          "submenu": "ack.moveTo",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project)$/",
           "group": "2_scope"
         },
         {
-          "command": "agent-config-keeper.deleteTool",
-          "when": "view == agent-config-keeper.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project|local)$/",
+          "command": "ack.deleteTool",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project|local)$/",
           "group": "3_danger"
         },
         {
-          "command": "agent-config-keeper.installTool",
-          "when": "view == agent-config-keeper.toolTree && viewItem =~ /^group:/",
+          "command": "ack.installTool",
+          "when": "view == ack.toolTree && viewItem =~ /^group:/",
           "group": "1_install"
         }
       ],
-      "agent-config-keeper.moveTo": [
+      "ack.moveTo": [
         {
-          "command": "agent-config-keeper.moveToolToUser",
+          "command": "ack.moveToolToUser",
           "when": "viewItem =~ /:project$/"
         },
         {
-          "command": "agent-config-keeper.moveToolToProject",
+          "command": "ack.moveToolToProject",
           "when": "viewItem =~ /:user$/"
         }
       ]
     },
     "configuration": {
-      "title": "Agent Config Keeper",
+      "title": "ACK - Agent Config Keeper",
       "properties": {
-        "agentConfigKeeper.showChangeNotifications": {
+        "ack.showChangeNotifications": {
           "type": "boolean",
           "default": true,
           "description": "Show notifications when agent config files change externally"
         },
-        "agentConfigKeeper.skipDeleteConfirmation": {
+        "ack.skipDeleteConfirmation": {
           "type": "boolean",
           "default": false,
           "description": "Skip confirmation dialog when deleting tools"
         },
-        "agentConfigKeeper.autoActivateWorkspaceProfiles": {
+        "ack.autoActivateWorkspaceProfiles": {
           "type": "boolean",
           "default": true,
           "description": "Automatically activate the associated profile when opening a workspace"
         },
-        "agentConfigKeeper.userRepositories": {
+        "ack.userRepositories": {
           "type": "array",
           "default": [],
           "description": "GitHub repository URLs to scan for installable tools",
@@ -205,7 +205,7 @@
             "type": "string"
           }
         },
-        "agentConfigKeeper.registrySources": {
+        "ack.registrySources": {
           "type": "array",
           "default": [],
           "description": "Additional tool registry sources (GitHub repositories). The default community registry is always included.",
@@ -226,7 +226,7 @@
     },
     "colors": [
       {
-        "id": "agentConfigKeeper.enabledIcon",
+        "id": "ack.enabledIcon",
         "description": "Icon color for enabled tools",
         "defaults": {
           "dark": "#89d185",
@@ -236,7 +236,7 @@
         }
       },
       {
-        "id": "agentConfigKeeper.disabledIcon",
+        "id": "ack.disabledIcon",
         "description": "Icon color for disabled tools",
         "defaults": {
           "dark": "#848484",
@@ -246,7 +246,7 @@
         }
       },
       {
-        "id": "agentConfigKeeper.errorIcon",
+        "id": "ack.errorIcon",
         "description": "Icon color for tools with errors",
         "defaults": {
           "dark": "#f14c4c",
