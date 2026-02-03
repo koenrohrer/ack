@@ -1,0 +1,76 @@
+/* ==========================================================================
+ * webview-base.css -- Shared foundation for all ACK webviews
+ *
+ * Sections:
+ *   1. Design tokens (typography, spacing, radius, transitions)
+ *   2. Reset
+ *   3. Body
+ *   4. Focus-visible
+ * ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+ * 1. Design Tokens
+ * --------------------------------------------------------------------------- */
+
+:root {
+  /* Typography scale */
+  --ack-font-xs: 11px;
+  --ack-font-sm: 12px;
+  --ack-font-base: 13px;
+  --ack-font-md: 14px;
+  --ack-font-lg: 16px;
+  --ack-font-xl: 18px;
+  --ack-font-2xl: 22px;
+
+  /* Spacing scale */
+  --ack-space-xs: 2px;
+  --ack-space-sm: 4px;
+  --ack-space-md: 8px;
+  --ack-space-lg: 12px;
+  --ack-space-xl: 16px;
+  --ack-space-2xl: 24px;
+  --ack-space-3xl: 32px;
+
+  /* Border radius */
+  --ack-radius-sm: 2px;
+  --ack-radius-md: 4px;
+  --ack-radius-lg: 6px;
+
+  /* Transitions */
+  --ack-transition-fast: 0.1s ease;
+  --ack-transition-normal: 0.15s ease;
+}
+
+/* ---------------------------------------------------------------------------
+ * 2. Reset
+ * --------------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * 3. Body
+ * --------------------------------------------------------------------------- */
+
+body {
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background-color: var(--vscode-editor-background);
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+/* ---------------------------------------------------------------------------
+ * 4. Focus-visible
+ * --------------------------------------------------------------------------- */
+
+:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
