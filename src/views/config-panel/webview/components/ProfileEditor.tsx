@@ -4,7 +4,6 @@ import type { ProfileInfo, ProfileToolInfo, ConfigPanelWebMessage } from '../../
 // Import web components used in this component
 import '@vscode-elements/elements/dist/vscode-button/index.js';
 import '@vscode-elements/elements/dist/vscode-checkbox/index.js';
-import '@vscode-elements/elements/dist/vscode-icon/index.js';
 import '@vscode-elements/elements/dist/vscode-divider/index.js';
 
 /** Display labels for tool types. */
@@ -142,12 +141,12 @@ export function ProfileEditor({
     <div className="profile-editor">
       <div className="profile-editor__header">
         <vscode-button
-          appearance="icon"
+          icon="arrow-left"
+          icon-only
+          secondary
           title="Back to profile list"
           onClick={onBack}
-        >
-          <vscode-icon name="arrow-left" />
-        </vscode-button>
+        />
         <h2 className="profile-editor__title">
           Edit Profile: {profile.name}
         </h2>

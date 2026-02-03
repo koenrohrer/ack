@@ -7,7 +7,6 @@ import '@vscode-elements/elements/dist/vscode-textfield/index.js';
 import '@vscode-elements/elements/dist/vscode-checkbox/index.js';
 import '@vscode-elements/elements/dist/vscode-form-group/index.js';
 import '@vscode-elements/elements/dist/vscode-label/index.js';
-import '@vscode-elements/elements/dist/vscode-icon/index.js';
 import '@vscode-elements/elements/dist/vscode-divider/index.js';
 
 interface McpSettingsFormProps {
@@ -149,12 +148,12 @@ export function McpSettingsForm({ tool, settings, postMessage, onBack }: McpSett
     <div className="mcp-form">
       <div className="mcp-form__header">
         <vscode-button
-          appearance="icon"
+          icon="arrow-left"
+          icon-only
+          secondary
           title="Back to tool list"
           onClick={onBack}
-        >
-          <vscode-icon name="arrow-left" />
-        </vscode-button>
+        />
         <h2 className="mcp-form__title">MCP Server: {serverName}</h2>
       </div>
 
@@ -231,13 +230,13 @@ export function McpSettingsForm({ tool, settings, postMessage, onBack }: McpSett
             </vscode-form-group>
             {!isManaged && (
               <vscode-button
-                appearance="icon"
+                icon="trash"
+                icon-only
+                secondary
                 title="Remove variable"
                 className="mcp-form__row-remove"
                 onClick={() => handleRemoveEnvVar(entry.id)}
-              >
-                <vscode-icon name="trash" />
-              </vscode-button>
+              />
             )}
           </div>
         ))}

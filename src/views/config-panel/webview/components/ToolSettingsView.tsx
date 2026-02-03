@@ -44,12 +44,12 @@ export function ToolSettingsView({ tool, postMessage, onBack }: ToolSettingsView
     <div className="tool-view">
       <div className="tool-view__header">
         <vscode-button
-          appearance="icon"
+          icon="arrow-left"
+          icon-only
+          secondary
           title="Back to tool list"
           onClick={onBack}
-        >
-          <vscode-icon name="arrow-left" />
-        </vscode-button>
+        />
         <h2 className="tool-view__title">{tool.name}</h2>
       </div>
 
