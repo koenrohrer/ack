@@ -112,8 +112,7 @@ export function ConfigForm({ toolName, fields, onSubmit, onCancel }: ConfigFormP
             {field.sensitive && (
               <button
                 type="button"
-                className="tool-card__install-btn"
-                style={{ marginTop: '4px', fontSize: '11px' }}
+                className="config-form__toggle-btn"
                 onClick={() => togglePasswordVisibility(field.key)}
               >
                 {showPasswords[field.key] ? 'Hide' : 'Show'}

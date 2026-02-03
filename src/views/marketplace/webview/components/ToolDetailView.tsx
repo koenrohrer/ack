@@ -110,7 +110,7 @@ export function ToolDetailView({
         </div>
 
         {tool.tags.length > 0 && (
-          <div className="tool-card__tags" style={{ marginTop: '8px' }}>
+          <div className="tool-detail__tags">
             {tool.tags.map((tag) => (
               <span key={tag} className="tool-card__tag">
                 {tag}
@@ -119,12 +119,7 @@ export function ToolDetailView({
           </div>
         )}
 
-        <p
-          style={{
-            marginTop: '8px',
-            color: 'var(--vscode-descriptionForeground)',
-          }}
-        >
+        <p className="tool-detail__description">
           {tool.description}
         </p>
       </div>
@@ -150,7 +145,7 @@ export function ToolDetailView({
         ) : renderedHtml ? (
           <div dangerouslySetInnerHTML={{ __html: renderedHtml }} />
         ) : (
-          <p style={{ color: 'var(--vscode-descriptionForeground)' }}>
+          <p className="tool-detail__no-readme">
             No README available.
           </p>
         )}

@@ -36,6 +36,12 @@
   flex: 1;
 }
 
+.marketplace-header__filter-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 /* Filter tabs */
 .marketplace-filters {
   display: flex;
@@ -172,6 +178,17 @@
   color: var(--vscode-descriptionForeground);
 }
 
+.tool-card__badges {
+  display: flex;
+  gap: var(--ack-space-sm);
+  align-items: center;
+}
+
+.tool-card__install-area {
+  margin-top: var(--ack-space-md);
+  text-align: right;
+}
+
 /* Type badges */
 .type-badge {
   display: inline-block;
@@ -266,6 +283,23 @@
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.tool-detail__tags {
+  display: flex;
+  gap: var(--ack-space-sm);
+  flex-wrap: wrap;
+  margin-top: var(--ack-space-md);
+}
+
+.tool-detail__description {
+  margin-top: var(--ack-space-md);
+  color: var(--vscode-descriptionForeground);
+}
+
+.tool-detail__no-readme {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
 }
 
 .tool-detail__readme {
@@ -520,6 +554,22 @@
   margin-top: 8px;
 }
 
+.config-form__toggle-btn {
+  margin-top: var(--ack-space-sm);
+  font-size: var(--ack-font-xs);
+  padding: 2px 8px;
+  border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+  border-radius: 2px;
+  background-color: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  cursor: pointer;
+  font-family: var(--vscode-font-family);
+}
+
+.config-form__toggle-btn:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
 /* Source badges */
 .source-badge {
   display: inline-block;
@@ -630,6 +680,11 @@
   align-items: center;
   gap: 4px;
   color: var(--vscode-descriptionForeground);
+}
+
+.repo-list__spinner {
+  width: 12px;
+  height: 12px;
 }
 
 .repo-list__error {

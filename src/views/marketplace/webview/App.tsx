@@ -109,7 +109,7 @@ export function App() {
       <div className="marketplace-header">
         <h1 className="marketplace-header__title">Tool Marketplace</h1>
         <SearchBar value={searchQuery} onChange={setSearchQuery} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="marketplace-header__filter-row">
           <TypeTabs activeType={activeType} onChange={setActiveType} />
           <SortDropdown value={sortBy} onChange={setSortBy} />
         </div>

@@ -28,7 +28,7 @@ export function RepoList({ repos, scanning, errors, onRemove, onRefresh }: RepoL
               <span className="repo-list__name">{repo.repoFullName}</span>
               {isScanning ? (
                 <span className="repo-list__status">
-                  <vscode-progress-ring style={{ width: '12px', height: '12px' }} />
+                  <vscode-progress-ring className="repo-list__spinner" />
                   <span>Scanning...</span>
                 </span>
               ) : error ? (

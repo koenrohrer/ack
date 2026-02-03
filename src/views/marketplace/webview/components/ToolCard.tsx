@@ -40,7 +40,7 @@ export function ToolCard({
           <h3 className="tool-card__name">{tool.name}</h3>
           <div className="tool-card__author">by {tool.author}</div>
         </div>
-        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+        <div className="tool-card__badges">
           <span className={`type-badge type-badge--${tool.toolType}`}>
             {TYPE_LABELS[tool.toolType] ?? tool.toolType}
           </span>
@@ -72,7 +72,7 @@ export function ToolCard({
         </div>
       </div>
 
-      <div style={{ marginTop: '8px', textAlign: 'right' }}>
+      <div className="tool-card__install-area">
         <InstallButton
           installState={installState}
           isInstalled={isInstalled}
