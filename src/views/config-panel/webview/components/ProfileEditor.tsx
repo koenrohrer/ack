@@ -140,13 +140,9 @@ export function ProfileEditor({
   return (
     <div className="profile-editor">
       <div className="profile-editor__header">
-        <vscode-button
-          icon="arrow-left"
-          icon-only
-          secondary
-          title="Back to profile list"
-          onClick={onBack}
-        />
+        <button className="back-btn" title="Back to profile list" onClick={onBack}>
+          &larr;
+        </button>
         <h2 className="profile-editor__title">
           Edit Profile: {profile.name}
         </h2>

@@ -286,16 +286,23 @@ async function handleWorkspaceAutoActivation(
     return;
   }
 
-  // 5. Switch profile
+  // 5. Skip if this profile is already active (prevents re-disabling tools on restart)
+  const currentActiveId = profileService.getActiveProfileId();
+  if (currentActiveId === profile.id) {
+    treeProvider.setActiveProfile(profile.name);
+    return;
+  }
+
+  // 6. Switch profile
   const result = await profileService.switchProfile(profile.id);
 
-  // 6. Update sidebar header
+  // 7. Update sidebar header
   treeProvider.setActiveProfile(profile.name);
 
-  // 7. Show info notification
+  // 8. Show info notification
   vscode.window.showInformationMessage(`Switched to profile: ${profile.name}`);
 
-  // 8. If missing tools, prompt to install
+  // 9. If missing tools, prompt to install
   if (result.skipped > 0) {
     const action = await vscode.window.showWarningMessage(
       `Profile "${profile.name}" has ${result.skipped} missing tool(s).`,

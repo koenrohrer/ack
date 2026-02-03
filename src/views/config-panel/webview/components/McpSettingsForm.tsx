@@ -147,13 +147,9 @@ export function McpSettingsForm({ tool, settings, postMessage, onBack }: McpSett
   return (
     <div className="mcp-form">
       <div className="mcp-form__header">
-        <vscode-button
-          icon="arrow-left"
-          icon-only
-          secondary
-          title="Back to tool list"
-          onClick={onBack}
-        />
+        <button className="back-btn" title="Back to tool list" onClick={onBack}>
+          &larr;
+        </button>
         <h2 className="mcp-form__title">MCP Server: {serverName}</h2>
       </div>
 

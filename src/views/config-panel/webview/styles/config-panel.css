@@ -146,6 +146,36 @@
 }
 
 /* ---------------------------------------------------------------------------
+ * Back Button (shared across detail/editor views)
+ * --------------------------------------------------------------------------- */
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--vscode-foreground);
+  background: transparent;
+  border: none;
+  border-radius: var(--ack-radius-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color var(--ack-transition-fast);
+}
+
+.back-btn:hover {
+  background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.back-btn:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+/* ---------------------------------------------------------------------------
  * Profile Editor
  * --------------------------------------------------------------------------- */
 

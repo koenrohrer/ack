@@ -141,13 +141,9 @@ export function App() {
       return (
         <div className="tool-view">
           <div className="tool-view__header">
-            <vscode-button
-              icon="arrow-left"
-              icon-only
-              secondary
-              title="Back to tool list"
-              onClick={() => setSelectedToolKey(null)}
-            />
+            <button className="back-btn" title="Back to tool list" onClick={() => setSelectedToolKey(null)}>
+              &larr;
+            </button>
             <h2 className="tool-view__title">{selectedTool.name}</h2>
           </div>
           <p className="tool-view__note">Failed to load MCP settings.</p>

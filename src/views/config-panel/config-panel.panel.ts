@@ -403,6 +403,14 @@ export class ConfigPanel {
         `[ConfigPanel] Updated profile ${profileId} tools (${profileToolEntries.length} entries)`,
       );
 
+      // If this is the active profile, re-apply so tool states reflect the changes
+      const activeId = this.profileService.getActiveProfileId();
+      if (activeId === profileId) {
+        await this.profileService.switchProfile(profileId);
+        await this.sendToolsData();
+        this.refreshTree();
+      }
+
       // Refresh both profile list (toolCount changed) and profile tools
       await this.sendProfilesData();
       await this.handleRequestProfileTools(profileId);
