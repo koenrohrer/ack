@@ -1,20 +1,4 @@
-/* Base reset and body -- uses VS Code theme variables */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  font-family: var(--vscode-font-family);
-  font-size: var(--vscode-font-size);
-  color: var(--vscode-foreground);
-  background-color: var(--vscode-editor-background);
-  line-height: 1.5;
-  overflow-x: hidden;
-}
+@import '../../../shared/webview-base.css';
 
 /* Layout container */
 .marketplace {
