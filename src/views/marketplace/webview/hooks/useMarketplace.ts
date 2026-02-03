@@ -51,6 +51,14 @@ export function useMarketplace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // --- GitHub search state ---
+  const [githubTools, setGithubTools] = useState<RegistryEntryWithSource[]>([]);
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubError, setGithubError] = useState<string | null>(null);
+  const [githubEnabled, setGithubEnabled] = useState(true);
+  const [rateLimitWarning, setRateLimitWarning] = useState<string | null>(null);
+  const [githubCached, setGithubCached] = useState(false);
+
   // Derived Set of normalized installed tool names for cross-name-format lookup.
   // Registry display names ("Test Runner") and config names ("test-runner")
   // both normalize to the same key.
@@ -147,6 +155,32 @@ export function useMarketplace() {
           setReadmeContent(message.markdown);
           setReadmeLoading(false);
           break;
+        case 'githubResults':
+          setGithubTools(message.tools);
+          setGithubLoading(false);
+          setGithubError(null);
+          setGithubCached(false);
+          if (message.rateLimitWarning) {
+            setRateLimitWarning(message.rateLimitWarning);
+          }
+          break;
+        case 'githubLoading':
+          setGithubLoading(true);
+          setGithubError(null);
+          break;
+        case 'githubError':
+          setGithubLoading(false);
+          setGithubError(message.error);
+          if (message.cached) {
+            setGithubCached(true);
+          }
+          break;
+        case 'githubRateLimit':
+          setRateLimitWarning(message.message);
+          break;
+        case 'githubAuthRequired':
+          // Could set state for auth prompt; for now handled via rateLimitWarning
+          break;
       }
     };
 
@@ -157,11 +191,21 @@ export function useMarketplace() {
   // --- Signal ready on mount ---
   useEffect(() => {
     postMessage({ type: 'ready' });
+    // Trigger initial GitHub browse when enabled (default ON)
+    if (githubEnabled) {
+      postMessage({ type: 'searchGitHub', query: '' });
+    }
   }, []);
+
+  // --- Merge registry and GitHub tools ---
+  const allTools = useMemo(() => {
+    if (!githubEnabled) return tools;
+    return [...tools, ...githubTools];
+  }, [tools, githubTools, githubEnabled]);
 
   // --- Computed: filtered + sorted + paginated tools ---
   const filteredTools = useMemo(() => {
-    let result = tools;
+    let result = allTools;
 
     // Filter by type
     if (activeType !== 'all') {
@@ -180,10 +224,14 @@ export function useMarketplace() {
       );
     }
 
-    // Sort
+    // Sort -- use relevanceScore when available for interleaving
     switch (sortBy) {
       case 'popular':
-        result = [...result].sort((a, b) => b.stars - a.stars);
+        result = [...result].sort((a, b) => {
+          const scoreA = a.relevanceScore ?? a.stars;
+          const scoreB = b.relevanceScore ?? b.stars;
+          return scoreB - scoreA;
+        });
         break;
       case 'recent':
         result = [...result].sort(
@@ -199,7 +247,7 @@ export function useMarketplace() {
     }
 
     return result;
-  }, [tools, activeType, debouncedSearch, sortBy]);
+  }, [allTools, activeType, debouncedSearch, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTools.length / ITEMS_PER_PAGE));
 
@@ -220,12 +268,20 @@ export function useMarketplace() {
       setSelectedToolState(tool);
       setReadmeContent(null);
       setReadmeLoading(true);
-      postMessage({
-        type: 'requestReadme',
-        toolId: tool.id,
-        sourceId: tool.sourceId,
-        readmePath: tool.readmePath,
-      });
+      if (tool.source === 'github' && tool.repoFullName) {
+        postMessage({
+          type: 'requestGitHubReadme',
+          repoFullName: tool.repoFullName,
+          defaultBranch: tool.defaultBranch ?? 'main',
+        });
+      } else {
+        postMessage({
+          type: 'requestReadme',
+          toolId: tool.id,
+          sourceId: tool.sourceId,
+          readmePath: tool.readmePath,
+        });
+      }
     },
     [postMessage],
   );
@@ -287,6 +343,28 @@ export function useMarketplace() {
     [installedTools],
   );
 
+  // --- GitHub actions ---
+  const searchGitHub = useCallback((query: string) => {
+    const typeFilter = activeType !== 'all' ? activeType : undefined;
+    postMessage({ type: 'searchGitHub', query, typeFilter });
+  }, [postMessage, activeType]);
+
+  const toggleGitHub = useCallback((enabled: boolean) => {
+    setGithubEnabled(enabled);
+    postMessage({ type: 'toggleGitHub', enabled });
+    if (enabled && githubTools.length === 0) {
+      postMessage({ type: 'searchGitHub', query: '' });
+    }
+  }, [postMessage, githubTools.length]);
+
+  const authenticateGitHub = useCallback(() => {
+    postMessage({ type: 'authenticateGitHub' });
+  }, [postMessage]);
+
+  const openExternal = useCallback((url: string) => {
+    postMessage({ type: 'openExternal', url });
+  }, [postMessage]);
+
   // --- Reset page when search/type changes ---
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
@@ -307,6 +385,14 @@ export function useMarketplace() {
     installStates,
     loading,
     error,
+
+    // GitHub state
+    githubTools,
+    githubLoading,
+    githubError,
+    githubEnabled,
+    rateLimitWarning,
+    githubCached,
 
     // UI state
     searchQuery,
@@ -336,5 +422,9 @@ export function useMarketplace() {
     requestUninstall,
     getInstallState,
     getInstalledInfo,
+    toggleGitHub,
+    searchGitHub,
+    authenticateGitHub,
+    openExternal,
   };
 }
