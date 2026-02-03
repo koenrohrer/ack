@@ -535,3 +535,129 @@ body {
   color: var(--vscode-errorForeground);
   margin-top: 8px;
 }
+
+/* Source badges */
+.source-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.source-badge--github {
+  background-color: var(--vscode-descriptionForeground);
+  color: var(--vscode-editor-background);
+}
+
+/* GitHub toggle */
+.marketplace-header__github-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.github-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.github-toggle__label {
+  user-select: none;
+}
+
+.github-toggle__loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* Rate limit warning banner */
+.marketplace-warning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  margin: 8px 0;
+  font-size: 12px;
+  background-color: var(--vscode-inputValidation-warningBackground, rgba(255, 200, 0, 0.1));
+  border: 1px solid var(--vscode-inputValidation-warningBorder, rgba(255, 200, 0, 0.4));
+  border-radius: 4px;
+  color: var(--vscode-foreground);
+}
+
+.marketplace-warning__auth {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-family: var(--vscode-font-family);
+  border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+  border-radius: 2px;
+  background-color: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.marketplace-warning__auth:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* GitHub info/error indicators */
+.marketplace-info {
+  padding: 6px 12px;
+  margin: 4px 0;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+}
+
+.marketplace-info--stale {
+  background-color: var(--vscode-inputValidation-warningBackground, rgba(255, 200, 0, 0.05));
+  border-color: var(--vscode-inputValidation-warningBorder, rgba(255, 200, 0, 0.3));
+}
+
+/* Search submit button */
+.marketplace-header__search-button {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-family: var(--vscode-font-family);
+  border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+  border-radius: 2px;
+  background-color: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.marketplace-header__search-button:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* View on GitHub button */
+.github-view-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-family: var(--vscode-font-family);
+  border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+  border-radius: 2px;
+  background-color: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  cursor: pointer;
+}
+
+.github-view-button:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground);
+}

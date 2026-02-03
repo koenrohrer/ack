@@ -17,6 +17,12 @@ export function App() {
     loading,
     error,
 
+    githubLoading,
+    githubError,
+    githubEnabled,
+    rateLimitWarning,
+    githubCached,
+
     searchQuery,
     activeType,
     sortBy,
@@ -40,6 +46,10 @@ export function App() {
     retryInstall,
     requestUninstall,
     getInstallState,
+    toggleGitHub,
+    searchGitHub,
+    authenticateGitHub,
+    openExternal,
   } = useMarketplace();
 
   // --- Detail view ---
@@ -59,6 +69,7 @@ export function App() {
           onSubmitConfig={(values) =>
             submitConfig(selectedTool.id, selectedTool.sourceId, values)
           }
+          onOpenExternal={openExternal}
         />
       </div>
     );
@@ -97,12 +108,47 @@ export function App() {
     <div className="marketplace">
       <div className="marketplace-header">
         <h1 className="marketplace-header__title">Tool Marketplace</h1>
-        <SearchBar value={searchQuery} onChange={setSearchQuery} />
+        <SearchBar value={searchQuery} onChange={setSearchQuery} onSubmit={searchGitHub} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <TypeTabs activeType={activeType} onChange={setActiveType} />
           <SortDropdown value={sortBy} onChange={setSortBy} />
         </div>
+        <div className="marketplace-header__github-toggle">
+          <label className="github-toggle">
+            <input
+              type="checkbox"
+              checked={githubEnabled}
+              onChange={(e) => toggleGitHub(e.target.checked)}
+            />
+            <span className="github-toggle__label">Include GitHub results</span>
+          </label>
+          {githubLoading && (
+            <span className="github-toggle__loading">
+              <vscode-progress-ring style={{ width: '14px', height: '14px' }} />
+              <span>Searching GitHub...</span>
+            </span>
+          )}
+        </div>
       </div>
+
+      {rateLimitWarning && (
+        <div className="marketplace-warning">
+          <span>{rateLimitWarning}</span>
+          <button
+            className="marketplace-warning__auth"
+            onClick={authenticateGitHub}
+          >
+            Authenticate
+          </button>
+        </div>
+      )}
+
+      {githubError && (
+        <div className={`marketplace-info${githubCached ? ' marketplace-info--stale' : ''}`}>
+          <span>{githubError}</span>
+          {githubCached && <span> (showing cached results)</span>}
+        </div>
+      )}
 
       <MarketplaceGrid
         tools={tools}
