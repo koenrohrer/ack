@@ -220,14 +220,9 @@ export class GitHubSearchService {
    * search (per RESEARCH.md rate limit strategy).
    */
   async browseDiscovery(): Promise<GitHubSearchResult[]> {
-    const topicQuery = [
-      'topic:mcp-server',
-      'topic:claude-skill',
-      'topic:claude-tools',
-      'topic:claude-commands',
-    ].join(' OR ');
-
-    const query = `${topicQuery}`;
+    // GitHub search API does not support OR between topic: qualifiers.
+    // Use plain keywords that match against repo names and descriptions.
+    const query = 'mcp-server OR claude-skill OR claude-tools OR claude-commands in:name,description,topics';
     const url =
       `${GITHUB_API_BASE}/search/repositories` +
       `?q=${encodeURIComponent(query)}` +
@@ -550,17 +545,19 @@ export class GitHubSearchService {
    * conventions and topic patterns.
    */
   private buildTypeQualifiers(toolType: GitHubToolType): string | null {
+    // GitHub search API does not support OR between topic: qualifiers.
+    // Use plain keywords matched against repo names and descriptions.
     switch (toolType) {
       case 'mcp_server':
-        return 'mcp-server in:name';
+        return 'mcp-server';
       case 'skill':
-        return 'topic:claude-skill OR skill in:name';
+        return 'claude-skill OR skill';
       case 'hook':
-        return 'topic:claude-hooks OR claude-hooks in:name';
+        return 'claude-hooks OR hooks';
       case 'command':
-        return 'topic:claude-commands OR claude-commands in:name';
+        return 'claude-commands OR commands';
       case 'profile':
-        return 'topic:claude-profile OR claude-profile in:name';
+        return 'claude-profile OR profile';
       default:
         return null;
     }
