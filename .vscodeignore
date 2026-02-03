@@ -14,3 +14,4 @@ vitest.config.ts
 package-lock.json
 **/*.map
 CONTRIBUTING.md
+media/screenshots/**
