@@ -715,6 +715,9 @@ export class ConfigPanel {
     const styleUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, 'dist', 'config-panel.css'),
     );
+    const codiconUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css'),
+    );
 
     return /* html */ `<!DOCTYPE html>
 <html lang="en">
@@ -727,6 +730,7 @@ export class ConfigPanel {
       script-src 'nonce-${nonce}';
       font-src ${webview.cspSource};
       img-src ${webview.cspSource} https:;">
+  <link id="vscode-codicon-stylesheet" rel="stylesheet" href="${codiconUri}">
   <link rel="stylesheet" href="${styleUri}">
   <title>Configure Agent</title>
 </head>
