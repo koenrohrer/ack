@@ -71,6 +71,9 @@ export class MarketplacePanel {
   /** Cached registry entries from last fetchAllIndexes, keyed by entry id. */
   private toolEntryMap = new Map<string, RegistryEntryWithSource>();
 
+  /** Type filter to push to webview on first ready message. */
+  private initialTypeFilter?: string;
+
   /** In-progress installs waiting for config form submission, keyed by toolId. */
   private pendingInstalls = new Map<string, PendingInstall>();
 
@@ -88,10 +91,17 @@ export class MarketplacePanel {
     installService: InstallService,
     toolManager: ToolManagerService,
     repoScanner: RepoScannerService,
+    initialTypeFilter?: string,
   ): void {
-    // If panel already exists, reveal it
+    // If panel already exists, reveal it and optionally re-filter
     if (MarketplacePanel.currentPanel) {
       MarketplacePanel.currentPanel.panel.reveal(vscode.ViewColumn.One);
+      if (initialTypeFilter) {
+        MarketplacePanel.currentPanel.postMessage({
+          type: 'setTypeFilter',
+          filter: initialTypeFilter,
+        });
+      }
       return;
     }
 
@@ -116,6 +126,7 @@ export class MarketplacePanel {
       installService,
       toolManager,
       repoScanner,
+      initialTypeFilter,
     );
   }
 
@@ -128,6 +139,7 @@ export class MarketplacePanel {
     installService: InstallService,
     toolManager: ToolManagerService,
     repoScanner: RepoScannerService,
+    initialTypeFilter?: string,
   ) {
     this.panel = panel;
     this.extensionUri = extensionUri;
@@ -137,6 +149,7 @@ export class MarketplacePanel {
     this.installService = installService;
     this.toolManager = toolManager;
     this.repoScanner = repoScanner;
+    this.initialTypeFilter = initialTypeFilter;
 
     // Load saved repos from settings
     this.userRepos = vscode.workspace
@@ -163,6 +176,13 @@ export class MarketplacePanel {
   private handleMessage(message: WebviewMessage): void {
     switch (message.type) {
       case 'ready':
+        if (this.initialTypeFilter) {
+          this.postMessage({
+            type: 'setTypeFilter',
+            filter: this.initialTypeFilter,
+          });
+          this.initialTypeFilter = undefined;
+        }
         void this.loadRegistryData(false);
         void this.loadRepoTools();
         break;

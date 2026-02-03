@@ -1,10 +1,15 @@
 import * as vscode from 'vscode';
 import type { ToolManagerService } from '../../services/tool-manager.service.js';
 import type { ProfileService } from '../../services/profile.service.js';
+import type { RegistryService } from '../../services/registry.service.js';
+import type { ConfigService } from '../../services/config.service.js';
+import type { InstallService } from '../../services/install.service.js';
+import type { RepoScannerService } from '../../services/repo-scanner.service.js';
 import { ConfigScope, ToolStatus } from '../../types/enums.js';
 import { buildDeleteDescription } from '../../services/tool-manager.utils.js';
 import type { ToolTreeProvider } from './tool-tree.provider.js';
 import type { ToolNode, GroupNode, TreeNode } from './tool-tree.nodes.js';
+import { MarketplacePanel } from '../marketplace/marketplace.panel.js';
 
 /**
  * Register all management command handlers for the tool tree.
@@ -24,6 +29,11 @@ export function registerManagementCommands(
   toolManager: ToolManagerService,
   treeProvider: ToolTreeProvider,
   profileService: ProfileService,
+  registryService: RegistryService,
+  configService: ConfigService,
+  outputChannel: vscode.OutputChannel,
+  installService: InstallService,
+  repoScannerService: RepoScannerService,
 ): void {
   // ---------------------------------------------------------------------------
   // Toggle Enable/Disable
@@ -166,7 +176,7 @@ export function registerManagementCommands(
   );
 
   // ---------------------------------------------------------------------------
-  // Install (Phase 4 placeholder)
+  // Install via Marketplace (filtered by tool type)
   // ---------------------------------------------------------------------------
 
   const installCmd = vscode.commands.registerCommand(
@@ -176,8 +186,15 @@ export function registerManagementCommands(
         return;
       }
       const groupNode = node as GroupNode;
-      vscode.window.showInformationMessage(
-        `Marketplace coming in Phase 4. Tool type: ${groupNode.toolType}`,
+      MarketplacePanel.createOrShow(
+        context.extensionUri,
+        registryService,
+        configService,
+        outputChannel,
+        installService,
+        toolManager,
+        repoScannerService,
+        groupNode.toolType,
       );
     },
   );

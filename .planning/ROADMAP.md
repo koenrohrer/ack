@@ -20,7 +20,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 6: Profile System** - Named profiles for switching between tool sets
 - [x] **Phase 7: Configuration Panel** - Rich webview panel for managing extension settings and per-tool configuration
 - [x] **Phase 8: Profile Portability & Polish** - Import/export profiles and workspace-profile association
-- [ ] **Phase 9: GitHub Search Discovery** - Fan out marketplace search across public GitHub repos to discover compatible tools by file patterns and naming conventions
+- [x] **Phase 9: GitHub Search Discovery** - Repo URL scanner for discovering tools in user-added GitHub repos by file patterns
+- [ ] **Phase 10: Sidebar Install Routing & Tracking Cleanup** - Wire sidebar install button to marketplace with type filter, fix stale tracking
 
 ## Phase Details
 
@@ -167,15 +168,29 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 09-01-PLAN.md -- GitHubSearchService with auth, dual search strategy, rate limiting, and caching
-- [ ] 09-02-PLAN.md -- Message protocol extensions, MarketplacePanel fan-out search, relevance scoring
-- [ ] 09-03-PLAN.md -- Webview UI: GitHub toggle, badge, enhanced search, interleaved grid, detail view
-- [ ] 09-04-PLAN.md -- Build verification and end-to-end checkpoint
+- [x] 09-01-PLAN.md -- GitHubSearchService with auth, dual search strategy, rate limiting, and caching
+- [x] 09-02-PLAN.md -- Message protocol extensions, MarketplacePanel fan-out search, relevance scoring
+- [x] 09-03-PLAN.md -- Webview UI: GitHub toggle, badge, enhanced search, interleaved grid, detail view
+- [x] 09-04-PLAN.md -- Pivot: replace GitHub Search API with repo URL scanner and end-to-end verification
+
+### Phase 10: Sidebar Install Routing & Tracking Cleanup
+**Goal**: Close the remaining TOOL-02 gap and fix stale tracking in REQUIREMENTS.md and Phase 9 roadmap criteria
+**Depends on**: Phase 5 (marketplace install exists), Phase 9 (roadmap criteria to update)
+**Requirements**: TOOL-02
+**Gap Closure**: Closes gaps from v1 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. Sidebar "Install" button opens the marketplace webview pre-filtered to the relevant tool type (e.g., clicking install on Skills group opens marketplace with Skills tab active)
+  2. REQUIREMENTS.md traceability table reflects actual implementation status for all 27 requirements (no stale "Pending" rows)
+  3. Phase 9 roadmap success criteria accurately describe the repo URL scanner (not the deleted GitHub Search API)
+**Plans**: 1 plan
+
+Plans:
+- [ ] 10-01-PLAN.md -- Wire sidebar install to marketplace with type filter, update REQUIREMENTS.md and Phase 9 criteria
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 Note: Phase 4 depends on Phase 1 (not Phase 3), so Phases 3 and 4 could theoretically run in parallel.
 
 | Phase | Plans Complete | Status | Completed |
@@ -188,4 +203,5 @@ Note: Phase 4 depends on Phase 1 (not Phase 3), so Phases 3 and 4 could theoreti
 | 6. Profile System | 3/3 | Complete | 2026-02-02 |
 | 7. Configuration Panel | 3/3 | Complete | 2026-02-02 |
 | 8. Profile Portability & Polish | 2/2 | Complete | 2026-02-02 |
-| 9. GitHub Search Discovery | 0/4 | Not started | - |
+| 9. GitHub Search Discovery | 4/4 | Complete | 2026-02-02 |
+| 10. Sidebar Install Routing & Tracking Cleanup | 0/1 | Pending | — |

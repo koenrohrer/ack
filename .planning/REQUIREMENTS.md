@@ -39,16 +39,16 @@
 
 ### Profile System
 
-- [ ] **PROF-01**: User can create, edit, and delete named profiles (preset collections of enabled tools)
-- [ ] **PROF-02**: User can switch between profiles from the sidebar or command palette
-- [ ] **PROF-03**: User can associate a profile with a workspace so it auto-activates when the project opens
-- [ ] **PROF-04**: User can import and export profiles as shareable files
+- [x] **PROF-01**: User can create, edit, and delete named profiles (preset collections of enabled tools)
+- [x] **PROF-02**: User can switch between profiles from the sidebar or command palette
+- [x] **PROF-03**: User can associate a profile with a workspace so it auto-activates when the project opens
+- [x] **PROF-04**: User can import and export profiles as shareable files
 
 ### Configuration Panel
 
-- [ ] **CONF-01**: User can open a rich webview panel for managing all extension settings
-- [ ] **CONF-02**: User can manage profiles (create/edit/delete/switch) within the configuration panel
-- [ ] **CONF-03**: User can edit per-tool settings (e.g., MCP server environment variables) within the configuration panel
+- [x] **CONF-01**: User can open a rich webview panel for managing all extension settings
+- [x] **CONF-02**: User can manage profiles (create/edit/delete/switch) within the configuration panel
+- [x] **CONF-03**: User can edit per-tool settings (e.g., MCP server environment variables) within the configuration panel
 
 ## v2 Requirements
 
@@ -90,28 +90,28 @@
 | CORE-03 | Phase 1 | Complete |
 | CORE-04 | Phase 1 | Complete |
 | CORE-05 | Phase 1 | Complete |
-| SIDE-01 | Phase 2 | Pending |
-| SIDE-02 | Phase 2 | Pending |
-| SIDE-03 | Phase 2 | Pending |
-| SIDE-04 | Phase 2 | Pending |
-| SIDE-05 | Phase 2 | Pending |
-| SIDE-06 | Phase 2 | Pending |
-| TOOL-01 | Phase 3 | Pending |
-| TOOL-02 | Phase 3 | Pending |
-| TOOL-03 | Phase 3 | Pending |
-| TOOL-04 | Phase 3 | Pending |
-| MRKT-01 | Phase 4 | Pending |
-| MRKT-02 | Phase 4 | Pending |
+| SIDE-01 | Phase 2 | Complete |
+| SIDE-02 | Phase 2 | Complete |
+| SIDE-03 | Phase 2 | Complete |
+| SIDE-04 | Phase 2 | Complete |
+| SIDE-05 | Phase 2 | Complete |
+| SIDE-06 | Phase 2 | Complete |
+| TOOL-01 | Phase 3 | Complete |
+| TOOL-02 | Phase 3, 10 | Partial |
+| TOOL-03 | Phase 3 | Complete |
+| TOOL-04 | Phase 3 | Complete |
+| MRKT-01 | Phase 4 | Complete |
+| MRKT-02 | Phase 4 | Complete |
 | MRKT-03 | Phase 5 | Complete |
-| MRKT-04 | Phase 4 | Pending |
-| MRKT-05 | Phase 4 | Pending |
-| PROF-01 | Phase 6 | Pending |
-| PROF-02 | Phase 6 | Pending |
-| PROF-03 | Phase 8 | Pending |
-| PROF-04 | Phase 8 | Pending |
-| CONF-01 | Phase 7 | Pending |
-| CONF-02 | Phase 7 | Pending |
-| CONF-03 | Phase 7 | Pending |
+| MRKT-04 | Phase 4 | Complete |
+| MRKT-05 | Phase 4 | Complete |
+| PROF-01 | Phase 6 | Complete |
+| PROF-02 | Phase 6 | Complete |
+| PROF-03 | Phase 8 | Complete |
+| PROF-04 | Phase 8 | Complete |
+| CONF-01 | Phase 7 | Complete |
+| CONF-02 | Phase 7 | Complete |
+| CONF-03 | Phase 7 | Complete |
 
 **Coverage:**
 - v1 requirements: 27 total
@@ -120,4 +120,4 @@
 
 ---
 *Requirements defined: 2026-02-01*
-*Last updated: 2026-02-01 after roadmap creation*
+*Last updated: 2026-02-03 after v1 milestone audit gap closure*

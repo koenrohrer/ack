@@ -116,7 +116,17 @@ export function activate(context: vscode.ExtensionContext): void {
   registerToolTreeCommands(context, treeProvider);
 
   // 13. Management commands (toggle, delete, move, install)
-  registerManagementCommands(context, toolManager, treeProvider, profileService);
+  registerManagementCommands(
+    context,
+    toolManager,
+    treeProvider,
+    profileService,
+    registryService,
+    configService,
+    outputChannel,
+    installService,
+    repoScannerService,
+  );
 
   // 14. Profile commands (create, switch, edit, delete, save-as, export, import, associate)
   registerProfileCommands(context, profileService, configService, treeProvider, registryService, installService, workspaceProfileService);

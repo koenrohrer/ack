@@ -23,7 +23,8 @@ export type ExtensionMessage =
   | { type: 'repoScanComplete'; repoUrl: string }
   | { type: 'repoScanError'; repoUrl: string; error: string }
   | { type: 'repoRemoved'; repoUrl: string }
-  | { type: 'savedRepos'; repos: SavedRepoInfo[] };
+  | { type: 'savedRepos'; repos: SavedRepoInfo[] }
+  | { type: 'setTypeFilter'; filter: string };
 
 // --- Messages FROM webview TO extension ---
 

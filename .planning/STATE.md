@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-01)
 
 **Core value:** Developers can discover, install, configure, and switch between sets of agent tools without leaving VS Code
-**Current focus:** Phase 5 complete -- One-Click Install. All 3 plans done, 6 bugfixes, checkpoint approved. Phase 6 (Profile System) is next.
+**Current focus:** Phase 10 — close TOOL-02 gap and fix stale tracking from v1 audit.
 
 ## Current Position
 
-Phase: 5 of 8 (One-Click Install) -- COMPLETE
-Plan: 3 of 3 in current phase -- COMPLETE
-Status: Phase complete, ready for Phase 6
-Last activity: 2026-02-02 -- Checkpoint approved, 05-03-SUMMARY created, Phase 5 verified
+Phase: 10 of 10 (Sidebar Install Routing & Tracking Cleanup)
+Plan: 0 of 1 in current phase
+Status: Planning
+Last activity: 2026-02-03 -- Created Phase 10 from milestone audit gaps
 
-Progress: [██████░░░░] ~62%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 16
-- Average duration: 4m
-- Total execution time: 81m
+- Total plans completed: 27
+- Average duration: 5m
+- Total execution time: 153m
 
 **By Phase:**
 
@@ -32,10 +32,14 @@ Progress: [██████░░░░] ~62%
 | 03 | 3/3 | 12m | 4m |
 | 04 | 3/3 | 18m | 6m |
 | 05 | 3/3 | 25m | 8m |
+| 06 | 3/3 | 21m | 7m |
+| 07 | 3/3 | 17m | 6m |
+| 08 | 2/2 | 12m | 6m |
+| 09 | 4/4 | 14m | 4m |
 
 **Recent Trend:**
-- Last 5 plans: 04-03 (8m), 05-01 (5m), 05-02 (5m), 05-03 (15m with checkpoint)
-- Trend: checkpoint plans take longer due to manual testing + bugfix cycles
+- Last 5 plans: 08-02 (8m with checkpoint), 09-01 (4m), 09-02 (5m), 09-03 (5m)
+- Trend: autonomous plans completing in ~4-5m, checkpoint plans ~8m
 
 *Updated after each plan completion*
 
@@ -46,6 +50,7 @@ Progress: [██████░░░░] ~62%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [Roadmap]: 9 phases (originally 8, Phase 9 added for GitHub search discovery)
 - [Roadmap]: 8 phases derived from 27 requirements at comprehensive depth
 - [Roadmap]: Phase 4 (Marketplace) depends on Phase 1 only, not Phase 3, enabling parallel work if needed
 - [01-01]: Used ESLint 9 flat config (eslint.config.mjs) instead of legacy .eslintrc.json
@@ -93,6 +98,48 @@ Recent decisions affecting current work:
 - [05-03]: Stash-based hook toggle (_disabledHooks) replaces non-functional disabled:true field
 - [05-03]: Parser reads _disabledHooks entries with ToolStatus.Disabled and metadata.stashed=true
 - [05-03]: removeHook accepts stashed param for deleting disabled hooks
+- [06-01]: canonicalKey() extracted to shared tool-key.utils.ts (prevents key format drift)
+- [06-01]: ProfileService accepts Memento (not ExtensionContext) for testability
+- [06-01]: loadStore() returns DEFAULT_PROFILE_STORE on Zod validation failure (defensive)
+- [06-02]: Profile switch toggles execute sequentially (await in loop) to prevent race conditions
+- [06-02]: registerProfileCommands accepts ConfigService directly for edit-tools multi-select
+- [06-02]: saveAsProfile delegates to createProfile via vscode.commands.executeCommand
+- [06-03]: registerManagementCommands accepts treeProvider for explicit refresh after toggle
+- [06-03]: reconcileProfile() auto-prunes stale profile entries on display
+- [06-03]: Skill/command parsers detect .disabled suffix for correct ToolStatus
+- [06-03]: Auto-sync: toggle/delete operations persist to active profile automatically
+- [06-03]: Exclusive profile switch: tools not in target profile get disabled
+- [07-01]: Multi-entry esbuild uses shared config object with entries array (not separate scripts)
+- [07-01]: Config panel webview excluded from main tsconfig.json (DOM vs Node16 lib conflict)
+- [07-01]: Stub handlers log TODO and reply with operationError for unimplemented messages (fail-visible)
+- [07-02]: New profiles start empty (createProfile + updateProfile with empty tools[])
+- [07-02]: ProfileEditor tracks checkbox state locally for immediate feedback, saves on button click
+- [07-02]: handleRequestProfileTools includes stale entries (not found) and available tools (not in profile)
+- [07-03]: MCP settings read via ConfigService.readToolsByScope + metadata extraction
+- [07-03]: MCP env write via ConfigService.writeConfigFile with deep-clone mutator
+- [07-03]: window.confirm() unavailable in webviews -- delete confirmation moved to extension host
+- [07-03]: ConfigPanel receives treeProvider for sidebar refresh on tool state changes
+- [07-03]: Profile action buttons use text labels (not icon-only) for visibility
+- [08-01]: Export produces minified JSON (no indentation) for smaller file size
+- [08-01]: Import creates profile via createProfile+updateProfile pattern (consistent with 07-02)
+- [08-01]: Zod v4 z.record() requires two args (key schema, value schema)
+- [08-02]: Workspace association stored in .vscode/agent-profile.json (not settings.json)
+- [08-02]: Association by profile name (not ID) for cross-machine portability
+- [08-02]: Manual override tracked in globalState, stale overrides auto-cleared
+- [08-02]: Profile name shown in treeView.title (not description) per user feedback
+- [09-01]: Dynamic require('vscode') for GitHubSearchService testability (no top-level import)
+- [09-01]: Dual search: repo search for broad queries, code search for type-filtered filename matching
+- [09-01]: fetchGitHub returns unknown[] with call-site casting to avoid union type issues
+- [09-01]: TOPIC_TO_TOOL_TYPE mapping as separate constant for repo-level heuristic detection
+- [09-01]: GitHubRepoItem/GitHubCodeItem exported as typed shapes for GitHub API responses
+- [09-02]: Relevance scoring: registry base 100, GitHub base 50 (curated vs discovered weighting)
+- [09-02]: Separate data channels (registryData + githubResults) for independent lifecycle
+- [09-02]: Map 'profile' detectedType to 'command' toolType for RegistryEntryWithSource compatibility
+- [09-02]: No auto-trigger of GitHub browse from loadRegistryData (webview ready effect initiates)
+- [09-03]: githubEnabled defaults true, NOT persisted (resets each webview mount)
+- [09-03]: Popular sort uses relevanceScore (falls back to stars) for interleaved ranking
+- [09-03]: SearchBar onChange for live registry filter, onSubmit for explicit GitHub search
+- [09-03]: InstallButton hidden for GitHub-sourced tools; "View on GitHub" shown instead
 
 ### Pending Todos
 
@@ -104,6 +151,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-02
-Stopped at: Phase 5 complete. All plans executed, checkpoint approved, summary created, verifier running. Ready for Phase 6 (Profile System).
-Resume file: None (phase complete, .continue-here cleaned up)
+Last session: 2026-02-03
+Stopped at: Created Phase 10 from v1 milestone audit gaps. REQUIREMENTS.md tracking fixed. Ready to plan Phase 10.
+Resume file: None

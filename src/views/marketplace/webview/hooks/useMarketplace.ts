@@ -193,6 +193,10 @@ export function useMarketplace() {
             return next;
           });
           break;
+        case 'setTypeFilter':
+          setActiveType((message as { type: 'setTypeFilter'; filter: string }).filter as ToolTypeFilter);
+          setCurrentPage(1);
+          break;
       }
     };
 
