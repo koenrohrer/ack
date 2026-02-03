@@ -6,6 +6,7 @@ import type {
   RegistryEntryWithSource,
   ConfigField,
   InstalledToolInfo,
+  SavedRepoInfo,
 } from '../../marketplace.messages';
 
 export type ToolTypeFilter = 'all' | 'skill' | 'mcp_server' | 'hook' | 'command';
@@ -20,7 +21,7 @@ export interface InstallState {
 
 const DEFAULT_INSTALL_STATE: InstallState = { status: 'idle' };
 
-/** Normalize a tool name for comparison (lowercased, spaces/underscores → hyphens, .disabled stripped). */
+/** Normalize a tool name for comparison (lowercased, spaces/underscores -> hyphens, .disabled stripped). */
 export function normalizeToolName(name: string): string {
   return name.toLowerCase().replace(/\.disabled$/, '').replace(/[\s_]+/g, '-');
 }
@@ -51,17 +52,13 @@ export function useMarketplace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // --- GitHub search state ---
-  const [githubTools, setGithubTools] = useState<RegistryEntryWithSource[]>([]);
-  const [githubLoading, setGithubLoading] = useState(false);
-  const [githubError, setGithubError] = useState<string | null>(null);
-  const [githubEnabled, setGithubEnabled] = useState(true);
-  const [rateLimitWarning, setRateLimitWarning] = useState<string | null>(null);
-  const [githubCached, setGithubCached] = useState(false);
+  // --- Repo state ---
+  const [repoTools, setRepoTools] = useState<RegistryEntryWithSource[]>([]);
+  const [savedRepos, setSavedRepos] = useState<SavedRepoInfo[]>([]);
+  const [repoScanning, setRepoScanning] = useState<Set<string>>(new Set());
+  const [repoErrors, setRepoErrors] = useState<Map<string, string>>(new Map());
 
   // Derived Set of normalized installed tool names for cross-name-format lookup.
-  // Registry display names ("Test Runner") and config names ("test-runner")
-  // both normalize to the same key.
   const installedToolIds = useMemo(
     () => new Set(installedTools.map((t) => normalizeToolName(t.name))),
     [installedTools],
@@ -155,31 +152,46 @@ export function useMarketplace() {
           setReadmeContent(message.markdown);
           setReadmeLoading(false);
           break;
-        case 'githubResults':
-          setGithubTools(message.tools);
-          setGithubLoading(false);
-          setGithubError(null);
-          setGithubCached(false);
-          if (message.rateLimitWarning) {
-            setRateLimitWarning(message.rateLimitWarning);
-          }
+        case 'repoTools':
+          setRepoTools(message.tools);
           break;
-        case 'githubLoading':
-          setGithubLoading(true);
-          setGithubError(null);
+        case 'savedRepos':
+          setSavedRepos(message.repos);
           break;
-        case 'githubError':
-          setGithubLoading(false);
-          setGithubError(message.error);
-          if (message.cached) {
-            setGithubCached(true);
-          }
+        case 'repoScanLoading':
+          setRepoScanning((prev) => new Set(prev).add(message.repoUrl));
+          setRepoErrors((prev) => {
+            const next = new Map(prev);
+            next.delete(message.repoUrl);
+            return next;
+          });
           break;
-        case 'githubRateLimit':
-          setRateLimitWarning(message.message);
+        case 'repoScanComplete':
+          setRepoScanning((prev) => {
+            const next = new Set(prev);
+            next.delete(message.repoUrl);
+            return next;
+          });
           break;
-        case 'githubAuthRequired':
-          // Could set state for auth prompt; for now handled via rateLimitWarning
+        case 'repoScanError':
+          setRepoScanning((prev) => {
+            const next = new Set(prev);
+            next.delete(message.repoUrl);
+            return next;
+          });
+          setRepoErrors((prev) => new Map(prev).set(message.repoUrl, message.error));
+          break;
+        case 'repoRemoved':
+          setRepoScanning((prev) => {
+            const next = new Set(prev);
+            next.delete(message.repoUrl);
+            return next;
+          });
+          setRepoErrors((prev) => {
+            const next = new Map(prev);
+            next.delete(message.repoUrl);
+            return next;
+          });
           break;
       }
     };
@@ -191,17 +203,12 @@ export function useMarketplace() {
   // --- Signal ready on mount ---
   useEffect(() => {
     postMessage({ type: 'ready' });
-    // Trigger initial GitHub browse when enabled (default ON)
-    if (githubEnabled) {
-      postMessage({ type: 'searchGitHub', query: '' });
-    }
   }, []);
 
-  // --- Merge registry and GitHub tools ---
+  // --- Merge registry and repo tools ---
   const allTools = useMemo(() => {
-    if (!githubEnabled) return tools;
-    return [...tools, ...githubTools];
-  }, [tools, githubTools, githubEnabled]);
+    return [...tools, ...repoTools];
+  }, [tools, repoTools]);
 
   // --- Computed: filtered + sorted + paginated tools ---
   const filteredTools = useMemo(() => {
@@ -268,20 +275,12 @@ export function useMarketplace() {
       setSelectedToolState(tool);
       setReadmeContent(null);
       setReadmeLoading(true);
-      if (tool.source === 'github' && tool.repoFullName) {
-        postMessage({
-          type: 'requestGitHubReadme',
-          repoFullName: tool.repoFullName,
-          defaultBranch: tool.defaultBranch ?? 'main',
-        });
-      } else {
-        postMessage({
-          type: 'requestReadme',
-          toolId: tool.id,
-          sourceId: tool.sourceId,
-          readmePath: tool.readmePath,
-        });
-      }
+      postMessage({
+        type: 'requestReadme',
+        toolId: tool.id,
+        sourceId: tool.sourceId,
+        readmePath: tool.readmePath,
+      });
     },
     [postMessage],
   );
@@ -343,22 +342,17 @@ export function useMarketplace() {
     [installedTools],
   );
 
-  // --- GitHub actions ---
-  const searchGitHub = useCallback((query: string) => {
-    const typeFilter = activeType !== 'all' ? activeType : undefined;
-    postMessage({ type: 'searchGitHub', query, typeFilter });
-  }, [postMessage, activeType]);
+  // --- Repo actions ---
+  const addRepo = useCallback((url: string) => {
+    postMessage({ type: 'addRepo', url });
+  }, [postMessage]);
 
-  const toggleGitHub = useCallback((enabled: boolean) => {
-    setGithubEnabled(enabled);
-    postMessage({ type: 'toggleGitHub', enabled });
-    if (enabled && githubTools.length === 0) {
-      postMessage({ type: 'searchGitHub', query: '' });
-    }
-  }, [postMessage, githubTools.length]);
+  const removeRepo = useCallback((url: string) => {
+    postMessage({ type: 'removeRepo', url });
+  }, [postMessage]);
 
-  const authenticateGitHub = useCallback(() => {
-    postMessage({ type: 'authenticateGitHub' });
+  const refreshRepo = useCallback((url: string) => {
+    postMessage({ type: 'refreshRepo', url });
   }, [postMessage]);
 
   const openExternal = useCallback((url: string) => {
@@ -386,13 +380,11 @@ export function useMarketplace() {
     loading,
     error,
 
-    // GitHub state
-    githubTools,
-    githubLoading,
-    githubError,
-    githubEnabled,
-    rateLimitWarning,
-    githubCached,
+    // Repo state
+    repoTools,
+    savedRepos,
+    repoScanning,
+    repoErrors,
 
     // UI state
     searchQuery,
@@ -422,9 +414,9 @@ export function useMarketplace() {
     requestUninstall,
     getInstallState,
     getInstalledInfo,
-    toggleGitHub,
-    searchGitHub,
-    authenticateGitHub,
+    addRepo,
+    removeRepo,
+    refreshRepo,
     openExternal,
   };
 }

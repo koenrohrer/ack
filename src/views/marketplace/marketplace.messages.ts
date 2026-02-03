@@ -18,11 +18,12 @@ export type ExtensionMessage =
   | { type: 'installError'; toolId: string; error: string }
   | { type: 'installCancelled'; toolId: string }
   | { type: 'installConfigRequired'; toolId: string; fields: ConfigField[] }
-  | { type: 'githubResults'; tools: RegistryEntryWithSource[]; loading: false; rateLimitWarning?: string }
-  | { type: 'githubLoading'; loading: true }
-  | { type: 'githubError'; error: string; cached?: boolean }
-  | { type: 'githubRateLimit'; message: string }
-  | { type: 'githubAuthRequired' };
+  | { type: 'repoTools'; tools: RegistryEntryWithSource[] }
+  | { type: 'repoScanLoading'; repoUrl: string }
+  | { type: 'repoScanComplete'; repoUrl: string }
+  | { type: 'repoScanError'; repoUrl: string; error: string }
+  | { type: 'repoRemoved'; repoUrl: string }
+  | { type: 'savedRepos'; repos: SavedRepoInfo[] };
 
 // --- Messages FROM webview TO extension ---
 
@@ -34,10 +35,9 @@ export type WebviewMessage =
   | { type: 'submitConfig'; toolId: string; sourceId: string; values: Record<string, string> }
   | { type: 'retryInstall'; toolId: string; sourceId: string }
   | { type: 'requestUninstall'; toolId: string }
-  | { type: 'searchGitHub'; query: string; typeFilter?: string }
-  | { type: 'requestGitHubReadme'; repoFullName: string; defaultBranch: string }
-  | { type: 'authenticateGitHub' }
-  | { type: 'toggleGitHub'; enabled: boolean }
+  | { type: 'addRepo'; url: string }
+  | { type: 'removeRepo'; url: string }
+  | { type: 'refreshRepo'; url: string }
   | { type: 'openExternal'; url: string };
 
 // --- Shared types ---
@@ -64,6 +64,13 @@ export interface InstalledToolInfo {
   scope: string;
 }
 
+/** Info about a saved repo for the webview repo list. */
+export interface SavedRepoInfo {
+  url: string;
+  repoFullName: string;
+  toolCount: number;
+}
+
 /**
  * A registry entry augmented with source info for display in the marketplace.
  * Uses `toolType` instead of `type` to avoid collision with the message discriminant.
@@ -85,11 +92,11 @@ export interface RegistryEntryWithSource {
   sourceId: string;
   sourceName: string;
 
-  // GitHub-specific fields (present when source is 'github')
-  source?: 'registry' | 'github';
+  source?: 'registry' | 'repo';
   repoUrl?: string;
   repoFullName?: string;
-  language?: string | null;
   defaultBranch?: string;
+  repoPath?: string;
+  repoFiles?: string[];
   relevanceScore?: number;
 }

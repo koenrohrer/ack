@@ -37,9 +37,6 @@ interface ToolDetailViewProps {
  * Shows tool metadata (name, author, type, version, tags, stats),
  * install button with progress states, optional config form,
  * and the rendered README markdown.
- *
- * Markdown is rendered in the browser via marked + DOMPurify for
- * security. This runs in the webview context, not the extension host.
  */
 export function ToolDetailView({
   tool,
@@ -63,8 +60,6 @@ export function ToolDetailView({
   }, [readmeContent]);
 
   const handleCancelConfig = () => {
-    // Reset install state by requesting the extension to cancel
-    // For now we just visually reset -- the panel handles the cancel on its side
     onInstall(); // Re-trigger install flow (scope picker will appear again)
   };
 
@@ -81,31 +76,21 @@ export function ToolDetailView({
           <span className={`type-badge type-badge--${tool.toolType}`}>
             {TYPE_LABELS[tool.toolType] ?? tool.toolType}
           </span>
-          {tool.source === 'github' && (
-            <span className="source-badge source-badge--github">GitHub</span>
+          {tool.source === 'repo' && (
+            <span className="source-badge source-badge--repo">Repo</span>
           )}
           <span>by {tool.author}</span>
-          {tool.source !== 'github' && <span>v{tool.version}</span>}
-          <span>{tool.stars} stars</span>
-          {tool.source === 'github' && tool.language && (
-            <span>{tool.language}</span>
-          )}
-          {tool.source !== 'github' && (
+          {tool.source !== 'repo' && tool.version && <span>v{tool.version}</span>}
+          {tool.source !== 'repo' && (
             <>
+              <span>{tool.stars} stars</span>
               <span>{tool.installs} installs</span>
               <span>Source: {tool.sourceName}</span>
             </>
           )}
         </div>
 
-        {tool.source === 'github' && tool.repoUrl ? (
-          <button
-            className="github-view-button"
-            onClick={() => onOpenExternal?.(tool.repoUrl!)}
-          >
-            View on GitHub
-          </button>
-        ) : (
+        <div className="tool-detail__actions">
           <InstallButton
             installState={installState}
             isInstalled={isInstalled}
@@ -114,7 +99,15 @@ export function ToolDetailView({
             onUninstall={onUninstall}
             variant="detail"
           />
-        )}
+          {tool.source === 'repo' && tool.repoUrl && (
+            <button
+              className="repo-source-link"
+              onClick={() => onOpenExternal?.(tool.repoUrl!)}
+            >
+              View Source
+            </button>
+          )}
+        </div>
 
         {tool.tags.length > 0 && (
           <div className="tool-card__tags" style={{ marginTop: '8px' }}>

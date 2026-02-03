@@ -5,6 +5,8 @@ import { SortDropdown } from './components/SortDropdown';
 import { MarketplaceGrid } from './components/MarketplaceGrid';
 import { Pagination } from './components/Pagination';
 import { ToolDetailView } from './components/ToolDetailView';
+import { RepoInput } from './components/RepoInput';
+import { RepoList } from './components/RepoList';
 
 // Import progress ring web component
 import '@vscode-elements/elements/dist/vscode-progress-ring/index.js';
@@ -17,11 +19,9 @@ export function App() {
     loading,
     error,
 
-    githubLoading,
-    githubError,
-    githubEnabled,
-    rateLimitWarning,
-    githubCached,
+    savedRepos,
+    repoScanning,
+    repoErrors,
 
     searchQuery,
     activeType,
@@ -46,9 +46,9 @@ export function App() {
     retryInstall,
     requestUninstall,
     getInstallState,
-    toggleGitHub,
-    searchGitHub,
-    authenticateGitHub,
+    addRepo,
+    removeRepo,
+    refreshRepo,
     openExternal,
   } = useMarketplace();
 
@@ -108,47 +108,22 @@ export function App() {
     <div className="marketplace">
       <div className="marketplace-header">
         <h1 className="marketplace-header__title">Tool Marketplace</h1>
-        <SearchBar value={searchQuery} onChange={setSearchQuery} onSubmit={searchGitHub} />
+        <SearchBar value={searchQuery} onChange={setSearchQuery} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <TypeTabs activeType={activeType} onChange={setActiveType} />
           <SortDropdown value={sortBy} onChange={setSortBy} />
         </div>
-        <div className="marketplace-header__github-toggle">
-          <label className="github-toggle">
-            <input
-              type="checkbox"
-              checked={githubEnabled}
-              onChange={(e) => toggleGitHub(e.target.checked)}
-            />
-            <span className="github-toggle__label">Include GitHub results</span>
-          </label>
-          {githubLoading && (
-            <span className="github-toggle__loading">
-              <vscode-progress-ring style={{ width: '14px', height: '14px' }} />
-              <span>Searching GitHub...</span>
-            </span>
-          )}
-        </div>
+        <RepoInput onAdd={addRepo} />
+        {savedRepos.length > 0 && (
+          <RepoList
+            repos={savedRepos}
+            scanning={repoScanning}
+            errors={repoErrors}
+            onRemove={removeRepo}
+            onRefresh={refreshRepo}
+          />
+        )}
       </div>
-
-      {rateLimitWarning && (
-        <div className="marketplace-warning">
-          <span>{rateLimitWarning}</span>
-          <button
-            className="marketplace-warning__auth"
-            onClick={authenticateGitHub}
-          >
-            Authenticate
-          </button>
-        </div>
-      )}
-
-      {githubError && (
-        <div className={`marketplace-info${githubCached ? ' marketplace-info--stale' : ''}`}>
-          <span>{githubError}</span>
-          {githubCached && <span> (showing cached results)</span>}
-        </div>
-      )}
 
       <MarketplaceGrid
         tools={tools}

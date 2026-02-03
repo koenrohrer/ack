@@ -197,6 +197,14 @@
           "default": true,
           "description": "Automatically activate the associated profile when opening a workspace"
         },
+        "agentConfigKeeper.userRepositories": {
+          "type": "array",
+          "default": [],
+          "description": "GitHub repository URLs to scan for installable tools",
+          "items": {
+            "type": "string"
+          }
+        },
         "agentConfigKeeper.registrySources": {
           "type": "array",
           "default": [],

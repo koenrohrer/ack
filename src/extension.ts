@@ -18,7 +18,7 @@ import { ConfigPanel } from './views/config-panel/config-panel.panel.js';
 import { RegistryService } from './services/registry.service.js';
 import { InstallService } from './services/install.service.js';
 import { WorkspaceProfileService } from './services/workspace-profile.service.js';
-import { GitHubSearchService } from './services/github-search.service.js';
+import { RepoScannerService } from './services/repo-scanner.service.js';
 
 /**
  * Service container for cross-module access to initialized services.
@@ -96,8 +96,8 @@ export function activate(context: vscode.ExtensionContext): void {
     registryService, configService, registry, fileIO, workspaceRoot,
   );
 
-  // 9b. GitHub search service for marketplace discovery
-  const githubSearchService = new GitHubSearchService();
+  // 9b. Repo scanner service for marketplace discovery
+  const repoScannerService = new RepoScannerService(context.globalState);
 
   // 9c. Profile service for named tool presets
   const profileService = new ProfileService(context.globalState, configService, toolManager);
@@ -139,7 +139,7 @@ export function activate(context: vscode.ExtensionContext): void {
         outputChannel,
         installService,
         toolManager,
-        githubSearchService,
+        repoScannerService,
       ),
   );
   context.subscriptions.push(openMarketplace);

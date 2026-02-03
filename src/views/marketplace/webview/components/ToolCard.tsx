@@ -44,8 +44,8 @@ export function ToolCard({
           <span className={`type-badge type-badge--${tool.toolType}`}>
             {TYPE_LABELS[tool.toolType] ?? tool.toolType}
           </span>
-          {tool.source === 'github' && (
-            <span className="source-badge source-badge--github">GitHub</span>
+          {tool.source === 'repo' && (
+            <span className="source-badge source-badge--repo">Repo</span>
           )}
         </div>
       </div>
@@ -61,26 +61,26 @@ export function ToolCard({
           ))}
         </div>
         <div className="tool-card__stats">
-          <span title="Stars">{tool.stars} stars</span>
-          {tool.source === 'github' && tool.language ? (
-            <span title="Language">{tool.language}</span>
+          {tool.source === 'repo' ? (
+            <span title="Source">{tool.sourceName}</span>
           ) : (
-            <span title="Installs">{tool.installs} installs</span>
+            <>
+              <span title="Stars">{tool.stars} stars</span>
+              <span title="Installs">{tool.installs} installs</span>
+            </>
           )}
         </div>
       </div>
 
-      {tool.source !== 'github' && (
-        <div style={{ marginTop: '8px', textAlign: 'right' }}>
-          <InstallButton
-            installState={installState}
-            isInstalled={isInstalled}
-            onInstall={onInstall}
-            onRetry={onRetry}
-            variant="card"
-          />
-        </div>
-      )}
+      <div style={{ marginTop: '8px', textAlign: 'right' }}>
+        <InstallButton
+          installState={installState}
+          isInstalled={isInstalled}
+          onInstall={onInstall}
+          onRetry={onRetry}
+          variant="card"
+        />
+      </div>
     </div>
   );
 }

@@ -1,22 +1,25 @@
 import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
+import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
 import type { RegistryService } from '../../services/registry.service.js';
 import type { ConfigService } from '../../services/config.service.js';
 import type { InstallService } from '../../services/install.service.js';
 import type { ToolManagerService } from '../../services/tool-manager.service.js';
+import type { RepoScannerService } from '../../services/repo-scanner.service.js';
 import type { RegistrySource } from '../../services/registry.types.js';
-import type { ToolManifest, ConfigField } from '../../services/install.types.js';
-import type { GitHubSearchService } from '../../services/github-search.service.js';
-import type { GitHubToolType } from '../../services/github-search.types.js';
+import type { ToolManifest } from '../../services/install.types.js';
 import { ToolType, ConfigScope } from '../../types/enums.js';
+import { ClaudeCodePaths } from '../../adapters/claude-code/paths.js';
 import type {
   WebviewMessage,
   ExtensionMessage,
   RegistryEntryWithSource,
   InstalledToolInfo,
+  SavedRepoInfo,
 } from './marketplace.messages.js';
 
-/** Normalize a tool name for comparison (lowercased, spaces/underscores → hyphens, .disabled stripped). */
+/** Normalize a tool name for comparison (lowercased, spaces/underscores -> hyphens, .disabled stripped). */
 function normalizeToolName(name: string): string {
   return name.toLowerCase().replace(/\.disabled$/, '').replace(/[\s_]+/g, '-');
 }
@@ -28,6 +31,9 @@ const MANIFEST_TYPE_TO_TOOL_TYPE: Record<string, ToolType> = {
   hook: ToolType.Hook,
   command: ToolType.Command,
 };
+
+/** Settings key for persisted user repositories. */
+const USER_REPOS_KEY = 'agentConfigKeeper.userRepositories';
 
 /** Pending install context for tools awaiting config form submission. */
 interface PendingInstall {
@@ -56,7 +62,7 @@ export class MarketplacePanel {
   private readonly configService: ConfigService;
   private readonly installService: InstallService;
   private readonly toolManager: ToolManagerService;
-  private readonly githubSearch: GitHubSearchService;
+  private readonly repoScanner: RepoScannerService;
   private readonly outputChannel: vscode.OutputChannel;
 
   /** Cached sources from last fetchAllIndexes, keyed by sourceId. */
@@ -68,8 +74,8 @@ export class MarketplacePanel {
   /** In-progress installs waiting for config form submission, keyed by toolId. */
   private pendingInstalls = new Map<string, PendingInstall>();
 
-  /** Whether GitHub search integration is enabled (defaults ON). */
-  private githubEnabled = true;
+  /** User-added repository URLs, persisted in settings. */
+  private userRepos: string[] = [];
 
   /**
    * Create a new marketplace panel or reveal the existing one.
@@ -81,7 +87,7 @@ export class MarketplacePanel {
     outputChannel: vscode.OutputChannel,
     installService: InstallService,
     toolManager: ToolManagerService,
-    githubSearch: GitHubSearchService,
+    repoScanner: RepoScannerService,
   ): void {
     // If panel already exists, reveal it
     if (MarketplacePanel.currentPanel) {
@@ -109,7 +115,7 @@ export class MarketplacePanel {
       outputChannel,
       installService,
       toolManager,
-      githubSearch,
+      repoScanner,
     );
   }
 
@@ -121,7 +127,7 @@ export class MarketplacePanel {
     outputChannel: vscode.OutputChannel,
     installService: InstallService,
     toolManager: ToolManagerService,
-    githubSearch: GitHubSearchService,
+    repoScanner: RepoScannerService,
   ) {
     this.panel = panel;
     this.extensionUri = extensionUri;
@@ -130,7 +136,12 @@ export class MarketplacePanel {
     this.outputChannel = outputChannel;
     this.installService = installService;
     this.toolManager = toolManager;
-    this.githubSearch = githubSearch;
+    this.repoScanner = repoScanner;
+
+    // Load saved repos from settings
+    this.userRepos = vscode.workspace
+      .getConfiguration()
+      .get<string[]>(USER_REPOS_KEY, []);
 
     // Set initial HTML content
     this.panel.webview.html = this.getHtmlForWebview(this.panel.webview);
@@ -153,6 +164,7 @@ export class MarketplacePanel {
     switch (message.type) {
       case 'ready':
         void this.loadRegistryData(false);
+        void this.loadRepoTools();
         break;
       case 'requestRegistry':
         void this.loadRegistryData(message.forceRefresh ?? false);
@@ -176,17 +188,14 @@ export class MarketplacePanel {
       case 'requestUninstall':
         void this.handleRequestUninstall(message.toolId);
         break;
-      case 'searchGitHub':
-        void this.loadGitHubResults(message.query, message.typeFilter);
+      case 'addRepo':
+        void this.handleAddRepo(message.url);
         break;
-      case 'requestGitHubReadme':
-        void this.loadGitHubReadme(message.repoFullName, message.defaultBranch);
+      case 'removeRepo':
+        void this.handleRemoveRepo(message.url);
         break;
-      case 'authenticateGitHub':
-        void this.handleGitHubAuth();
-        break;
-      case 'toggleGitHub':
-        this.githubEnabled = message.enabled;
+      case 'refreshRepo':
+        void this.handleRefreshRepo(message.url);
         break;
       case 'openExternal':
         void vscode.env.openExternal(vscode.Uri.parse(message.url));
@@ -199,8 +208,7 @@ export class MarketplacePanel {
   // ---------------------------------------------------------------------------
 
   /**
-   * Handle requestInstall: fetch manifest, runtime check, scope prompt,
-   * conflict detection, config form, or direct install.
+   * Handle requestInstall: route to repo install or registry install.
    */
   private async handleRequestInstall(
     toolId: string,
@@ -208,7 +216,12 @@ export class MarketplacePanel {
   ): Promise<void> {
     this.outputChannel.appendLine(`Install requested for ${toolId}`);
 
-    // a. Look up source
+    if (sourceId === 'repo') {
+      await this.handleRepoInstall(toolId);
+      return;
+    }
+
+    // Registry install flow
     const source = this.sourceMap.get(sourceId);
     if (!source) {
       this.postMessage({
@@ -219,7 +232,6 @@ export class MarketplacePanel {
       return;
     }
 
-    // b. Look up tool entry from cached registry data to get contentPath
     const toolEntry = this.toolEntryMap.get(toolId);
     if (!toolEntry) {
       this.postMessage({
@@ -231,17 +243,14 @@ export class MarketplacePanel {
     }
     const contentPath = toolEntry.contentPath;
 
-    // c. Send downloading progress
     this.postMessage({ type: 'installProgress', toolId, status: 'downloading' });
 
     try {
-      // d. Fetch manifest
       const manifest = await this.installService.getToolManifest(
         source,
         contentPath,
       );
 
-      // e. Runtime pre-check (MCP servers only)
       if (manifest.type === 'mcp_server' && manifest.runtime) {
         const runtimeResult = await this.installService.checkRuntime(
           manifest.runtime,
@@ -259,14 +268,12 @@ export class MarketplacePanel {
         }
       }
 
-      // f. Scope selection
       const scope = await this.promptForScope(manifest.name);
       if (scope === undefined) {
         this.postMessage({ type: 'installCancelled', toolId });
         return;
       }
 
-      // g. Conflict check
       const toolType = MANIFEST_TYPE_TO_TOOL_TYPE[manifest.type];
       if (toolType) {
         const hasConflict = await this.installService.checkConflict(
@@ -284,14 +291,12 @@ export class MarketplacePanel {
             this.postMessage({ type: 'installCancelled', toolId });
             return;
           }
-          // On Update for MCP servers, preserve existing env values
           if (manifest.type === 'mcp_server') {
             const existingEnvValues =
               await this.installService.getExistingEnvValues(
                 manifest.name,
                 scope,
               );
-            // Store for later use in executeInstall
             this.pendingInstalls.set(toolId, {
               manifest,
               scope,
@@ -303,17 +308,14 @@ export class MarketplacePanel {
         }
       }
 
-      // h. Config form (only if manifest has required configFields)
       if (manifest.configFields && manifest.configFields.length > 0) {
         const hasRequired = manifest.configFields.some((f) => f.required);
         if (hasRequired) {
-          // Send config form to webview
           this.postMessage({
             type: 'installConfigRequired',
             toolId,
             fields: manifest.configFields,
           });
-          // Store pending context (may already be stored from conflict flow)
           if (!this.pendingInstalls.has(toolId)) {
             this.pendingInstalls.set(toolId, {
               manifest,
@@ -322,14 +324,10 @@ export class MarketplacePanel {
               contentPath,
             });
           }
-          // Wait for submitConfig message
           return;
         }
-        // Optional-only fields: skip form, proceed with defaults
       }
 
-      // i. No required config fields -- proceed directly
-      // Check if pending was set from conflict flow
       const pendingFromConflict = this.pendingInstalls.get(toolId);
       if (pendingFromConflict) {
         this.pendingInstalls.delete(toolId);
@@ -355,6 +353,135 @@ export class MarketplacePanel {
       const errorMsg =
         err instanceof Error ? err.message : 'Install failed';
       this.outputChannel.appendLine(`Install error for ${toolId}: ${errorMsg}`);
+      this.postMessage({ type: 'installError', toolId, error: errorMsg });
+    }
+  }
+
+  /**
+   * Handle install for repo-sourced tools.
+   *
+   * For skills: fetch files from raw.githubusercontent.com, write to skills dir.
+   * For commands: fetch .md file, write to commands dir.
+   * For MCP: fetch .mcp.json, parse, add server via writer.
+   */
+  private async handleRepoInstall(toolId: string): Promise<void> {
+    const toolEntry = this.toolEntryMap.get(toolId);
+    if (!toolEntry || !toolEntry.repoFullName || !toolEntry.defaultBranch) {
+      this.postMessage({
+        type: 'installError',
+        toolId,
+        error: 'Repo tool metadata missing',
+      });
+      return;
+    }
+
+    const scope = await this.promptForScope(toolEntry.name);
+    if (scope === undefined) {
+      this.postMessage({ type: 'installCancelled', toolId });
+      return;
+    }
+
+    this.postMessage({ type: 'installProgress', toolId, status: 'downloading' });
+
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+    try {
+      const { repoFullName, defaultBranch, repoPath, repoFiles } = toolEntry;
+
+      if (toolEntry.toolType === 'skill') {
+        // Determine target directory
+        const baseDir =
+          scope === ConfigScope.User
+            ? ClaudeCodePaths.userSkillsDir
+            : ClaudeCodePaths.projectSkillsDir(workspaceRoot ?? '');
+        const targetDir = path.join(baseDir, toolEntry.name);
+        await fs.mkdir(targetDir, { recursive: true });
+
+        // Fetch and write each file
+        const files = repoFiles && repoFiles.length > 0
+          ? repoFiles
+          : [repoPath!];
+        for (const filePath of files) {
+          const content = await this.repoScanner.fetchRepoFile(
+            repoFullName!,
+            defaultBranch!,
+            filePath,
+          );
+          const fileName = filePath.split('/').pop()!;
+          const targetFile = path.join(targetDir, fileName);
+          await fs.writeFile(targetFile, content, 'utf-8');
+        }
+      } else if (toolEntry.toolType === 'command') {
+        const baseDir =
+          scope === ConfigScope.User
+            ? ClaudeCodePaths.userCommandsDir
+            : ClaudeCodePaths.projectCommandsDir(workspaceRoot ?? '');
+        await fs.mkdir(baseDir, { recursive: true });
+
+        const content = await this.repoScanner.fetchRepoFile(
+          repoFullName!,
+          defaultBranch!,
+          repoPath!,
+        );
+        const fileName = repoPath!.split('/').pop()!;
+        const targetFile = path.join(baseDir, fileName);
+        await fs.writeFile(targetFile, content, 'utf-8');
+      } else if (toolEntry.toolType === 'mcp_server') {
+        const content = await this.repoScanner.fetchRepoFile(
+          repoFullName!,
+          defaultBranch!,
+          repoPath!,
+        );
+        const mcpConfig = JSON.parse(content) as {
+          mcpServers?: Record<string, unknown>;
+        };
+
+        if (mcpConfig.mcpServers) {
+          const { addMcpServer } = await import(
+            '../../adapters/claude-code/writers/mcp.writer.js'
+          );
+
+          const filePath =
+            scope === ConfigScope.User
+              ? ClaudeCodePaths.userClaudeJson
+              : ClaudeCodePaths.projectMcpJson(workspaceRoot ?? '');
+          const schemaKey = filePath.endsWith('.claude.json')
+            ? 'claude-json'
+            : 'mcp-file';
+
+          for (const [serverName, serverConfig] of Object.entries(
+            mcpConfig.mcpServers,
+          )) {
+            await addMcpServer(
+              this.configService,
+              filePath,
+              schemaKey,
+              serverName,
+              serverConfig as Record<string, unknown>,
+            );
+          }
+        }
+      }
+
+      this.postMessage({
+        type: 'installComplete',
+        toolId,
+        scope: scope as string,
+      });
+      void vscode.window.showInformationMessage(
+        `Installed "${toolEntry.name}" at ${scope} scope`,
+      );
+
+      const installedTools = await this.getInstalledTools();
+      this.postMessage({ type: 'installedTools', tools: installedTools });
+      void vscode.commands.executeCommand(
+        'agent-config-keeper.refreshToolTree',
+      );
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Install failed';
+      this.outputChannel.appendLine(
+        `Repo install error for ${toolId}: ${errorMsg}`,
+      );
       this.postMessage({ type: 'installError', toolId, error: errorMsg });
     }
   }
@@ -403,13 +530,9 @@ export class MarketplacePanel {
     this.outputChannel.appendLine(`Uninstall requested for ${toolId}`);
 
     try {
-      // Find the tool entry to get the name
       const toolEntry = this.toolEntryMap.get(toolId);
       const toolName = toolEntry?.name ?? toolId;
 
-      // Search across all types/scopes for a tool with this name.
-      // Use normalized comparison because registry display names ("Test Runner")
-      // may differ from installed config names ("test-runner").
       const normalizedTarget = normalizeToolName(toolName);
       let found = false;
       for (const type of Object.values(ToolType)) {
@@ -425,15 +548,12 @@ export class MarketplacePanel {
               void vscode.window.showInformationMessage(
                 `Uninstalled "${toolName}"`,
               );
-              // Refresh installed tools and notify webview
               const installedTools = await this.getInstalledTools();
               this.postMessage({
                 type: 'installedTools',
                 tools: installedTools,
               });
-              // Reset install state to idle
               this.postMessage({ type: 'installCancelled', toolId });
-              // Refresh sidebar tree
               void vscode.commands.executeCommand(
                 'agent-config-keeper.refreshToolTree',
               );
@@ -477,9 +597,6 @@ export class MarketplacePanel {
 
   /**
    * Execute the actual install via InstallService.
-   *
-   * Sends progress to the webview, calls installService.install(),
-   * and handles success/failure with notifications and tree refresh.
    */
   private async executeInstall(
     toolId: string,
@@ -490,10 +607,8 @@ export class MarketplacePanel {
     configValues?: Record<string, string>,
     existingEnvValues?: Record<string, string>,
   ): Promise<void> {
-    // a. Send writing progress
     this.postMessage({ type: 'installProgress', toolId, status: 'writing' });
 
-    // b. Call install service
     const result = await this.installService.install({
       manifest,
       scope,
@@ -504,7 +619,6 @@ export class MarketplacePanel {
     });
 
     if (result.success) {
-      // c. Success
       this.postMessage({
         type: 'installComplete',
         toolId,
@@ -514,16 +628,13 @@ export class MarketplacePanel {
         `Installed "${manifest.name}" at ${scope} scope`,
       );
 
-      // Refresh installed tools list
       const installedTools = await this.getInstalledTools();
       this.postMessage({ type: 'installedTools', tools: installedTools });
 
-      // Refresh sidebar tree
       void vscode.commands.executeCommand(
         'agent-config-keeper.refreshToolTree',
       );
     } else {
-      // d. Failure
       this.outputChannel.appendLine(
         `Install failed for ${toolId}: ${result.error}`,
       );
@@ -544,9 +655,6 @@ export class MarketplacePanel {
 
   /**
    * Prompt the user to select a scope (Global / Project).
-   *
-   * When no workspace is open, only Global is available.
-   * Returns undefined if the user dismisses the picker.
    */
   private async promptForScope(
     toolName: string,
@@ -584,6 +692,98 @@ export class MarketplacePanel {
   }
 
   // ---------------------------------------------------------------------------
+  // Repository handlers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Handle addRepo: validate URL, scan repo, save to settings, send tools.
+   */
+  private async handleAddRepo(url: string): Promise<void> {
+    const parsed = this.repoScanner.parseRepoUrl(url);
+    if (!parsed) {
+      this.postMessage({
+        type: 'repoScanError',
+        repoUrl: url,
+        error: 'Invalid GitHub repository URL',
+      });
+      return;
+    }
+
+    // Normalize to canonical URL
+    const canonicalUrl = `https://github.com/${parsed.owner}/${parsed.repo}`;
+
+    // Check for duplicate
+    if (this.userRepos.includes(canonicalUrl)) {
+      this.postMessage({
+        type: 'repoScanError',
+        repoUrl: canonicalUrl,
+        error: 'Repository already added',
+      });
+      return;
+    }
+
+    this.postMessage({ type: 'repoScanLoading', repoUrl: canonicalUrl });
+
+    const result = await this.repoScanner.scanRepo(canonicalUrl);
+
+    if (result.error) {
+      this.postMessage({
+        type: 'repoScanError',
+        repoUrl: canonicalUrl,
+        error: result.error,
+      });
+      return;
+    }
+
+    // Save to settings
+    this.userRepos.push(canonicalUrl);
+    await vscode.workspace
+      .getConfiguration()
+      .update(USER_REPOS_KEY, this.userRepos, vscode.ConfigurationTarget.Global);
+
+    this.postMessage({ type: 'repoScanComplete', repoUrl: canonicalUrl });
+
+    // Send updated tools and repo list
+    await this.sendRepoState();
+  }
+
+  /**
+   * Handle removeRepo: remove from settings, clear cache, send updated state.
+   */
+  private async handleRemoveRepo(url: string): Promise<void> {
+    this.userRepos = this.userRepos.filter((r) => r !== url);
+    await vscode.workspace
+      .getConfiguration()
+      .update(USER_REPOS_KEY, this.userRepos, vscode.ConfigurationTarget.Global);
+
+    this.repoScanner.removeCachedScan(url);
+    this.postMessage({ type: 'repoRemoved', repoUrl: url });
+    await this.sendRepoState();
+  }
+
+  /**
+   * Handle refreshRepo: re-scan and send updated tools.
+   */
+  private async handleRefreshRepo(url: string): Promise<void> {
+    this.postMessage({ type: 'repoScanLoading', repoUrl: url });
+
+    this.repoScanner.removeCachedScan(url);
+    const result = await this.repoScanner.scanRepo(url);
+
+    if (result.error) {
+      this.postMessage({
+        type: 'repoScanError',
+        repoUrl: url,
+        error: result.error,
+      });
+      return;
+    }
+
+    this.postMessage({ type: 'repoScanComplete', repoUrl: url });
+    await this.sendRepoState();
+  }
+
+  // ---------------------------------------------------------------------------
   // Registry data loading
   // ---------------------------------------------------------------------------
 
@@ -598,10 +798,15 @@ export class MarketplacePanel {
       const allIndexes =
         await this.registryService.fetchAllIndexes(forceRefresh);
 
-      // Flatten entries, adding source metadata
       const tools: RegistryEntryWithSource[] = [];
       this.sourceMap.clear();
-      this.toolEntryMap.clear();
+      // Don't clear toolEntryMap fully; repo entries may already be there.
+      // We'll remove registry entries and re-add them.
+      for (const [key, entry] of this.toolEntryMap) {
+        if (entry.source !== 'repo') {
+          this.toolEntryMap.delete(key);
+        }
+      }
 
       for (const [sourceId, { source, index }] of allIndexes) {
         this.sourceMap.set(sourceId, source);
@@ -630,7 +835,6 @@ export class MarketplacePanel {
         }
       }
 
-      // If all sources failed, surface an error instead of an empty list
       if (allIndexes.size === 0) {
         this.outputChannel.appendLine(
           'Registry fetch: all sources returned empty or failed',
@@ -643,7 +847,6 @@ export class MarketplacePanel {
         return;
       }
 
-      // Resolve installed tools with type and scope info
       const installedTools = await this.getInstalledTools();
 
       this.postMessage({ type: 'installedTools', tools: installedTools });
@@ -657,6 +860,121 @@ export class MarketplacePanel {
   }
 
   /**
+   * Load repo tools from all saved repos (cache-first) and send to webview.
+   */
+  private async loadRepoTools(): Promise<void> {
+    // Send saved repos list immediately
+    this.sendSavedRepos();
+
+    if (this.userRepos.length === 0) {
+      this.postMessage({ type: 'repoTools', tools: [] });
+      return;
+    }
+
+    const allTools: RegistryEntryWithSource[] = [];
+
+    for (const url of this.userRepos) {
+      // Use cache first
+      let result = this.repoScanner.getCachedScan(url);
+      if (!result) {
+        this.postMessage({ type: 'repoScanLoading', repoUrl: url });
+        result = await this.repoScanner.scanRepo(url);
+        if (result.error) {
+          this.postMessage({
+            type: 'repoScanError',
+            repoUrl: url,
+            error: result.error,
+          });
+          continue;
+        }
+        this.postMessage({ type: 'repoScanComplete', repoUrl: url });
+      }
+
+      for (const tool of result.tools) {
+        const entry = this.mapScannedToolToEntry(tool);
+        allTools.push(entry);
+        this.toolEntryMap.set(entry.id, entry);
+      }
+    }
+
+    this.postMessage({ type: 'repoTools', tools: allTools });
+    this.sendSavedRepos();
+  }
+
+  /**
+   * Send updated repo tools and saved repos list to webview.
+   */
+  private async sendRepoState(): Promise<void> {
+    const allTools: RegistryEntryWithSource[] = [];
+
+    // Clear repo entries from toolEntryMap
+    for (const [key, entry] of this.toolEntryMap) {
+      if (entry.source === 'repo') {
+        this.toolEntryMap.delete(key);
+      }
+    }
+
+    for (const url of this.userRepos) {
+      const result = this.repoScanner.getCachedScan(url);
+      if (!result) continue;
+
+      for (const tool of result.tools) {
+        const entry = this.mapScannedToolToEntry(tool);
+        allTools.push(entry);
+        this.toolEntryMap.set(entry.id, entry);
+      }
+    }
+
+    this.postMessage({ type: 'repoTools', tools: allTools });
+    this.sendSavedRepos();
+  }
+
+  /**
+   * Map a ScannedTool to RegistryEntryWithSource for unified display.
+   */
+  private mapScannedToolToEntry(tool: import('../../services/repo-scanner.types.js').ScannedTool): RegistryEntryWithSource {
+    return {
+      id: tool.id,
+      name: tool.name,
+      toolType: tool.toolType,
+      description: tool.description,
+      author: tool.author,
+      version: '',
+      tags: [],
+      stars: 0,
+      installs: 0,
+      readmePath: 'README.md',
+      contentPath: '',
+      createdAt: '',
+      updatedAt: '',
+      sourceId: 'repo',
+      sourceName: tool.repoFullName,
+      source: 'repo' as const,
+      repoUrl: tool.repoUrl,
+      repoFullName: tool.repoFullName,
+      defaultBranch: tool.defaultBranch,
+      repoPath: tool.repoPath,
+      repoFiles: tool.files,
+      relevanceScore: 50,
+    };
+  }
+
+  /**
+   * Send the current saved repos list to the webview.
+   */
+  private sendSavedRepos(): void {
+    const repos: SavedRepoInfo[] = this.userRepos.map((url) => {
+      const cached = this.repoScanner.getCachedScan(url);
+      return {
+        url,
+        repoFullName: cached?.repoFullName ?? url.replace('https://github.com/', ''),
+        toolCount: cached?.tools.length ?? 0,
+      };
+    });
+    this.postMessage({ type: 'savedRepos', repos });
+  }
+
+  /**
    * Fetch a tool's README markdown and send to webview.
    */
   private async loadReadme(
@@ -665,6 +983,11 @@ export class MarketplacePanel {
     readmePath: string,
   ): Promise<void> {
     this.postMessage({ type: 'readmeLoading', toolId });
+
+    if (sourceId === 'repo') {
+      await this.loadRepoReadme(toolId);
+      return;
+    }
 
     const source = this.sourceMap.get(sourceId);
     if (!source) {
@@ -683,135 +1006,36 @@ export class MarketplacePanel {
     this.postMessage({ type: 'readmeData', toolId, markdown });
   }
 
-  // ---------------------------------------------------------------------------
-  // GitHub search handlers
-  // ---------------------------------------------------------------------------
-
   /**
-   * Search GitHub for tools and send results to the webview.
+   * Fetch the tool's own content file for the detail view.
    *
-   * Maps GitHubSearchResult[] to RegistryEntryWithSource[] for unified display.
-   * Includes relevance scoring for interleaved sort with registry results.
+   * Uses the tool's repoPath (e.g. skills/my-skill/SKILL.md) rather
+   * than the repo-level README.md.
    */
-  private async loadGitHubResults(query?: string, typeFilter?: string): Promise<void> {
-    this.postMessage({ type: 'githubLoading', loading: true });
-
-    try {
-      const results = await this.githubSearch.search({
-        query: query || undefined,
-        typeFilter: typeFilter as GitHubToolType | undefined,
-        maxResults: 30,
-      });
-
-      const now = Date.now();
-      const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-      const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
-
-      const mapped: RegistryEntryWithSource[] = results.map((result) => {
-        // Recency bonus for relevance scoring
-        const updatedAgo = now - new Date(result.lastUpdated).getTime();
-        let recencyBonus = 0;
-        if (updatedAgo < THIRTY_DAYS_MS) {
-          recencyBonus = 20;
-        } else if (updatedAgo < NINETY_DAYS_MS) {
-          recencyBonus = 10;
-        }
-
-        // Map 'profile' to 'command' since profile is not a RegistryEntryWithSource toolType
-        const toolType: 'skill' | 'mcp_server' | 'hook' | 'command' =
-          result.detectedType === 'profile' ? 'command' : result.detectedType;
-
-        return {
-          id: result.id,
-          name: result.name,
-          toolType,
-          description: result.description,
-          author: result.author,
-          version: '',
-          tags: result.topics,
-          stars: result.stars,
-          installs: 0,
-          readmePath: 'README.md',
-          contentPath: '',
-          createdAt: result.lastUpdated,
-          updatedAt: result.lastUpdated,
-          sourceId: 'github',
-          sourceName: 'GitHub',
-          source: 'github' as const,
-          repoUrl: result.repoUrl,
-          repoFullName: result.repoFullName,
-          language: result.language,
-          defaultBranch: result.defaultBranch,
-          relevanceScore: 50 + Math.log2(result.stars + 1) * 10 + recencyBonus,
-        };
-      });
-
-      const rateLimitWarning = this.githubSearch.isNearRateLimit()
-        ? 'GitHub API rate limit nearly exhausted'
-        : undefined;
-
-      this.postMessage({
-        type: 'githubResults',
-        tools: mapped,
-        loading: false,
-        rateLimitWarning,
-      });
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : 'GitHub search failed';
-      this.outputChannel.appendLine(`GitHub search error: ${errorMsg}`);
-      this.postMessage({ type: 'githubError', error: errorMsg });
-    }
-  }
-
-  /**
-   * Fetch a GitHub repository's README and send to the webview.
-   *
-   * Uses the GitHub REST API readme endpoint with raw content accept header.
-   * Authenticates via the shared GitHubSearchService auth headers.
-   */
-  private async loadGitHubReadme(repoFullName: string, _defaultBranch: string): Promise<void> {
-    const toolId = `github:${repoFullName}`;
-    this.postMessage({ type: 'readmeLoading', toolId });
-
-    try {
-      const headers = this.githubSearch.getAuthHeaders();
-      headers['Accept'] = 'application/vnd.github.raw';
-
-      const response = await fetch(
-        `https://api.github.com/repos/${repoFullName}/readme`,
-        { headers },
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const markdown = await response.text();
-      this.postMessage({ type: 'readmeData', toolId, markdown });
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-      this.outputChannel.appendLine(
-        `GitHub README fetch error for ${repoFullName}: ${errorMsg}`,
-      );
+  private async loadRepoReadme(toolId: string): Promise<void> {
+    const toolEntry = this.toolEntryMap.get(toolId);
+    if (!toolEntry?.repoFullName || !toolEntry.defaultBranch || !toolEntry.repoPath) {
       this.postMessage({
         type: 'readmeData',
         toolId,
-        markdown: 'README could not be loaded.',
+        markdown: 'No content available.',
       });
+      return;
     }
-  }
 
-  /**
-   * Handle GitHub authentication request from the webview.
-   *
-   * Prompts the user via VS Code's GitHub auth provider. On success,
-   * refreshes GitHub results to use the authenticated rate limit.
-   */
-  private async handleGitHubAuth(): Promise<void> {
-    const authenticated = await this.githubSearch.promptForAuth();
-    if (authenticated) {
-      // Refresh with authenticated rate limits
-      await this.loadGitHubResults();
+    try {
+      const markdown = await this.repoScanner.fetchRepoFile(
+        toolEntry.repoFullName,
+        toolEntry.defaultBranch,
+        toolEntry.repoPath,
+      );
+      this.postMessage({ type: 'readmeData', toolId, markdown });
+    } catch {
+      this.postMessage({
+        type: 'readmeData',
+        toolId,
+        markdown: 'Content could not be loaded.',
+      });
     }
   }
 

@@ -1,24 +1,16 @@
 interface SearchBarProps {
   value: string;
   onChange: (value: string) => void;
-  onSubmit: (query: string) => void;
 }
 
 /**
  * Search input for filtering marketplace tools.
  *
- * `onChange` fires on every keystroke for live registry filtering.
- * `onSubmit` fires on Enter or button click for explicit GitHub search.
+ * `onChange` fires on every keystroke for live registry+repo filtering.
  */
-export function SearchBar({ value, onChange, onSubmit }: SearchBarProps) {
+export function SearchBar({ value, onChange }: SearchBarProps) {
   return (
-    <form
-      className="marketplace-header__search"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSubmit(value);
-      }}
-    >
+    <div className="marketplace-header__search">
       <input
         type="text"
         className="marketplace-header__search-input"
@@ -27,9 +19,6 @@ export function SearchBar({ value, onChange, onSubmit }: SearchBarProps) {
         onChange={(e) => onChange(e.target.value)}
         autoFocus
       />
-      <button type="submit" className="marketplace-header__search-button">
-        Search GitHub
-      </button>
-    </form>
+    </div>
   );
 }
