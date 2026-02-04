@@ -6,6 +6,9 @@ import { ConfigService } from './services/config.service.js';
 import { AdapterRegistry } from './adapters/adapter.registry.js';
 import { ClaudeCodeAdapter } from './adapters/claude-code/claude-code.adapter.js';
 import { claudeCodeSchemas } from './adapters/claude-code/schemas.js';
+import { CodexAdapter } from './adapters/codex/codex.adapter.js';
+import { codexSchemas } from './adapters/codex/schemas.js';
+import { CodexPaths } from './adapters/codex/paths.js';
 import { ToolTreeProvider } from './views/tool-tree/tool-tree.provider.js';
 import { registerToolTreeCommands } from './views/tool-tree/tool-tree.commands.js';
 import { registerManagementCommands } from './views/tool-tree/tool-tree.management.js';
@@ -68,8 +71,9 @@ export function activate(context: vscode.ExtensionContext): void {
   const backup = new BackupService();
   const schemas = new SchemaService();
 
-  // 3. Register Claude Code schemas
+  // 3. Register schemas
   schemas.registerSchemas(claudeCodeSchemas);
+  schemas.registerSchemas(codexSchemas);
 
   // 4. Workspace root (undefined when no folder is open)
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -78,12 +82,15 @@ export function activate(context: vscode.ExtensionContext): void {
   const registry = new AdapterRegistry();
   const claudeAdapter = new ClaudeCodeAdapter(fileIO, schemas, workspaceRoot);
   registry.register(claudeAdapter);
+  const codexAdapter = new CodexAdapter(fileIO, schemas, workspaceRoot);
+  registry.register(codexAdapter);
 
   // 6. Config service (the main API for reading/writing tool configs)
   const configService = new ConfigService(fileIO, backup, schemas, registry);
 
-  // 6b. Inject write services into adapter now that configService exists
+  // 6b. Inject write services into adapters now that configService exists
   claudeAdapter.setWriteServices(configService, backup);
+  codexAdapter.setWriteServices(configService, backup);
 
   // 7. Tool management service
   const toolManager = new ToolManagerService(configService, registry);
@@ -187,34 +194,50 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(fileWatcher);
 
-  // 16. Auto-detect platform, then setup watchers and initial tree load
-  registry
-    .detectAndActivate()
-    .then((adapter) => {
-      if (adapter) {
-        outputChannel.appendLine(`Platform detected: ${adapter.displayName}`);
-        fileWatcher.setupWatchers(adapter);
-        treeProvider.refresh();
+  // 16b. Auto-detect platform, then setup watchers and initial tree load
+  (async () => {
+    // Log individual detection results for all registered adapters
+    for (const a of registry.getAllAdapters()) {
+      const found = await a.detect();
+      outputChannel.appendLine(`${a.displayName}: ${found ? 'detected' : 'not detected'}`);
+    }
 
-        // Auto-activate workspace profile (must run AFTER platform detection completes)
-        if (workspaceRoot) {
-          handleWorkspaceAutoActivation(
-            workspaceRoot,
-            profileService,
-            workspaceProfileService,
-            treeProvider,
-            outputChannel,
-          ).catch((err: unknown) => {
-            outputChannel.appendLine(`Workspace profile auto-activation error: ${err}`);
-          });
+    const adapter = await registry.detectAndActivate();
+    if (adapter) {
+      outputChannel.appendLine(`Active agent: ${adapter.displayName}`);
+      fileWatcher.setupWatchers(adapter);
+      treeProvider.refresh();
+
+      // Auto-activate workspace profile (must run AFTER platform detection completes)
+      if (workspaceRoot) {
+        await handleWorkspaceAutoActivation(
+          workspaceRoot,
+          profileService,
+          workspaceProfileService,
+          treeProvider,
+          outputChannel,
+        );
+      }
+    } else {
+      // Check if multiple were detected
+      const detected: string[] = [];
+      for (const a of registry.getAllAdapters()) {
+        if (await a.detect()) {
+          detected.push(a.displayName);
         }
+      }
+      if (detected.length > 1) {
+        outputChannel.appendLine('Multiple agents detected -- awaiting user selection (Phase 14)');
       } else {
         outputChannel.appendLine('No supported agent platform detected');
       }
-    })
-    .catch((err: unknown) => {
-      outputChannel.appendLine(`Platform detection error: ${err}`);
-    });
+    }
+
+    // Run Codex-specific notifications regardless of which adapter won
+    await handleCodexNotifications(context, codexAdapter, fileIO, outputChannel);
+  })().catch((err: unknown) => {
+    outputChannel.appendLine(`Platform detection error: ${err}`);
+  });
 
   // 17. Test command (temporary, for manual verification during development)
   const testCmd = vscode.commands.registerCommand(
@@ -240,6 +263,63 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(testCmd);
 
   outputChannel.appendLine('ACK activated');
+}
+
+/**
+ * Handle Codex-specific notifications after detection.
+ *
+ * When Codex is detected but has no config.toml, offers to create one
+ * (with dismissal memory via globalState). When config.toml exists but
+ * has TOML parse errors, shows a warning with an "Open File" action.
+ */
+async function handleCodexNotifications(
+  context: vscode.ExtensionContext,
+  codexAdapter: CodexAdapter,
+  fileIO: FileIOService,
+  outputChannel: vscode.OutputChannel,
+): Promise<void> {
+  const detected = await codexAdapter.detect();
+  if (!detected) {
+    return;
+  }
+
+  // Check if user config.toml exists
+  const configExists = await fileIO.fileExists(CodexPaths.userConfigToml);
+
+  if (!configExists) {
+    // Check dismissal state
+    const dismissed = context.globalState.get<boolean>('ack.codexConfigDismissed', false);
+    if (dismissed) {
+      return;
+    }
+
+    const action = await vscode.window.showInformationMessage(
+      'Codex detected but no config.toml found. Create one?',
+      'Create Config',
+      'Dismiss',
+    );
+
+    if (action === 'Create Config') {
+      await fileIO.writeTextFile(CodexPaths.userConfigToml, '# Codex user configuration\n');
+      outputChannel.appendLine('Created ~/.codex/config.toml');
+    } else if (action === 'Dismiss') {
+      await context.globalState.update('ack.codexConfigDismissed', true);
+    }
+    return;
+  }
+
+  // Config exists -- check if it's valid TOML
+  const readResult = await fileIO.readTomlFile(CodexPaths.userConfigToml);
+  if (!readResult.success) {
+    const action = await vscode.window.showWarningMessage(
+      `Codex config.toml has syntax errors: ${readResult.error}`,
+      'Open File',
+    );
+    if (action === 'Open File') {
+      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(CodexPaths.userConfigToml));
+      await vscode.window.showTextDocument(doc);
+    }
+  }
 }
 
 /**
