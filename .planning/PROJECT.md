@@ -29,11 +29,15 @@ Developers can discover, install, configure, and switch between sets of agent to
 
 ### Active
 
-(None yet -- define for next milestone with `/gsd:new-milestone`)
+- [ ] Codex as a fully supported second agent with feature parity to Claude Code
+- [ ] Agent switcher UX for selecting active agent (one agent active at a time)
+- [ ] CodexAdapter for reading/writing Codex config files
+- [ ] Sidebar, marketplace, install flows, and profiles all work with Codex
+- [ ] Agent-specific profiles (each agent has its own profile set)
 
 ### Out of Scope
 
-- Multi-agent support beyond Claude Code -- architecture supports it, v1 is Claude Code only
+- Multi-agent support beyond Claude Code and Codex -- v1.1 adds Codex, other agents deferred
 - Dedicated backend/API server for marketplace -- GitHub-based registry is sufficient
 - Ratings/reviews system for marketplace listings -- defer until community grows
 - Auto-detection of project type for tool suggestions -- future enhancement
@@ -49,12 +53,22 @@ Architecture: Agent-agnostic core with ClaudeCodeAdapter implementing all Claude
 
 Key integrations: GitHub-based registry (ETag-cached), repo URL scanner, FileWatcher for external config changes.
 
-Known areas for future work: multi-agent adapters (Cursor, Copilot), advanced marketplace features (install counts, collections, update notifications), Settings Sync for profiles.
+Known areas for future work: additional agent adapters (Cursor, Copilot), advanced marketplace features (install counts, collections, update notifications), Settings Sync for profiles.
+
+## Current Milestone: v1.1 Codex Support
+
+**Goal:** Add OpenAI Codex as a fully supported second agent with feature parity to Claude Code, proving the agent-agnostic architecture.
+
+**Target features:**
+- CodexAdapter for reading/writing Codex config files
+- Agent switcher UX (one active agent at a time, UI context-switches)
+- Full sidebar, marketplace, install, and profile support for Codex
+- Agent-specific profiles (each agent maintains its own profile set)
 
 ## Constraints
 
 - **Platform**: VS Code extension (Extension API) — must work with VS Code's extension model
-- **Agent v1**: Claude Code — reads/writes Claude Code config files (skills in `~/.claude/skills` and `.claude/skills`, commands in `.claude/commands`, settings in `~/.claude/settings.json`, `.claude/settings.json`, `.claude/settings.local.json`, MCP in `~/.claude.json` and `.mcp.json`; managed settings/MCP are system-level)
+- **Agents**: Claude Code + Codex — reads/writes each agent's config files. Claude Code: skills in `~/.claude/skills` and `.claude/skills`, commands in `.claude/commands`, settings in `~/.claude/settings.json`, `.claude/settings.json`, `.claude/settings.local.json`, MCP in `~/.claude.json` and `.mcp.json`. Codex: config locations TBD (research needed).
 - **Registry**: GitHub-based — a GitHub repository serves as the tool index/registry
 - **Architecture**: Agent-agnostic internals — tool management layer must not be hard-coded to Claude Code, even though v1 only implements Claude Code adapters
 
@@ -72,4 +86,4 @@ Known areas for future work: multi-agent adapters (Cursor, Copilot), advanced ma
 | Plain HTML buttons over vscode-button | Phase 11: vscode-button icon-only rendering broken in webviews | Good -- reliable cross-theme rendering |
 
 ---
-*Last updated: 2026-02-03 after v1.0 milestone*
+*Last updated: 2026-02-03 after v1.1 milestone start*

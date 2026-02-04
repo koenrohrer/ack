@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Developers can discover, install, configure, and switch between sets of agent tools without leaving VS Code
-**Current focus:** v1.0 shipped -- planning next milestone
+**Current focus:** v1.1 Codex Support — adding Codex as second fully-supported agent
 
 ## Current Position
 
-Phase: 11 of 11 (all v1.0 phases complete)
-Plan: N/A -- milestone complete
-Status: v1.0 shipped
-Last activity: 2026-02-03 -- Completed quick task 001: Generate hooks and commands for tools-registry repo
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-03 — Milestone v1.1 started
 
-Progress: [████████████] 100% (11/11 phases complete)
+Progress: [░░░░░░░░░░░░] 0%
 
 ## Milestone History
 

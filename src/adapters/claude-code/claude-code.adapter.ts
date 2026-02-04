@@ -11,10 +11,12 @@ import { parseSettingsFile, readDisabledMcpServers } from './parsers/settings.pa
 import { parseMcpFile, parseClaudeJson } from './parsers/mcp.parser.js';
 import { parseSkillsDir } from './parsers/skill.parser.js';
 import { parseCommandsDir } from './parsers/command.parser.js';
+import { AdapterScopeError } from '../../types/adapter-errors.js';
 import { toggleMcpServer, removeMcpServer, addMcpServer } from './writers/mcp.writer.js';
 import { toggleHook, removeHook, addHook } from './writers/settings.writer.js';
-import { removeSkill, copySkill } from './writers/skill.writer.js';
-import { removeCommand, copyCommand } from './writers/command.writer.js';
+import { removeSkill, copySkill, renameSkill } from './writers/skill.writer.js';
+import { removeCommand, copyCommand, renameCommand } from './writers/command.writer.js';
+import { isToggleDisable } from '../../services/tool-manager.utils.js';
 
 /**
  * Platform adapter for Claude Code.
@@ -186,6 +188,205 @@ export class ClaudeCodeAdapter implements IPlatformAdapter {
       return true;
     }
     return this.fileIO.fileExists(ClaudeCodePaths.userClaudeJson);
+  }
+
+  // ---------------------------------------------------------------------------
+  // IToolAdapter -- toggleTool
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Toggle a tool between enabled and disabled states.
+   *
+   * Routes by tool type:
+   * - MCP servers: set disabled field in config JSON
+   * - Hooks: set disabled field on matcher group in settings JSON
+   * - Skills: rename directory with .disabled suffix
+   * - Commands: rename file/directory with .disabled suffix
+   */
+  async toggleTool(tool: NormalizedTool): Promise<void> {
+    this.ensureWriteServices();
+
+    const shouldDisable = isToggleDisable(tool);
+
+    switch (tool.type) {
+      case ToolType.McpServer: {
+        const { filePath, schemaKey } = this.getMcpFileInfo(tool.scope);
+        await toggleMcpServer(this.configService!, filePath, schemaKey, tool.name, shouldDisable);
+        break;
+      }
+
+      case ToolType.Hook: {
+        const filePath = tool.source.filePath;
+        const eventName = tool.metadata.eventName as string;
+        const parts = tool.id.split(':');
+        const matcherIndex = parseInt(parts[parts.length - 1], 10);
+        await toggleHook(this.configService!, filePath, eventName, matcherIndex, shouldDisable);
+        break;
+      }
+
+      case ToolType.Skill: {
+        const dirPath = tool.source.directoryPath ?? path.dirname(tool.source.filePath);
+        const targetPath = shouldDisable
+          ? `${dirPath}.disabled`
+          : dirPath.replace(/\.disabled$/, '');
+        await renameSkill(dirPath, targetPath);
+        break;
+      }
+
+      case ToolType.Command: {
+        const cmdPath = tool.source.isDirectory
+          ? (tool.source.directoryPath ?? path.dirname(tool.source.filePath))
+          : tool.source.filePath;
+        const targetPath = shouldDisable
+          ? `${cmdPath}.disabled`
+          : cmdPath.replace(/\.disabled$/, '');
+        await renameCommand(cmdPath, targetPath);
+        break;
+      }
+
+      default:
+        throw new Error(`Unsupported tool type for toggle: ${tool.type}`);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // IMcpAdapter
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Install an MCP server into the config file for the given scope.
+   */
+  async installMcpServer(
+    scope: ConfigScope,
+    serverName: string,
+    serverConfig: Record<string, unknown>,
+  ): Promise<void> {
+    this.ensureWriteServices();
+    const { filePath, schemaKey } = this.getMcpFileInfo(scope);
+    await addMcpServer(this.configService!, filePath, schemaKey, serverName, serverConfig);
+  }
+
+  /**
+   * Return the config file path where MCP servers are defined for the scope.
+   */
+  getMcpFilePath(scope: ConfigScope): string {
+    return this.getMcpFileInfo(scope).filePath;
+  }
+
+  /**
+   * Return the schema key used to validate MCP config for the scope.
+   */
+  getMcpSchemaKey(scope: ConfigScope): string {
+    return this.getMcpFileInfo(scope).schemaKey;
+  }
+
+  // ---------------------------------------------------------------------------
+  // IPathAdapter
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Return the skills directory path for the given scope.
+   */
+  getSkillsDir(scope: ConfigScope): string {
+    switch (scope) {
+      case ConfigScope.User:
+        return ClaudeCodePaths.userSkillsDir;
+      case ConfigScope.Project:
+        if (!this.workspaceRoot) {
+          throw new AdapterScopeError('Claude Code', scope, 'getSkillsDir (no workspace open)');
+        }
+        return ClaudeCodePaths.projectSkillsDir(this.workspaceRoot);
+      default:
+        throw new AdapterScopeError('Claude Code', scope, 'getSkillsDir');
+    }
+  }
+
+  /**
+   * Return the commands directory path for the given scope.
+   */
+  getCommandsDir(scope: ConfigScope): string {
+    switch (scope) {
+      case ConfigScope.User:
+        return ClaudeCodePaths.userCommandsDir;
+      case ConfigScope.Project:
+        if (!this.workspaceRoot) {
+          throw new AdapterScopeError('Claude Code', scope, 'getCommandsDir (no workspace open)');
+        }
+        return ClaudeCodePaths.projectCommandsDir(this.workspaceRoot);
+      default:
+        throw new AdapterScopeError('Claude Code', scope, 'getCommandsDir');
+    }
+  }
+
+  /**
+   * Return the settings file path for the given scope.
+   */
+  getSettingsPath(scope: ConfigScope): string {
+    return this.getSettingsFilePath(scope);
+  }
+
+  // ---------------------------------------------------------------------------
+  // IInstallAdapter
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Install a skill by writing files to the scope's skills directory.
+   */
+  async installSkill(
+    scope: ConfigScope,
+    skillName: string,
+    files: Array<{ name: string; content: string }>,
+  ): Promise<void> {
+    const { mkdir, writeFile } = await import('fs/promises');
+    const baseDir = this.getSkillsDir(scope);
+    const targetDir = path.join(baseDir, skillName);
+    await mkdir(targetDir, { recursive: true });
+    for (const file of files) {
+      await writeFile(path.join(targetDir, file.name), file.content, 'utf-8');
+    }
+  }
+
+  /**
+   * Install a command by writing files to the scope's commands directory.
+   */
+  async installCommand(
+    scope: ConfigScope,
+    commandName: string,
+    files: Array<{ name: string; content: string }>,
+  ): Promise<void> {
+    const { mkdir, writeFile } = await import('fs/promises');
+    const baseDir = this.getCommandsDir(scope);
+
+    if (files.length === 1) {
+      // Single-file command: write directly to commands dir
+      await mkdir(baseDir, { recursive: true });
+      await writeFile(path.join(baseDir, files[0].name), files[0].content, 'utf-8');
+    } else {
+      // Multi-file command: create subdirectory
+      const targetDir = path.join(baseDir, commandName);
+      await mkdir(targetDir, { recursive: true });
+      for (const file of files) {
+        await writeFile(path.join(targetDir, file.name), file.content, 'utf-8');
+      }
+    }
+  }
+
+  /**
+   * Install a hook by adding a matcher group to the scope's settings file.
+   */
+  async installHook(
+    scope: ConfigScope,
+    eventName: string,
+    matcherGroup: { matcher: string; hooks: unknown[] },
+  ): Promise<void> {
+    this.ensureWriteServices();
+    const filePath = this.getSettingsPath(scope);
+    await addHook(
+      this.configService!,
+      filePath,
+      eventName,
+      matcherGroup as { matcher: string; hooks: Array<Record<string, unknown>>; [key: string]: unknown },
+    );
   }
 
   // ---------------------------------------------------------------------------
