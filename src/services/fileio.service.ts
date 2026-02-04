@@ -5,6 +5,26 @@ import { safeJsonParse } from '../utils/json.js';
 import type { ConfigReadResult } from '../types/config.js';
 
 /**
+ * Lazy-loaded smol-toml parse and stringify functions.
+ *
+ * smol-toml is ESM-only but this project compiles as CJS under Node16.
+ * Dynamic import works at runtime (Node supports importing ESM from CJS
+ * via dynamic import) and esbuild bundles it correctly at build time.
+ * We define our own interface to avoid TypeScript ESM/CJS type import errors.
+ */
+interface TomlModule {
+  parse: (input: string) => Record<string, unknown>;
+  stringify: (input: Record<string, unknown>) => string;
+}
+let _toml: TomlModule | undefined;
+async function loadToml(): Promise<TomlModule> {
+  if (!_toml) {
+    _toml = await import('smol-toml') as TomlModule;
+  }
+  return _toml;
+}
+
+/**
  * Service for safe filesystem operations.
  *
  * Reads JSON files with lenient parsing (comments, trailing commas).
@@ -114,6 +134,52 @@ export class FileIOService {
     return entries
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name);
+  }
+
+  /**
+   * Read and parse a TOML file.
+   *
+   * Returns `{ success: true, data: null }` when the file does not exist --
+   * a missing file is a valid state (config not yet created).
+   * Returns `{ success: false, error, filePath }` for permission errors or
+   * malformed TOML that cannot be parsed.
+   */
+  async readTomlFile<T>(filePath: string): Promise<ConfigReadResult<T | null>> {
+    let content: string;
+
+    try {
+      content = await fs.readFile(filePath, 'utf-8');
+    } catch (err: unknown) {
+      if (isNodeError(err) && err.code === 'ENOENT') {
+        return { success: true, data: null };
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      return { success: false, error: message, filePath };
+    }
+
+    try {
+      const { parse } = await loadToml();
+      const parsed = parse(content);
+      return { success: true, data: parsed as T };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { success: false, error: message, filePath };
+    }
+  }
+
+  /**
+   * Write data to a TOML file atomically.
+   *
+   * Creates parent directories if they do not exist.
+   * Serializes using smol-toml's stringify with trailing newline.
+   * Throws on write failure -- callers are expected to handle errors.
+   */
+  async writeTomlFile(filePath: string, data: Record<string, unknown>): Promise<void> {
+    const dir = path.dirname(filePath);
+    await fs.mkdir(dir, { recursive: true });
+    const { stringify } = await loadToml();
+    const content = stringify(data) + '\n';
+    await writeFileAtomic(filePath, content, 'utf-8');
   }
 }
 
