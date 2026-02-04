@@ -8,6 +8,7 @@ import { claudeCodeSchemas } from '../../adapters/claude-code/schemas.js';
 import { ClaudeCodeAdapter } from '../../adapters/claude-code/claude-code.adapter.js';
 import { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
+import { AdapterScopeError } from '../../types/adapter-errors.js';
 import type { IPlatformAdapter } from '../../types/adapter.js';
 import type { NormalizedTool } from '../../types/config.js';
 
@@ -465,5 +466,297 @@ Deploy everything.`);
     await expect(adapter.removeTool(tool)).rejects.toThrow(
       'ConfigService and BackupService are required',
     );
+  });
+
+  // ---------------------------------------------------------------------------
+  // toggleTool
+  // ---------------------------------------------------------------------------
+
+  it('toggleTool throws when ConfigService not provided', async () => {
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    const tool = {
+      id: 'skill:user:test',
+      type: ToolType.Skill,
+      name: 'test',
+      scope: ConfigScope.User,
+      status: ToolStatus.Enabled,
+      source: { filePath: '/fake/SKILL.md', isDirectory: true, directoryPath: '/fake' },
+      metadata: {},
+    } as NormalizedTool;
+    await expect(adapter.toggleTool(tool)).rejects.toThrow(
+      'ConfigService and BackupService are required',
+    );
+  });
+
+  it('toggleTool renames skill directory to add .disabled suffix when enabling', async () => {
+    const dir = await makeTmpDir();
+    const skillDir = path.join(dir, 'my-skill');
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(path.join(skillDir, 'SKILL.md'), 'content');
+
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+    // Inject minimal services so ensureWriteServices() passes
+    adapter.setWriteServices({} as any, {} as any);
+
+    const tool: NormalizedTool = {
+      id: 'skill:user:my-skill',
+      type: ToolType.Skill,
+      name: 'my-skill',
+      scope: ConfigScope.User,
+      status: ToolStatus.Enabled,
+      source: { filePath: path.join(skillDir, 'SKILL.md'), isDirectory: true, directoryPath: skillDir },
+      metadata: {},
+    };
+
+    await adapter.toggleTool(tool);
+
+    // Should have renamed to .disabled
+    const disabledExists = await fs.stat(`${skillDir}.disabled`).then(() => true).catch(() => false);
+    expect(disabledExists).toBe(true);
+
+    const originalExists = await fs.stat(skillDir).then(() => true).catch(() => false);
+    expect(originalExists).toBe(false);
+  });
+
+  it('toggleTool renames skill directory to remove .disabled suffix when re-enabling', async () => {
+    const dir = await makeTmpDir();
+    const skillDir = path.join(dir, 'my-skill.disabled');
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(path.join(skillDir, 'SKILL.md'), 'content');
+
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+    adapter.setWriteServices({} as any, {} as any);
+
+    const tool: NormalizedTool = {
+      id: 'skill:user:my-skill',
+      type: ToolType.Skill,
+      name: 'my-skill',
+      scope: ConfigScope.User,
+      status: ToolStatus.Disabled,
+      source: { filePath: path.join(skillDir, 'SKILL.md'), isDirectory: true, directoryPath: skillDir },
+      metadata: {},
+    };
+
+    await adapter.toggleTool(tool);
+
+    const enabledDir = path.join(dir, 'my-skill');
+    const enabledExists = await fs.stat(enabledDir).then(() => true).catch(() => false);
+    expect(enabledExists).toBe(true);
+  });
+
+  it('toggleTool renames command file to add .disabled suffix', async () => {
+    const dir = await makeTmpDir();
+    const cmdFile = path.join(dir, 'deploy.md');
+    await fs.writeFile(cmdFile, 'content');
+
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+    adapter.setWriteServices({} as any, {} as any);
+
+    const tool: NormalizedTool = {
+      id: 'command:user:deploy',
+      type: ToolType.Command,
+      name: 'deploy',
+      scope: ConfigScope.User,
+      status: ToolStatus.Enabled,
+      source: { filePath: cmdFile, isDirectory: false },
+      metadata: {},
+    };
+
+    await adapter.toggleTool(tool);
+
+    const disabledExists = await fs.stat(`${cmdFile}.disabled`).then(() => true).catch(() => false);
+    expect(disabledExists).toBe(true);
+  });
+
+  // ---------------------------------------------------------------------------
+  // getMcpFilePath / getMcpSchemaKey
+  // ---------------------------------------------------------------------------
+
+  it('getMcpFilePath returns user claude.json for User scope', () => {
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    const filePath = adapter.getMcpFilePath(ConfigScope.User);
+    expect(filePath).toContain('.claude.json');
+  });
+
+  it('getMcpFilePath returns project .mcp.json for Project scope', async () => {
+    const dir = await makeTmpDir();
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+    const filePath = adapter.getMcpFilePath(ConfigScope.Project);
+    expect(filePath).toContain('.mcp.json');
+    expect(filePath).toContain(dir);
+  });
+
+  it('getMcpFilePath throws for unsupported scope', () => {
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    expect(() => adapter.getMcpFilePath(ConfigScope.Local)).toThrow();
+  });
+
+  it('getMcpSchemaKey returns claude-json for User scope', () => {
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    expect(adapter.getMcpSchemaKey(ConfigScope.User)).toBe('claude-json');
+  });
+
+  it('getMcpSchemaKey returns mcp-file for Project scope', async () => {
+    const dir = await makeTmpDir();
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+    expect(adapter.getMcpSchemaKey(ConfigScope.Project)).toBe('mcp-file');
+  });
+
+  // ---------------------------------------------------------------------------
+  // getSkillsDir / getCommandsDir / getSettingsPath
+  // ---------------------------------------------------------------------------
+
+  it('getSkillsDir returns user skills dir for User scope', () => {
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    const dir = adapter.getSkillsDir(ConfigScope.User);
+    expect(dir).toContain('skills');
+    expect(dir).toContain('.claude');
+  });
+
+  it('getSkillsDir returns project skills dir for Project scope', async () => {
+    const dir = await makeTmpDir();
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+    const skillsDir = adapter.getSkillsDir(ConfigScope.Project);
+    expect(skillsDir).toContain(dir);
+    expect(skillsDir).toContain('skills');
+  });
+
+  it('getSkillsDir throws AdapterScopeError for Managed scope', () => {
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    expect(() => adapter.getSkillsDir(ConfigScope.Managed)).toThrow(AdapterScopeError);
+  });
+
+  it('getSkillsDir throws AdapterScopeError for Project scope without workspace', () => {
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    expect(() => adapter.getSkillsDir(ConfigScope.Project)).toThrow(AdapterScopeError);
+  });
+
+  it('getCommandsDir returns user commands dir for User scope', () => {
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    const dir = adapter.getCommandsDir(ConfigScope.User);
+    expect(dir).toContain('commands');
+  });
+
+  it('getCommandsDir returns project commands dir for Project scope', async () => {
+    const dir = await makeTmpDir();
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+    const cmdsDir = adapter.getCommandsDir(ConfigScope.Project);
+    expect(cmdsDir).toContain(dir);
+    expect(cmdsDir).toContain('commands');
+  });
+
+  it('getCommandsDir throws AdapterScopeError for Local scope', () => {
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    expect(() => adapter.getCommandsDir(ConfigScope.Local)).toThrow(AdapterScopeError);
+  });
+
+  it('getSettingsPath returns user settings path for User scope', () => {
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    const settingsPath = adapter.getSettingsPath(ConfigScope.User);
+    expect(settingsPath).toContain('settings.json');
+  });
+
+  it('getSettingsPath returns project settings path for Project scope', async () => {
+    const dir = await makeTmpDir();
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+    const settingsPath = adapter.getSettingsPath(ConfigScope.Project);
+    expect(settingsPath).toContain(dir);
+    expect(settingsPath).toContain('settings.json');
+  });
+
+  it('getSettingsPath returns local settings path for Local scope', async () => {
+    const dir = await makeTmpDir();
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+    const settingsPath = adapter.getSettingsPath(ConfigScope.Local);
+    expect(settingsPath).toContain('settings.local.json');
+  });
+
+  it('getSettingsPath throws for Managed scope', () => {
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    expect(() => adapter.getSettingsPath(ConfigScope.Managed)).toThrow();
+  });
+
+  // ---------------------------------------------------------------------------
+  // installSkill / installCommand
+  // ---------------------------------------------------------------------------
+
+  it('installSkill writes files to the correct project skills directory', async () => {
+    const dir = await makeTmpDir();
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+
+    await adapter.installSkill(ConfigScope.Project, 'test-skill', [
+      { name: 'SKILL.md', content: '# Test Skill\n\nDo the thing.' },
+      { name: 'helper.md', content: 'Helper content.' },
+    ]);
+
+    const skillDir = path.join(dir, '.claude', 'skills', 'test-skill');
+    const mainFile = await fs.readFile(path.join(skillDir, 'SKILL.md'), 'utf-8');
+    const helperFile = await fs.readFile(path.join(skillDir, 'helper.md'), 'utf-8');
+
+    expect(mainFile).toBe('# Test Skill\n\nDo the thing.');
+    expect(helperFile).toBe('Helper content.');
+  });
+
+  it('installCommand writes single-file command directly to commands dir', async () => {
+    const dir = await makeTmpDir();
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+
+    await adapter.installCommand(ConfigScope.Project, 'deploy', [
+      { name: 'deploy.md', content: '# Deploy\n\nDeploy everything.' },
+    ]);
+
+    const cmdFile = path.join(dir, '.claude', 'commands', 'deploy.md');
+    const content = await fs.readFile(cmdFile, 'utf-8');
+    expect(content).toBe('# Deploy\n\nDeploy everything.');
+  });
+
+  it('installCommand writes multi-file command to subdirectory', async () => {
+    const dir = await makeTmpDir();
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+
+    await adapter.installCommand(ConfigScope.Project, 'build', [
+      { name: 'build.md', content: '# Build' },
+      { name: 'config.md', content: 'Config details' },
+    ]);
+
+    const cmdDir = path.join(dir, '.claude', 'commands', 'build');
+    const mainFile = await fs.readFile(path.join(cmdDir, 'build.md'), 'utf-8');
+    const configFile = await fs.readFile(path.join(cmdDir, 'config.md'), 'utf-8');
+
+    expect(mainFile).toBe('# Build');
+    expect(configFile).toBe('Config details');
+  });
+
+  // ---------------------------------------------------------------------------
+  // installHook / installMcpServer (require ConfigService -- test routing guard)
+  // ---------------------------------------------------------------------------
+
+  it('installHook throws when ConfigService not provided', async () => {
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    await expect(
+      adapter.installHook(ConfigScope.User, 'PreToolUse', { matcher: 'Bash', hooks: [] }),
+    ).rejects.toThrow('ConfigService and BackupService are required');
+  });
+
+  it('installMcpServer throws when ConfigService not provided', async () => {
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    await expect(
+      adapter.installMcpServer(ConfigScope.User, 'test-server', { command: 'node' }),
+    ).rejects.toThrow('ConfigService and BackupService are required');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Adapter error types
+  // ---------------------------------------------------------------------------
+
+  it('AdapterScopeError has correct properties', () => {
+    const err = new AdapterScopeError('Claude Code', 'managed', 'getSkillsDir');
+    expect(err.name).toBe('AdapterScopeError');
+    expect(err.agentName).toBe('Claude Code');
+    expect(err.scope).toBe('managed');
+    expect(err.message).toContain('Claude Code');
+    expect(err.message).toContain('managed');
+    expect(err.message).toContain('getSkillsDir');
+    expect(err).toBeInstanceOf(Error);
   });
 });
