@@ -406,8 +406,6 @@ export class MarketplacePanel {
 
     this.postMessage({ type: 'installProgress', toolId, status: 'downloading' });
 
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-
     try {
       const adapter = this.getAdapter();
       const { repoFullName, defaultBranch, repoPath, repoFiles } = toolEntry;
