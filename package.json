@@ -56,7 +56,7 @@
     "viewsWelcome": [
       {
         "view": "ack.toolTree",
-        "contents": "No agent tools found.\n\nConfigure Claude Code to get started.\n[Open Documentation](https://docs.anthropic.com/en/docs/claude-code)",
+        "contents": "No agent tools found.\n\nInstall a supported agent (Claude Code or Codex) to get started.\n[Claude Code](https://docs.anthropic.com/en/docs/claude-code) | [Codex](https://openai.com/index/codex/)",
         "when": "ack.noTools"
       }
     ],

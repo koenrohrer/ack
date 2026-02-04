@@ -63,7 +63,8 @@ export type ConfigPanelExtMessage =
   | { type: 'profileSwitchComplete'; result: SwitchResultInfo }
   | { type: 'exportComplete'; profileName: string }
   | { type: 'importComplete'; profileName: string; installed: number; skipped: string[] }
-  | { type: 'workspaceAssociation'; profileName: string | null };
+  | { type: 'workspaceAssociation'; profileName: string | null }
+  | { type: 'agentChanged'; agentName: string };
 
 /** Switch result shape mirroring SwitchResult from profile.types. */
 export interface SwitchResultInfo {

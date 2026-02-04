@@ -24,7 +24,8 @@ export type ExtensionMessage =
   | { type: 'repoScanError'; repoUrl: string; error: string }
   | { type: 'repoRemoved'; repoUrl: string }
   | { type: 'savedRepos'; repos: SavedRepoInfo[] }
-  | { type: 'setTypeFilter'; filter: string };
+  | { type: 'setTypeFilter'; filter: string }
+  | { type: 'agentChanged'; agentName: string };
 
 // --- Messages FROM webview TO extension ---
 

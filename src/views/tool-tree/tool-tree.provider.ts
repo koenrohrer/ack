@@ -38,6 +38,9 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   /** Tracks the last profile name set via setActiveProfile for re-assertion after refresh. */
   private activeProfileName: string | null | undefined;
 
+  /** Tracks the active agent name for display as tree view description. */
+  private agentName: string | undefined;
+
   constructor(
     private readonly configService: ConfigService,
     private readonly registry: AdapterRegistry,
@@ -129,6 +132,20 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   }
 
   /**
+   * Update the tree view description to show the active agent name.
+   *
+   * The description renders as lighter secondary text next to the title,
+   * so the title shows the profile name and the description shows the agent.
+   */
+  setAgentName(agentName: string | undefined): void {
+    this.agentName = agentName;
+    if (!this.treeView) {
+      return;
+    }
+    this.treeView.description = agentName ?? '';
+  }
+
+  /**
    * Register the tree view with VS Code.
    *
    * Creates the tree view instance with collapse-all button,
@@ -144,6 +161,7 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       },
     );
     this.treeView.title = this.activeProfileName ?? 'Default';
+    this.treeView.description = this.agentName ?? '';
     context.subscriptions.push(this.treeView);
   }
 

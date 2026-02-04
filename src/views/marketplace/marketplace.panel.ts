@@ -80,6 +80,19 @@ export class MarketplacePanel {
   private userRepos: string[] = [];
 
   /**
+   * Notify any open marketplace panel that the active agent changed.
+   *
+   * Posts an agentChanged message to the webview and updates the panel title.
+   */
+  public static notifyAgentChanged(agentName: string): void {
+    if (!MarketplacePanel.currentPanel) {
+      return;
+    }
+    MarketplacePanel.currentPanel.postMessage({ type: 'agentChanged', agentName });
+    MarketplacePanel.currentPanel.panel.title = `Tool Marketplace - ${agentName}`;
+  }
+
+  /**
    * Create a new marketplace panel or reveal the existing one.
    */
   public static createOrShow(
@@ -92,6 +105,7 @@ export class MarketplacePanel {
     repoScanner: RepoScannerService,
     registry: AdapterRegistry,
     initialTypeFilter?: string,
+    agentName?: string,
   ): void {
     // If panel already exists, reveal it and optionally re-filter
     if (MarketplacePanel.currentPanel) {
@@ -106,9 +120,10 @@ export class MarketplacePanel {
     }
 
     // Create new panel
+    const panelTitle = agentName ? `Tool Marketplace - ${agentName}` : 'Tool Marketplace';
     const panel = vscode.window.createWebviewPanel(
       MarketplacePanel.viewType,
-      'Tool Marketplace',
+      panelTitle,
       vscode.ViewColumn.One,
       {
         enableScripts: true,

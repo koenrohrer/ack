@@ -40,6 +40,19 @@ export class ConfigPanel {
   private readonly workspaceProfileService: WorkspaceProfileService;
 
   /**
+   * Notify any open config panel that the active agent changed.
+   *
+   * Posts an agentChanged message to the webview and updates the panel title.
+   */
+  public static notifyAgentChanged(agentName: string): void {
+    if (!ConfigPanel.currentPanel) {
+      return;
+    }
+    ConfigPanel.currentPanel.postMessage({ type: 'agentChanged', agentName });
+    ConfigPanel.currentPanel.panel.title = `Configure Agent - ${agentName}`;
+  }
+
+  /**
    * Create a new config panel or reveal the existing one.
    */
   public static createOrShow(
@@ -51,6 +64,7 @@ export class ConfigPanel {
     outputChannel: vscode.OutputChannel,
     workspaceProfileService: WorkspaceProfileService,
     registry: AdapterRegistry,
+    agentName?: string,
   ): void {
     // If panel already exists, reveal it
     if (ConfigPanel.currentPanel) {
@@ -59,9 +73,10 @@ export class ConfigPanel {
     }
 
     // Create new panel
+    const panelTitle = agentName ? `Configure Agent - ${agentName}` : 'Configure Agent';
     const panel = vscode.window.createWebviewPanel(
       ConfigPanel.viewType,
-      'Configure Agent',
+      panelTitle,
       vscode.ViewColumn.One,
       {
         enableScripts: true,
