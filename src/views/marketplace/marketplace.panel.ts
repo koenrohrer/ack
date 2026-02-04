@@ -1,16 +1,14 @@
 import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
-import * as path from 'node:path';
-import * as fs from 'node:fs/promises';
 import type { RegistryService } from '../../services/registry.service.js';
 import type { ConfigService } from '../../services/config.service.js';
 import type { InstallService } from '../../services/install.service.js';
 import type { ToolManagerService } from '../../services/tool-manager.service.js';
 import type { RepoScannerService } from '../../services/repo-scanner.service.js';
+import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import type { RegistrySource } from '../../services/registry.types.js';
 import type { ToolManifest } from '../../services/install.types.js';
 import { ToolType, ConfigScope } from '../../types/enums.js';
-import { ClaudeCodePaths } from '../../adapters/claude-code/paths.js';
 import type {
   WebviewMessage,
   ExtensionMessage,
@@ -63,6 +61,7 @@ export class MarketplacePanel {
   private readonly installService: InstallService;
   private readonly toolManager: ToolManagerService;
   private readonly repoScanner: RepoScannerService;
+  private readonly registry: AdapterRegistry;
   private readonly outputChannel: vscode.OutputChannel;
 
   /** Cached sources from last fetchAllIndexes, keyed by sourceId. */
@@ -91,6 +90,7 @@ export class MarketplacePanel {
     installService: InstallService,
     toolManager: ToolManagerService,
     repoScanner: RepoScannerService,
+    registry: AdapterRegistry,
     initialTypeFilter?: string,
   ): void {
     // If panel already exists, reveal it and optionally re-filter
@@ -126,6 +126,7 @@ export class MarketplacePanel {
       installService,
       toolManager,
       repoScanner,
+      registry,
       initialTypeFilter,
     );
   }
@@ -139,6 +140,7 @@ export class MarketplacePanel {
     installService: InstallService,
     toolManager: ToolManagerService,
     repoScanner: RepoScannerService,
+    registry: AdapterRegistry,
     initialTypeFilter?: string,
   ) {
     this.panel = panel;
@@ -149,6 +151,7 @@ export class MarketplacePanel {
     this.installService = installService;
     this.toolManager = toolManager;
     this.repoScanner = repoScanner;
+    this.registry = registry;
     this.initialTypeFilter = initialTypeFilter;
 
     // Load saved repos from settings
@@ -406,21 +409,15 @@ export class MarketplacePanel {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
     try {
+      const adapter = this.getAdapter();
       const { repoFullName, defaultBranch, repoPath, repoFiles } = toolEntry;
 
       if (toolEntry.toolType === 'skill') {
-        // Determine target directory
-        const baseDir =
-          scope === ConfigScope.User
-            ? ClaudeCodePaths.userSkillsDir
-            : ClaudeCodePaths.projectSkillsDir(workspaceRoot ?? '');
-        const targetDir = path.join(baseDir, toolEntry.name);
-        await fs.mkdir(targetDir, { recursive: true });
-
-        // Fetch and write each file
+        // Fetch files from repo, then delegate to adapter
         const files = repoFiles && repoFiles.length > 0
           ? repoFiles
           : [repoPath!];
+        const fileContents: Array<{ name: string; content: string }> = [];
         for (const filePath of files) {
           const content = await this.repoScanner.fetchRepoFile(
             repoFullName!,
@@ -428,24 +425,17 @@ export class MarketplacePanel {
             filePath,
           );
           const fileName = filePath.split('/').pop()!;
-          const targetFile = path.join(targetDir, fileName);
-          await fs.writeFile(targetFile, content, 'utf-8');
+          fileContents.push({ name: fileName, content });
         }
+        await adapter.installSkill(scope, toolEntry.name, fileContents);
       } else if (toolEntry.toolType === 'command') {
-        const baseDir =
-          scope === ConfigScope.User
-            ? ClaudeCodePaths.userCommandsDir
-            : ClaudeCodePaths.projectCommandsDir(workspaceRoot ?? '');
-        await fs.mkdir(baseDir, { recursive: true });
-
         const content = await this.repoScanner.fetchRepoFile(
           repoFullName!,
           defaultBranch!,
           repoPath!,
         );
         const fileName = repoPath!.split('/').pop()!;
-        const targetFile = path.join(baseDir, fileName);
-        await fs.writeFile(targetFile, content, 'utf-8');
+        await adapter.installCommand(scope, toolEntry.name, [{ name: fileName, content }]);
       } else if (toolEntry.toolType === 'mcp_server') {
         const content = await this.repoScanner.fetchRepoFile(
           repoFullName!,
@@ -457,25 +447,11 @@ export class MarketplacePanel {
         };
 
         if (mcpConfig.mcpServers) {
-          const { addMcpServer } = await import(
-            '../../adapters/claude-code/writers/mcp.writer.js'
-          );
-
-          const filePath =
-            scope === ConfigScope.User
-              ? ClaudeCodePaths.userClaudeJson
-              : ClaudeCodePaths.projectMcpJson(workspaceRoot ?? '');
-          const schemaKey = filePath.endsWith('.claude.json')
-            ? 'claude-json'
-            : 'mcp-file';
-
           for (const [serverName, serverConfig] of Object.entries(
             mcpConfig.mcpServers,
           )) {
-            await addMcpServer(
-              this.configService,
-              filePath,
-              schemaKey,
+            await adapter.installMcpServer(
+              scope,
               serverName,
               serverConfig as Record<string, unknown>,
             );
@@ -709,6 +685,22 @@ export class MarketplacePanel {
     }
 
     return pick.label === 'Global' ? ConfigScope.User : ConfigScope.Project;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Adapter access
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Get the active adapter from the registry.
+   * Throws if no adapter is active.
+   */
+  private getAdapter() {
+    const adapter = this.registry.getActiveAdapter();
+    if (!adapter) {
+      throw new Error('No active platform adapter');
+    }
+    return adapter;
   }
 
   // ---------------------------------------------------------------------------

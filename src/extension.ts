@@ -126,6 +126,7 @@ export function activate(context: vscode.ExtensionContext): void {
     outputChannel,
     installService,
     repoScannerService,
+    registry,
   );
 
   // 14. Profile commands (create, switch, edit, delete, save-as, export, import, associate)
@@ -150,6 +151,7 @@ export function activate(context: vscode.ExtensionContext): void {
         installService,
         toolManager,
         repoScannerService,
+        registry,
       ),
   );
   context.subscriptions.push(openMarketplace);

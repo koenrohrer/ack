@@ -5,6 +5,7 @@ import type { RegistryService } from '../../services/registry.service.js';
 import type { ConfigService } from '../../services/config.service.js';
 import type { InstallService } from '../../services/install.service.js';
 import type { RepoScannerService } from '../../services/repo-scanner.service.js';
+import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import { ConfigScope, ToolStatus } from '../../types/enums.js';
 import { buildDeleteDescription } from '../../services/tool-manager.utils.js';
 import type { ToolTreeProvider } from './tool-tree.provider.js';
@@ -34,6 +35,7 @@ export function registerManagementCommands(
   outputChannel: vscode.OutputChannel,
   installService: InstallService,
   repoScannerService: RepoScannerService,
+  registry: AdapterRegistry,
 ): void {
   // ---------------------------------------------------------------------------
   // Toggle Enable/Disable
@@ -194,6 +196,7 @@ export function registerManagementCommands(
         installService,
         toolManager,
         repoScannerService,
+        registry,
         groupNode.toolType,
       );
     },
