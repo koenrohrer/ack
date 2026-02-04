@@ -168,6 +168,7 @@ export function activate(context: vscode.ExtensionContext): void {
         treeProvider,
         outputChannel,
         workspaceProfileService,
+        registry,
       ),
   );
   context.subscriptions.push(openConfigPanel);

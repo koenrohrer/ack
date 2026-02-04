@@ -6,7 +6,7 @@ import type { ToolManagerService } from '../../services/tool-manager.service.js'
 import type { ToolTreeProvider } from '../tool-tree/tool-tree.provider.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { canonicalKey } from '../../utils/tool-key.utils.js';
-import { ClaudeCodePaths } from '../../adapters/claude-code/paths.js';
+import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import type { WorkspaceProfileService } from '../../services/workspace-profile.service.js';
 import type {
   ConfigPanelWebMessage,
@@ -35,6 +35,7 @@ export class ConfigPanel {
   private readonly configService: ConfigService;
   private readonly toolManager: ToolManagerService;
   private readonly treeProvider: ToolTreeProvider;
+  private readonly registry: AdapterRegistry;
   private readonly outputChannel: vscode.OutputChannel;
   private readonly workspaceProfileService: WorkspaceProfileService;
 
@@ -49,6 +50,7 @@ export class ConfigPanel {
     treeProvider: ToolTreeProvider,
     outputChannel: vscode.OutputChannel,
     workspaceProfileService: WorkspaceProfileService,
+    registry: AdapterRegistry,
   ): void {
     // If panel already exists, reveal it
     if (ConfigPanel.currentPanel) {
@@ -77,6 +79,7 @@ export class ConfigPanel {
       treeProvider,
       outputChannel,
       workspaceProfileService,
+      registry,
     );
   }
 
@@ -89,6 +92,7 @@ export class ConfigPanel {
     treeProvider: ToolTreeProvider,
     outputChannel: vscode.OutputChannel,
     workspaceProfileService: WorkspaceProfileService,
+    registry: AdapterRegistry,
   ) {
     this.panel = panel;
     this.extensionUri = extensionUri;
@@ -96,6 +100,7 @@ export class ConfigPanel {
     this.configService = configService;
     this.toolManager = toolManager;
     this.treeProvider = treeProvider;
+    this.registry = registry;
     this.outputChannel = outputChannel;
     this.workspaceProfileService = workspaceProfileService;
 
@@ -592,33 +597,41 @@ export class ConfigPanel {
   }
 
   /**
-   * Determine the MCP config file path for a given scope.
+   * Get the active adapter from the registry.
+   * Returns undefined if no adapter is active.
+   */
+  private getAdapter() {
+    return this.registry.getActiveAdapter();
+  }
+
+  /**
+   * Determine the MCP config file path for a given scope via the adapter.
    */
   private getMcpFilePath(scope: string): string | null {
-    switch (scope) {
-      case ConfigScope.User:
-        return ClaudeCodePaths.userClaudeJson;
-      case ConfigScope.Project: {
-        const folders = vscode.workspace.workspaceFolders;
-        if (!folders || folders.length === 0) {
-          return null;
-        }
-        return ClaudeCodePaths.projectMcpJson(folders[0].uri.fsPath);
-      }
-      case ConfigScope.Managed:
-        return ClaudeCodePaths.managedMcpJson;
-      default:
-        return null;
+    const adapter = this.getAdapter();
+    if (!adapter) {
+      return null;
+    }
+    try {
+      return adapter.getMcpFilePath(scope as ConfigScope);
+    } catch {
+      return null;
     }
   }
 
   /**
-   * Determine the schema key for an MCP config file based on scope.
+   * Determine the schema key for an MCP config file based on scope via the adapter.
    */
   private getMcpSchemaKey(scope: string): { schemaKey: string } {
-    return {
-      schemaKey: scope === ConfigScope.User ? 'claude-json' : 'mcp-file',
-    };
+    const adapter = this.getAdapter();
+    if (!adapter) {
+      return { schemaKey: 'claude-json' };
+    }
+    try {
+      return { schemaKey: adapter.getMcpSchemaKey(scope as ConfigScope) };
+    } catch {
+      return { schemaKey: 'claude-json' };
+    }
   }
 
   // ---------------------------------------------------------------------------
