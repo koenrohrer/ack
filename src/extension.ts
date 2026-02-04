@@ -172,6 +172,8 @@ export function activate(context: vscode.ExtensionContext): void {
         toolManager,
         repoScannerService,
         registry,
+        undefined, // initialTypeFilter
+        registry.getActiveAdapter()?.displayName,
       ),
   );
   context.subscriptions.push(openMarketplace);
@@ -189,6 +191,7 @@ export function activate(context: vscode.ExtensionContext): void {
         outputChannel,
         workspaceProfileService,
         registry,
+        registry.getActiveAdapter()?.displayName,
       ),
   );
   context.subscriptions.push(openConfigPanel);
@@ -235,10 +238,13 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(switchAgentCmd);
 
-  // 15e. React to agent switches (status bar, file watchers, tree refresh)
+  // 15e. React to agent switches (status bar, file watchers, tree, panels)
   context.subscriptions.push(
     agentSwitcher.onDidSwitchAgent((adapter) => {
       updateAgentStatusBar(agentStatusBar, adapter);
+      treeProvider.setAgentName(adapter?.displayName);
+      MarketplacePanel.notifyAgentChanged(adapter?.displayName ?? 'No Agent');
+      ConfigPanel.notifyAgentChanged(adapter?.displayName ?? 'No Agent');
       if (adapter) {
         fileWatcher.setupWatchers(adapter);
         treeProvider.refresh();

@@ -1,6 +1,8 @@
-import { useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useConfigPanel } from './hooks/useConfigPanel';
+import { useVSCodeApi } from './hooks/useVSCodeApi';
 import type { TabId } from './hooks/useConfigPanel';
+import type { ConfigPanelExtMessage } from '../config-panel.messages';
 import { ProfileList } from './components/ProfileList';
 import { ProfileEditor } from './components/ProfileEditor';
 import { ToolList } from './components/ToolList';
@@ -33,6 +35,24 @@ export function App() {
     toolSettingsLoading,
     postMessage,
   } = useConfigPanel();
+
+  const { postMessage: vscodePostMessage } = useVSCodeApi();
+  const [agentChangedName, setAgentChangedName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handler = (event: MessageEvent<ConfigPanelExtMessage>) => {
+      if (event.data.type === 'agentChanged') {
+        setAgentChangedName(event.data.agentName);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  const handleRefreshAfterAgentChange = () => {
+    setAgentChangedName(null);
+    vscodePostMessage({ type: 'ready' });
+  };
 
   const tabsRef = useRef<HTMLElement>(null);
 
@@ -77,10 +97,38 @@ export function App() {
     [tools, selectedToolKey],
   );
 
+  // --- Agent changed banner (shared across all views) ---
+  const agentBanner = agentChangedName !== null ? (
+    <div
+      className="agent-changed-banner"
+      style={{
+        padding: '8px 12px',
+        marginBottom: '8px',
+        background: 'var(--vscode-editorWidget-background)',
+        border: '1px solid var(--vscode-editorWidget-border)',
+        borderRadius: '4px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '8px',
+      }}
+    >
+      <span>Agent changed to <strong>{agentChangedName}</strong>. Data shown may be outdated.</span>
+      <button
+        className="marketplace-filters__tab"
+        onClick={handleRefreshAfterAgentChange}
+        style={{ whiteSpace: 'nowrap' }}
+      >
+        Refresh
+      </button>
+    </div>
+  ) : null;
+
   // --- Loading state ---
   if (loading) {
     return (
       <div className="config-panel">
+        {agentBanner}
         <h1 className="config-panel__title">Configure Agent</h1>
         <div className="config-panel__loading">
           <p>Loading...</p>
@@ -93,6 +141,7 @@ export function App() {
   if (error) {
     return (
       <div className="config-panel">
+        {agentBanner}
         <h1 className="config-panel__title">Configure Agent</h1>
         <div className="config-panel__error">
           <p>{error}</p>
@@ -163,6 +212,7 @@ export function App() {
 
   return (
     <div className="config-panel">
+      {agentBanner}
       <h1 className="config-panel__title">Configure Agent</h1>
       <vscode-tabs
         ref={tabsRef}
