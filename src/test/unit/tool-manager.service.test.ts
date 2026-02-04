@@ -14,26 +14,6 @@ import {
 } from '../../services/tool-manager.utils.js';
 
 // ---------------------------------------------------------------------------
-// Mock writer modules
-// ---------------------------------------------------------------------------
-
-vi.mock('../../adapters/claude-code/writers/mcp.writer.js', () => ({
-  toggleMcpServer: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('../../adapters/claude-code/writers/settings.writer.js', () => ({
-  toggleHook: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('../../adapters/claude-code/writers/skill.writer.js', () => ({
-  renameSkill: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('../../adapters/claude-code/writers/command.writer.js', () => ({
-  renameCommand: vi.fn().mockResolvedValue(undefined),
-}));
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -103,9 +83,10 @@ function createMockAdapter(): IPlatformAdapter {
     readTools: vi.fn().mockResolvedValue([]),
     writeTool: vi.fn().mockResolvedValue(undefined),
     removeTool: vi.fn().mockResolvedValue(undefined),
+    toggleTool: vi.fn().mockResolvedValue(undefined),
     getWatchPaths: vi.fn().mockReturnValue([]),
     detect: vi.fn().mockResolvedValue(true),
-  };
+  } as unknown as IPlatformAdapter;
 }
 
 function createMockConfigService(): ConfigService {
@@ -316,77 +297,44 @@ describe('ToolManagerService', () => {
       expect(result).toEqual({ success: false, error: 'Cannot modify managed tools' });
     });
 
-    it('calls toggleMcpServer writer for MCP server', async () => {
-      const { toggleMcpServer } = await import(
-        '../../adapters/claude-code/writers/mcp.writer.js'
-      );
+    it('delegates to adapter.toggleTool for MCP server', async () => {
       const tool = makeMcpTool();
 
       const result = await service.toggleTool(tool);
 
       expect(result).toEqual({ success: true });
-      expect(toggleMcpServer).toHaveBeenCalledWith(
-        mockConfigService,
-        '/home/user/.claude.json',
-        'claude-json',
-        'my-server',
-        true, // isToggleDisable => currently enabled => should disable
-      );
+      expect(mockAdapter.toggleTool).toHaveBeenCalledWith(tool);
     });
 
-    it('calls toggleHook writer for hook', async () => {
-      const { toggleHook } = await import(
-        '../../adapters/claude-code/writers/settings.writer.js'
-      );
+    it('delegates to adapter.toggleTool for hook', async () => {
       const tool = makeHookTool();
 
       const result = await service.toggleTool(tool);
 
       expect(result).toEqual({ success: true });
-      expect(toggleHook).toHaveBeenCalledWith(
-        mockConfigService,
-        '/home/user/.claude/settings.json',
-        'PreToolUse',
-        0, // matcher index from "hook:user:PreToolUse:0"
-        true, // isToggleDisable => currently enabled => should disable
-      );
+      expect(mockAdapter.toggleTool).toHaveBeenCalledWith(tool);
     });
 
-    it('calls renameSkill for skill toggle', async () => {
-      const { renameSkill } = await import(
-        '../../adapters/claude-code/writers/skill.writer.js'
-      );
+    it('delegates to adapter.toggleTool for skill', async () => {
       const tool = makeTool();
 
       const result = await service.toggleTool(tool);
 
       expect(result).toEqual({ success: true });
-      expect(renameSkill).toHaveBeenCalledWith(
-        '/home/user/.claude/skills/test-tool',
-        '/home/user/.claude/skills/test-tool.disabled',
-      );
+      expect(mockAdapter.toggleTool).toHaveBeenCalledWith(tool);
     });
 
-    it('calls renameCommand for command toggle', async () => {
-      const { renameCommand } = await import(
-        '../../adapters/claude-code/writers/command.writer.js'
-      );
+    it('delegates to adapter.toggleTool for command', async () => {
       const tool = makeCommandTool();
 
       const result = await service.toggleTool(tool);
 
       expect(result).toEqual({ success: true });
-      expect(renameCommand).toHaveBeenCalledWith(
-        '/workspace/.claude/commands/review.md',
-        '/workspace/.claude/commands/review.md.disabled',
-      );
+      expect(mockAdapter.toggleTool).toHaveBeenCalledWith(tool);
     });
 
-    it('catches writer error and returns failure result', async () => {
-      const { toggleMcpServer } = await import(
-        '../../adapters/claude-code/writers/mcp.writer.js'
-      );
-      (toggleMcpServer as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+    it('catches adapter error and returns failure result', async () => {
+      (mockAdapter.toggleTool as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
         new Error('File write failed'),
       );
 
