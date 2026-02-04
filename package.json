@@ -137,6 +137,15 @@
       {
         "command": "ack.associateProfile",
         "title": "ACK: Associate Profile with Workspace"
+      },
+      {
+        "command": "ack.initCodexProject",
+        "title": "ACK: Initialize Codex for This Project",
+        "enablement": "workspaceFolderCount > 0"
+      },
+      {
+        "command": "ack.redetectAgents",
+        "title": "ACK: Re-detect Agents"
       }
     ],
     "submenus": [

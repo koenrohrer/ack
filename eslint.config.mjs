@@ -18,11 +18,12 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
-  // Adapter boundary guard: prevent direct claude-code imports outside the adapter directory
+  // Adapter boundary guard: prevent direct adapter imports outside adapter directories
   {
     files: ['src/**/*.ts'],
     ignores: [
       'src/adapters/claude-code/**',
+      'src/adapters/codex/**',
       'src/extension.ts',
       'src/test/**',
       'src/views/marketplace/webview/**',
@@ -30,10 +31,16 @@ export default tseslint.config(
     ],
     rules: {
       'no-restricted-imports': ['error', {
-        patterns: [{
-          group: ['**/adapters/claude-code/*', '**/adapters/claude-code/**'],
-          message: 'Do not import claude-code modules directly. Use IPlatformAdapter methods via AdapterRegistry.',
-        }],
+        patterns: [
+          {
+            group: ['**/adapters/claude-code/*', '**/adapters/claude-code/**'],
+            message: 'Do not import claude-code modules directly. Use IPlatformAdapter methods via AdapterRegistry.',
+          },
+          {
+            group: ['**/adapters/codex/*', '**/adapters/codex/**'],
+            message: 'Do not import codex modules directly. Use IPlatformAdapter methods via AdapterRegistry.',
+          },
+        ],
       }],
     },
   },

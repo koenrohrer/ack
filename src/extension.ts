@@ -180,6 +180,82 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(openConfigPanel);
 
+  // 15c. Initialize Codex project command
+  const initCodexCmd = vscode.commands.registerCommand(
+    'ack.initCodexProject',
+    async () => {
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage('No workspace folder open');
+        return;
+      }
+
+      const codexDir = CodexPaths.projectCodexDir(workspaceRoot);
+      const configPath = CodexPaths.projectConfigToml(workspaceRoot);
+      const promptsDir = CodexPaths.projectPromptsDir(workspaceRoot);
+      const skillsDir = CodexPaths.projectSkillsDir(workspaceRoot);
+
+      const { mkdir } = await import('fs/promises');
+      await mkdir(promptsDir, { recursive: true });
+      await mkdir(skillsDir, { recursive: true });
+
+      // Create config.toml only if it doesn't exist
+      const configExists = await fileIO.fileExists(configPath);
+      if (!configExists) {
+        await fileIO.writeTextFile(configPath, '# Codex project configuration\n');
+      }
+
+      outputChannel.appendLine(`Initialized Codex project at ${codexDir}`);
+      vscode.window.showInformationMessage(`Initialized Codex project: ${codexDir}`);
+    },
+  );
+  context.subscriptions.push(initCodexCmd);
+
+  // 15d. Re-detect agents command
+  const redetectCmd = vscode.commands.registerCommand(
+    'ack.redetectAgents',
+    async () => {
+      outputChannel.appendLine('Re-detecting agents...');
+
+      // Log individual detection results
+      for (const a of registry.getAllAdapters()) {
+        const found = await a.detect();
+        outputChannel.appendLine(`  ${a.displayName}: ${found ? 'detected' : 'not detected'}`);
+      }
+
+      const adapter = await registry.detectAndActivate();
+      if (adapter) {
+        outputChannel.appendLine(`Active agent: ${adapter.displayName}`);
+        fileWatcher.setupWatchers(adapter);
+        treeProvider.refresh();
+        vscode.window.showInformationMessage(`Active agent: ${adapter.displayName}`);
+      } else {
+        const detected: string[] = [];
+        for (const a of registry.getAllAdapters()) {
+          if (await a.detect()) {
+            detected.push(a.displayName);
+          }
+        }
+        if (detected.length > 1) {
+          outputChannel.appendLine('Multiple agents detected -- awaiting agent switcher (Phase 14)');
+          vscode.window.showInformationMessage(
+            `Multiple agents detected: ${detected.join(', ')}. Agent switcher coming in Phase 14.`,
+          );
+        } else {
+          outputChannel.appendLine('No agents detected');
+          vscode.window.showWarningMessage('No supported agent platforms detected');
+        }
+      }
+      outputChannel.show();
+
+      // Reset codex config dismissal so re-detection re-checks
+      await context.globalState.update('ack.codexConfigDismissed', false);
+
+      // Re-run Codex notifications
+      await handleCodexNotifications(context, codexAdapter, fileIO, outputChannel);
+    },
+  );
+  context.subscriptions.push(redetectCmd);
+
   // 16. File watcher for auto-refresh on config changes
   const fileWatcher = new FileWatcherManager(
     () => treeProvider.refresh(),
