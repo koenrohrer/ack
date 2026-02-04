@@ -146,6 +146,11 @@
       {
         "command": "ack.redetectAgents",
         "title": "ACK: Re-detect Agents"
+      },
+      {
+        "command": "ack.switchAgent",
+        "title": "ACK: Switch Agent",
+        "icon": "$(arrow-swap)"
       }
     ],
     "submenus": [
@@ -163,6 +168,11 @@
         },
         {
           "command": "ack.openMarketplace",
+          "when": "view == ack.toolTree",
+          "group": "navigation"
+        },
+        {
+          "command": "ack.switchAgent",
           "when": "view == ack.toolTree",
           "group": "navigation"
         }

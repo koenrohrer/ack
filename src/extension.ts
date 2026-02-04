@@ -22,6 +22,9 @@ import { RegistryService } from './services/registry.service.js';
 import { InstallService } from './services/install.service.js';
 import { WorkspaceProfileService } from './services/workspace-profile.service.js';
 import { RepoScannerService } from './services/repo-scanner.service.js';
+import { AgentSwitcherService } from './services/agent-switcher.service.js';
+import { showAgentQuickPick } from './views/agent-switcher/agent-switcher.quickpick.js';
+import { createAgentStatusBar, updateAgentStatusBar } from './views/agent-switcher/agent-switcher.statusbar.js';
 
 /**
  * Service container for cross-module access to initialized services.
@@ -36,6 +39,7 @@ let services:
       toolManager: ToolManagerService;
       registryService: RegistryService;
       workspaceProfileService: WorkspaceProfileService;
+      agentSwitcherService: AgentSwitcherService;
       outputChannel: vscode.OutputChannel;
     }
   | undefined;
@@ -53,6 +57,7 @@ export function getServices(): {
   toolManager: ToolManagerService;
   registryService: RegistryService;
   workspaceProfileService: WorkspaceProfileService;
+  agentSwitcherService: AgentSwitcherService;
   outputChannel: vscode.OutputChannel;
 } {
   if (!services) {
@@ -112,8 +117,16 @@ export function activate(context: vscode.ExtensionContext): void {
   // 9d. Workspace-profile association service
   const workspaceProfileService = new WorkspaceProfileService(fileIO, context.globalState);
 
+  // 9e. Agent switcher service (persistence, registry updates, events)
+  const agentSwitcher = new AgentSwitcherService(registry, context.globalState);
+  context.subscriptions.push(agentSwitcher);
+
+  // 9f. Agent status bar item
+  const agentStatusBar = createAgentStatusBar('ack.switchAgent');
+  context.subscriptions.push(agentStatusBar);
+
   // 10. Store services for cross-module access
-  services = { configService, registry, toolManager, registryService, workspaceProfileService, outputChannel };
+  services = { configService, registry, toolManager, registryService, workspaceProfileService, agentSwitcherService: agentSwitcher, outputChannel };
 
   // 11. Tree view provider
   const treeProvider = new ToolTreeProvider(configService, registry, context.extensionUri);
@@ -210,40 +223,78 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(initCodexCmd);
 
-  // 15d. Re-detect agents command
+  // 15d. Switch agent command (status bar click or command palette)
+  const switchAgentCmd = vscode.commands.registerCommand(
+    'ack.switchAgent',
+    async () => {
+      const selectedId = await showAgentQuickPick(registry, agentSwitcher.getPersistedAgentId());
+      if (selectedId && selectedId !== agentSwitcher.getPersistedAgentId()) {
+        await agentSwitcher.switchAgent(selectedId);
+      }
+    },
+  );
+  context.subscriptions.push(switchAgentCmd);
+
+  // 15e. React to agent switches (status bar, file watchers, tree refresh)
+  context.subscriptions.push(
+    agentSwitcher.onDidSwitchAgent((adapter) => {
+      updateAgentStatusBar(agentStatusBar, adapter);
+      if (adapter) {
+        fileWatcher.setupWatchers(adapter);
+        treeProvider.refresh();
+      }
+    }),
+  );
+
+  // 15f. Re-detect agents command
   const redetectCmd = vscode.commands.registerCommand(
     'ack.redetectAgents',
     async () => {
       outputChannel.appendLine('Re-detecting agents...');
 
-      // Log individual detection results
+      // Log individual detection results and collect detected adapters
+      const detected: import('./types/adapter.js').IPlatformAdapter[] = [];
       for (const a of registry.getAllAdapters()) {
         const found = await a.detect();
         outputChannel.appendLine(`  ${a.displayName}: ${found ? 'detected' : 'not detected'}`);
+        if (found) {
+          detected.push(a);
+        }
       }
 
-      const adapter = await registry.detectAndActivate();
-      if (adapter) {
-        outputChannel.appendLine(`Active agent: ${adapter.displayName}`);
-        fileWatcher.setupWatchers(adapter);
-        treeProvider.refresh();
-        vscode.window.showInformationMessage(`Active agent: ${adapter.displayName}`);
-      } else {
-        const detected: string[] = [];
-        for (const a of registry.getAllAdapters()) {
-          if (await a.detect()) {
-            detected.push(a.displayName);
+      if (detected.length === 1) {
+        await agentSwitcher.switchAgent(detected[0].id);
+        outputChannel.appendLine(`Active agent: ${detected[0].displayName}`);
+        vscode.window.showInformationMessage(`Active agent: ${detected[0].displayName}`);
+      } else if (detected.length > 1) {
+        const currentId = agentSwitcher.getPersistedAgentId();
+        const currentStillDetected = currentId && detected.some((a) => a.id === currentId);
+
+        if (currentStillDetected) {
+          // Keep current selection
+          outputChannel.appendLine(`Multiple agents detected, keeping current: ${currentId}`);
+        } else {
+          // No current selection or current not detected -- prompt to switch
+          outputChannel.appendLine(`Multiple agents detected: ${detected.map((a) => a.displayName).join(', ')}`);
+        }
+
+        // Check for newly detected agents and notify
+        for (const a of detected) {
+          if (a.id !== currentId) {
+            const action = await vscode.window.showInformationMessage(
+              `${a.displayName} detected`,
+              `Switch to ${a.displayName}`,
+            );
+            if (action) {
+              await agentSwitcher.switchAgent(a.id);
+            }
           }
         }
-        if (detected.length > 1) {
-          outputChannel.appendLine('Multiple agents detected -- awaiting agent switcher (Phase 14)');
-          vscode.window.showInformationMessage(
-            `Multiple agents detected: ${detected.join(', ')}. Agent switcher coming in Phase 14.`,
-          );
-        } else {
-          outputChannel.appendLine('No agents detected');
-          vscode.window.showWarningMessage('No supported agent platforms detected');
-        }
+      } else {
+        outputChannel.appendLine('No agents detected');
+        vscode.window.showWarningMessage(
+          'No supported agent platforms detected. Install Claude Code or Codex to get started.',
+        );
       }
       outputChannel.show();
 
@@ -270,43 +321,61 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(fileWatcher);
 
-  // 16b. Auto-detect platform, then setup watchers and initial tree load
+  // 16b. Startup detection and agent reconciliation
   (async () => {
-    // Log individual detection results for all registered adapters
+    // Run detection on all adapters
+    const detected: import('./types/adapter.js').IPlatformAdapter[] = [];
     for (const a of registry.getAllAdapters()) {
       const found = await a.detect();
       outputChannel.appendLine(`${a.displayName}: ${found ? 'detected' : 'not detected'}`);
+      if (found) {
+        detected.push(a);
+      }
     }
 
-    const adapter = await registry.detectAndActivate();
-    if (adapter) {
-      outputChannel.appendLine(`Active agent: ${adapter.displayName}`);
-      fileWatcher.setupWatchers(adapter);
-      treeProvider.refresh();
+    // Reconcile: persisted agent > single auto-select > multiple/zero
+    const persistedId = agentSwitcher.getPersistedAgentId();
+    let activated = false;
 
-      // Auto-activate workspace profile (must run AFTER platform detection completes)
-      if (workspaceRoot) {
-        await handleWorkspaceAutoActivation(
-          workspaceRoot,
-          profileService,
-          workspaceProfileService,
-          treeProvider,
-          outputChannel,
-        );
-      }
-    } else {
-      // Check if multiple were detected
-      const detected: string[] = [];
-      for (const a of registry.getAllAdapters()) {
-        if (await a.detect()) {
-          detected.push(a.displayName);
-        }
-      }
-      if (detected.length > 1) {
-        outputChannel.appendLine('Multiple agents detected -- awaiting user selection (Phase 14)');
+    if (persistedId) {
+      const persisted = detected.find((a) => a.id === persistedId);
+      if (persisted) {
+        await agentSwitcher.switchAgent(persistedId);
+        outputChannel.appendLine(`Active agent (restored): ${persisted.displayName}`);
+        activated = true;
       } else {
-        outputChannel.appendLine('No supported agent platform detected');
+        outputChannel.appendLine(`Previously active agent "${persistedId}" not detected, falling through`);
       }
+    }
+
+    if (!activated && detected.length === 1) {
+      await agentSwitcher.switchAgent(detected[0].id);
+      outputChannel.appendLine(`Active agent: ${detected[0].displayName}`);
+      activated = true;
+    }
+
+    if (!activated && detected.length > 1) {
+      outputChannel.appendLine(`Multiple agents detected: ${detected.map((a) => a.displayName).join(', ')}`);
+      vscode.window.showInformationMessage(
+        'Multiple agents detected. Use the status bar to select one.',
+      );
+    }
+
+    if (!activated && detected.length === 0) {
+      const msg = 'No supported agent platforms detected. Install Claude Code or Codex to get started.';
+      outputChannel.appendLine(msg);
+      vscode.window.showInformationMessage(msg);
+    }
+
+    // Auto-activate workspace profile after successful agent selection
+    if (activated && workspaceRoot) {
+      await handleWorkspaceAutoActivation(
+        workspaceRoot,
+        profileService,
+        workspaceProfileService,
+        treeProvider,
+        outputChannel,
+      );
     }
 
     // Run Codex-specific notifications regardless of which adapter won
