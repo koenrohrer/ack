@@ -1,5 +1,3 @@
-import * as path from 'path';
-import * as fs from 'fs/promises';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import type { RegistryService } from './registry.service.js';
@@ -14,7 +12,6 @@ import type {
   RuntimeCheckResult,
 } from './install.types.js';
 import { ToolType, ConfigScope } from '../types/enums.js';
-import { ClaudeCodePaths } from '../adapters/claude-code/paths.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -188,9 +185,20 @@ export class InstallService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Install an MCP server by building config and delegating to mcp.writer.
+   * Get the active adapter from the registry.
+   * Throws if no adapter is active.
+   */
+  private getAdapter() {
+    const adapter = this.registry.getActiveAdapter();
+    if (!adapter) {
+      throw new Error('No active platform adapter');
+    }
+    return adapter;
+  }
+
+  /**
+   * Install an MCP server by building config and delegating to the adapter.
    *
-   * Uses dynamic import for the writer module (follows 03-02 pattern).
    * Merges user-provided config values with manifest defaults.
    * Preserves existing env values on update.
    */
@@ -199,19 +207,7 @@ export class InstallService {
   ): Promise<InstallResult> {
     const { manifest, scope, configValues = {}, existingEnvValues = {} } = request;
 
-    const { addMcpServer } = await import(
-      '../adapters/claude-code/writers/mcp.writer.js'
-    );
-
-    // Determine file path from scope
-    const filePath =
-      scope === ConfigScope.User
-        ? ClaudeCodePaths.userClaudeJson
-        : ClaudeCodePaths.projectMcpJson(this.requireWorkspaceRoot(scope));
-
-    const schemaKey = filePath.endsWith('.claude.json')
-      ? 'claude-json'
-      : 'mcp-file';
+    const adapter = this.getAdapter();
 
     // Build env object: manifest defaults < existing values < user-provided values
     const env: Record<string, string> = {};
@@ -229,13 +225,7 @@ export class InstallService {
       env,
     };
 
-    await addMcpServer(
-      this.configService,
-      filePath,
-      schemaKey,
-      manifest.name,
-      serverConfig,
-    );
+    await adapter.installMcpServer(scope, manifest.name, serverConfig);
 
     return {
       success: true,
@@ -245,10 +235,11 @@ export class InstallService {
   }
 
   /**
-   * Install a skill by fetching files and writing to the skills directory.
+   * Install a skill by fetching files and delegating to the adapter.
    *
    * Downloads each file listed in manifest.files (default ['SKILL.md'])
-   * from the registry and writes to the correct scope directory.
+   * from the registry, then passes file contents to the adapter which
+   * handles directory creation and file writing internally.
    */
   private async installSkill(
     request: InstallRequest,
@@ -256,27 +247,17 @@ export class InstallService {
     const { manifest, scope, source, contentPath } = request;
 
     const files = manifest.files ?? ['SKILL.md'];
+    const adapter = this.getAdapter();
 
-    // Determine target directory
-    const baseDir =
-      scope === ConfigScope.User
-        ? ClaudeCodePaths.userSkillsDir
-        : ClaudeCodePaths.projectSkillsDir(this.requireWorkspaceRoot(scope));
-
-    const targetDir = path.join(baseDir, manifest.name);
-    this.assertContained(targetDir, baseDir);
-
-    // Create target directory
-    await fs.mkdir(targetDir, { recursive: true });
-
-    // Fetch and write each file
+    // Fetch all file contents from the registry
+    const fileContents: Array<{ name: string; content: string }> = [];
     for (const file of files) {
       const filePath = `${contentPath}/${file}`;
       const content = await this.registryService.fetchToolFile(source, filePath);
-      const targetFile = path.join(targetDir, file);
-      this.assertContained(targetFile, targetDir);
-      await this.fileIOService.writeTextFile(targetFile, content);
+      fileContents.push({ name: file, content });
     }
+
+    await adapter.installSkill(scope, manifest.name, fileContents);
 
     return {
       success: true,
@@ -286,11 +267,10 @@ export class InstallService {
   }
 
   /**
-   * Install a command by fetching files and writing to the commands directory.
+   * Install a command by fetching files and delegating to the adapter.
    *
    * Same pattern as installSkill but targets the commands directory.
-   * For single-file commands, writes directly to commands dir.
-   * For directory commands, creates a subdirectory.
+   * The adapter handles single-file vs multi-file layout internally.
    */
   private async installCommand(
     request: InstallRequest,
@@ -298,35 +278,17 @@ export class InstallService {
     const { manifest, scope, source, contentPath } = request;
 
     const files = manifest.files ?? [`${manifest.name}.md`];
+    const adapter = this.getAdapter();
 
-    // Determine target directory
-    const baseDir =
-      scope === ConfigScope.User
-        ? ClaudeCodePaths.userCommandsDir
-        : ClaudeCodePaths.projectCommandsDir(this.requireWorkspaceRoot(scope));
-
-    if (files.length === 1) {
-      // Single-file command: write directly to commands dir
-      const filePath = `${contentPath}/${files[0]}`;
+    // Fetch all file contents from the registry
+    const fileContents: Array<{ name: string; content: string }> = [];
+    for (const file of files) {
+      const filePath = `${contentPath}/${file}`;
       const content = await this.registryService.fetchToolFile(source, filePath);
-      const targetFile = path.join(baseDir, files[0]);
-      this.assertContained(targetFile, baseDir);
-      await fs.mkdir(baseDir, { recursive: true });
-      await this.fileIOService.writeTextFile(targetFile, content);
-    } else {
-      // Multi-file command: create subdirectory
-      const targetDir = path.join(baseDir, manifest.name);
-      this.assertContained(targetDir, baseDir);
-      await fs.mkdir(targetDir, { recursive: true });
-
-      for (const file of files) {
-        const filePath = `${contentPath}/${file}`;
-        const content = await this.registryService.fetchToolFile(source, filePath);
-        const targetFile = path.join(targetDir, file);
-        this.assertContained(targetFile, targetDir);
-        await this.fileIOService.writeTextFile(targetFile, content);
-      }
+      fileContents.push({ name: file, content });
     }
+
+    await adapter.installCommand(scope, manifest.name, fileContents);
 
     return {
       success: true,
@@ -336,9 +298,8 @@ export class InstallService {
   }
 
   /**
-   * Install a hook by building a matcher group and delegating to settings.writer.
+   * Install a hook by building a matcher group and delegating to the adapter.
    *
-   * Uses dynamic import for the writer module (follows 03-02 pattern).
    * Builds the matcher group from manifest config (event, matcher, hooks).
    */
   private async installHook(
@@ -346,15 +307,7 @@ export class InstallService {
   ): Promise<InstallResult> {
     const { manifest, scope } = request;
 
-    const { addHook } = await import(
-      '../adapters/claude-code/writers/settings.writer.js'
-    );
-
-    // Determine file path from scope
-    const filePath =
-      scope === ConfigScope.User
-        ? ClaudeCodePaths.userSettingsJson
-        : ClaudeCodePaths.projectSettingsJson(this.requireWorkspaceRoot(scope));
+    const adapter = this.getAdapter();
 
     const eventName = manifest.config.event;
     if (!eventName) {
@@ -366,7 +319,7 @@ export class InstallService {
       hooks: manifest.config.hooks ?? [],
     };
 
-    await addHook(this.configService, filePath, eventName, matcherGroup);
+    await adapter.installHook(scope, eventName, matcherGroup);
 
     return {
       success: true,
@@ -375,35 +328,4 @@ export class InstallService {
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Require a workspace root for project-scope operations.
-   * Throws if no workspace root is configured.
-   */
-  private requireWorkspaceRoot(scope: ConfigScope): string {
-    if (scope === ConfigScope.Project && !this.workspaceRoot) {
-      throw new Error('Cannot install at project scope: no workspace is open');
-    }
-    return this.workspaceRoot ?? '';
-  }
-
-  /**
-   * Verify that a resolved path stays within the expected base directory.
-   * Throws if the path escapes via traversal (defense-in-depth).
-   */
-  private assertContained(resolvedPath: string, baseDir: string): void {
-    const normalizedBase = path.resolve(baseDir) + path.sep;
-    const normalizedTarget = path.resolve(resolvedPath);
-    if (
-      !normalizedTarget.startsWith(normalizedBase) &&
-      normalizedTarget !== path.resolve(baseDir)
-    ) {
-      throw new Error(
-        `Path traversal detected: target escapes base directory`,
-      );
-    }
-  }
 }

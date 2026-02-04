@@ -13,26 +13,9 @@ import type {
   InstallRequest,
 } from '../../services/install.types.js';
 
-// ---------------------------------------------------------------------------
-// Mock writer modules (dynamic imports)
-// ---------------------------------------------------------------------------
-
-vi.mock('../../adapters/claude-code/writers/mcp.writer.js', () => ({
-  addMcpServer: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('../../adapters/claude-code/writers/settings.writer.js', () => ({
-  addHook: vi.fn().mockResolvedValue(undefined),
-}));
-
 // Mock child_process.execFile for runtime checks
 vi.mock('child_process', () => ({
   execFile: vi.fn(),
-}));
-
-// Mock fs/promises for directory creation
-vi.mock('fs/promises', () => ({
-  mkdir: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ---------------------------------------------------------------------------
@@ -150,9 +133,19 @@ function createMockAdapter(): IPlatformAdapter {
     readTools: vi.fn().mockResolvedValue([]),
     writeTool: vi.fn().mockResolvedValue(undefined),
     removeTool: vi.fn().mockResolvedValue(undefined),
+    toggleTool: vi.fn().mockResolvedValue(undefined),
+    installMcpServer: vi.fn().mockResolvedValue(undefined),
+    installSkill: vi.fn().mockResolvedValue(undefined),
+    installCommand: vi.fn().mockResolvedValue(undefined),
+    installHook: vi.fn().mockResolvedValue(undefined),
+    getSkillsDir: vi.fn().mockReturnValue('/home/user/.claude/skills'),
+    getCommandsDir: vi.fn().mockReturnValue('/home/user/.claude/commands'),
+    getSettingsPath: vi.fn().mockReturnValue('/home/user/.claude/settings.json'),
+    getMcpFilePath: vi.fn().mockReturnValue('/home/user/.claude.json'),
+    getMcpSchemaKey: vi.fn().mockReturnValue('claude-json'),
     getWatchPaths: vi.fn().mockReturnValue([]),
     detect: vi.fn().mockResolvedValue(true),
-  };
+  } as unknown as IPlatformAdapter;
 }
 
 function makeInstallRequest(
@@ -216,10 +209,8 @@ describe('InstallService', () => {
       expect(result.success).toBe(true);
       expect(result.toolName).toBe('github-mcp-server');
 
-      const { addMcpServer } = await import(
-        '../../adapters/claude-code/writers/mcp.writer.js'
-      );
-      expect(addMcpServer).toHaveBeenCalledOnce();
+      const adapter = registry.getActiveAdapter()!;
+      expect(adapter.installMcpServer).toHaveBeenCalledOnce();
     });
 
     it('routes skill to installSkill', async () => {
@@ -231,7 +222,9 @@ describe('InstallService', () => {
       expect(result.success).toBe(true);
       expect(result.toolName).toBe('memory-skill');
       expect(mockRegistryService.fetchToolFile).toHaveBeenCalled();
-      expect(mockFileIOService.writeTextFile).toHaveBeenCalled();
+
+      const adapter = registry.getActiveAdapter()!;
+      expect(adapter.installSkill).toHaveBeenCalledOnce();
     });
 
     it('routes command to installCommand', async () => {
@@ -254,10 +247,8 @@ describe('InstallService', () => {
       expect(result.success).toBe(true);
       expect(result.toolName).toBe('lint-on-save');
 
-      const { addHook } = await import(
-        '../../adapters/claude-code/writers/settings.writer.js'
-      );
-      expect(addHook).toHaveBeenCalledOnce();
+      const adapter = registry.getActiveAdapter()!;
+      expect(adapter.installHook).toHaveBeenCalledOnce();
     });
 
     it('returns error for unknown tool type', async () => {
@@ -299,13 +290,9 @@ describe('InstallService', () => {
 
       await service.install(request);
 
-      const { addMcpServer } = await import(
-        '../../adapters/claude-code/writers/mcp.writer.js'
-      );
-      expect(addMcpServer).toHaveBeenCalledWith(
-        mockConfigService,
-        expect.stringContaining('.claude.json'),
-        'claude-json',
+      const adapter = registry.getActiveAdapter()!;
+      expect(adapter.installMcpServer).toHaveBeenCalledWith(
+        ConfigScope.User,
         'github-mcp-server',
         {
           command: 'npx',
@@ -315,7 +302,7 @@ describe('InstallService', () => {
       );
     });
 
-    it('uses project scope file path for project installs', async () => {
+    it('uses project scope for project installs', async () => {
       const manifest = makeMcpManifest();
       const request = makeInstallRequest(manifest, {
         scope: ConfigScope.Project,
@@ -324,13 +311,9 @@ describe('InstallService', () => {
 
       await service.install(request);
 
-      const { addMcpServer } = await import(
-        '../../adapters/claude-code/writers/mcp.writer.js'
-      );
-      expect(addMcpServer).toHaveBeenCalledWith(
-        mockConfigService,
-        expect.stringContaining('.mcp.json'),
-        'mcp-file',
+      const adapter = registry.getActiveAdapter()!;
+      expect(adapter.installMcpServer).toHaveBeenCalledWith(
+        ConfigScope.Project,
         'github-mcp-server',
         expect.any(Object),
       );
@@ -355,10 +338,8 @@ describe('InstallService', () => {
 
       await service.install(request);
 
-      const { addMcpServer } = await import(
-        '../../adapters/claude-code/writers/mcp.writer.js'
-      );
-      const calledWith = (addMcpServer as ReturnType<typeof vi.fn>).mock.calls[0][4];
+      const adapter = registry.getActiveAdapter()!;
+      const calledWith = (adapter.installMcpServer as ReturnType<typeof vi.fn>).mock.calls[0][2];
       expect(calledWith.env.API_KEY).toBe('new-key');
       expect(calledWith.env.EXTRA_VAR).toBe('user-custom');
     });
@@ -377,10 +358,8 @@ describe('InstallService', () => {
 
       await service.install(request);
 
-      const { addMcpServer } = await import(
-        '../../adapters/claude-code/writers/mcp.writer.js'
-      );
-      const calledWith = (addMcpServer as ReturnType<typeof vi.fn>).mock.calls[0][4];
+      const adapter = registry.getActiveAdapter()!;
+      const calledWith = (adapter.installMcpServer as ReturnType<typeof vi.fn>).mock.calls[0][2];
       expect(calledWith.env.MY_VAR).toBe('fallback');
     });
   });
@@ -390,7 +369,7 @@ describe('InstallService', () => {
   // -------------------------------------------------------------------------
 
   describe('installSkill', () => {
-    it('fetches files and writes to correct directory', async () => {
+    it('fetches files and delegates to adapter.installSkill', async () => {
       const manifest = makeSkillManifest();
       const request = makeInstallRequest(manifest, {
         contentPath: 'tools/memory-skill',
@@ -403,22 +382,11 @@ describe('InstallService', () => {
         'tools/memory-skill/SKILL.md',
       );
 
-      expect(mockFileIOService.writeTextFile).toHaveBeenCalledWith(
-        expect.stringContaining('memory-skill/SKILL.md'),
-        '# Skill Content',
-      );
-    });
-
-    it('creates target directory before writing', async () => {
-      const fsMkdir = (await import('fs/promises')).mkdir;
-      const manifest = makeSkillManifest();
-      const request = makeInstallRequest(manifest);
-
-      await service.install(request);
-
-      expect(fsMkdir).toHaveBeenCalledWith(
-        expect.stringContaining('memory-skill'),
-        { recursive: true },
+      const adapter = registry.getActiveAdapter()!;
+      expect(adapter.installSkill).toHaveBeenCalledWith(
+        ConfigScope.User,
+        'memory-skill',
+        [{ name: 'SKILL.md', content: '# Skill Content' }],
       );
     });
 
@@ -447,13 +415,15 @@ describe('InstallService', () => {
       await service.install(request);
 
       expect(mockRegistryService.fetchToolFile).toHaveBeenCalledTimes(2);
-      expect(mockRegistryService.fetchToolFile).toHaveBeenCalledWith(
-        TEST_SOURCE,
-        'tools/memory-skill/SKILL.md',
-      );
-      expect(mockRegistryService.fetchToolFile).toHaveBeenCalledWith(
-        TEST_SOURCE,
-        'tools/memory-skill/template.md',
+
+      const adapter = registry.getActiveAdapter()!;
+      expect(adapter.installSkill).toHaveBeenCalledWith(
+        ConfigScope.User,
+        'memory-skill',
+        [
+          { name: 'SKILL.md', content: '# Skill Content' },
+          { name: 'template.md', content: '# Skill Content' },
+        ],
       );
     });
   });
@@ -463,7 +433,7 @@ describe('InstallService', () => {
   // -------------------------------------------------------------------------
 
   describe('installCommand', () => {
-    it('writes single-file command to commands dir', async () => {
+    it('delegates single-file command to adapter.installCommand', async () => {
       const manifest = makeCommandManifest();
       const request = makeInstallRequest(manifest, {
         contentPath: 'tools/review',
@@ -476,13 +446,15 @@ describe('InstallService', () => {
         'tools/review/review.md',
       );
 
-      expect(mockFileIOService.writeTextFile).toHaveBeenCalledWith(
-        expect.stringContaining('commands/review.md'),
-        '# Skill Content',
+      const adapter = registry.getActiveAdapter()!;
+      expect(adapter.installCommand).toHaveBeenCalledWith(
+        ConfigScope.User,
+        'review',
+        [{ name: 'review.md', content: '# Skill Content' }],
       );
     });
 
-    it('writes multi-file command to subdirectory', async () => {
+    it('delegates multi-file command to adapter.installCommand', async () => {
       const manifest = makeCommandManifest({
         files: ['review.md', 'helpers.md'],
       });
@@ -493,10 +465,15 @@ describe('InstallService', () => {
       await service.install(request);
 
       expect(mockRegistryService.fetchToolFile).toHaveBeenCalledTimes(2);
-      // Multi-file should write to commands/review/
-      expect(mockFileIOService.writeTextFile).toHaveBeenCalledWith(
-        expect.stringMatching(/commands\/review\/review\.md$/),
-        '# Skill Content',
+
+      const adapter = registry.getActiveAdapter()!;
+      expect(adapter.installCommand).toHaveBeenCalledWith(
+        ConfigScope.User,
+        'review',
+        [
+          { name: 'review.md', content: '# Skill Content' },
+          { name: 'helpers.md', content: '# Skill Content' },
+        ],
       );
     });
   });
@@ -506,18 +483,15 @@ describe('InstallService', () => {
   // -------------------------------------------------------------------------
 
   describe('installHook', () => {
-    it('builds matcher group and calls addHook', async () => {
+    it('builds matcher group and calls adapter.installHook', async () => {
       const manifest = makeHookManifest();
       const request = makeInstallRequest(manifest);
 
       await service.install(request);
 
-      const { addHook } = await import(
-        '../../adapters/claude-code/writers/settings.writer.js'
-      );
-      expect(addHook).toHaveBeenCalledWith(
-        mockConfigService,
-        expect.stringContaining('settings.json'),
+      const adapter = registry.getActiveAdapter()!;
+      expect(adapter.installHook).toHaveBeenCalledWith(
+        ConfigScope.User,
         'PreToolUse',
         {
           matcher: 'Bash',
@@ -727,11 +701,9 @@ describe('InstallService', () => {
       expect(result.scope).toBe(ConfigScope.User);
     });
 
-    it('wraps writer failure as InstallResult', async () => {
-      const { addMcpServer } = await import(
-        '../../adapters/claude-code/writers/mcp.writer.js'
-      );
-      (addMcpServer as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+    it('wraps adapter failure as InstallResult', async () => {
+      const adapter = registry.getActiveAdapter()!;
+      (adapter.installMcpServer as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
         new Error('Schema validation failed'),
       );
 
@@ -746,22 +718,20 @@ describe('InstallService', () => {
       expect(result.error).toBe('Schema validation failed');
     });
 
-    it('throws when project scope used without workspace root', async () => {
-      // Create service without workspace root
-      const noWorkspaceService = new InstallService(
-        mockRegistryService,
-        mockConfigService,
-        registry,
-        mockFileIOService,
+    it('wraps adapter scope error as InstallResult for project scope', async () => {
+      // Simulate adapter rejecting when workspace root is missing
+      const adapter = registry.getActiveAdapter()!;
+      (adapter.installSkill as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('Claude Code: getSkillsDir (no workspace open) is not supported for scope "project"'),
       );
 
       const manifest = makeSkillManifest();
       const request = makeInstallRequest(manifest, { scope: ConfigScope.Project });
 
-      const result = await noWorkspaceService.install(request);
+      const result = await service.install(request);
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('no workspace is open');
+      expect(result.error).toContain('not supported');
     });
   });
 });
