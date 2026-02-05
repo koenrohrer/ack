@@ -1,3 +1,4 @@
+import * as path from 'path';
 import type { FileIOService } from '../../services/fileio.service.js';
 import type { SchemaService } from '../../services/schema.service.js';
 import type { ConfigService } from '../../services/config.service.js';
@@ -8,6 +9,7 @@ import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { CodexPaths } from './paths.js';
 import { parseCodexConfigMcpServers } from './parsers/config.parser.js';
 import { parseSkillsDir } from '../claude-code/parsers/skill.parser.js';
+import { removeSkill, copySkill, renameSkill } from '../claude-code/writers/skill.writer.js';
 import { AdapterScopeError } from '../../types/adapter-errors.js';
 import {
   addCodexMcpServer,
@@ -30,7 +32,7 @@ import {
  * - Skills live in ~/.codex/skills/ (similar to Claude Code)
  *
  * MCP write operations delegate to config.writer.ts pure functions.
- * Skill write operations are Phase 16 scope (stubs remain).
+ * Skill write operations delegate to skill.writer.ts shared with Claude Code.
  */
 export class CodexAdapter implements IPlatformAdapter {
   readonly id = 'codex';
@@ -116,8 +118,13 @@ export class CodexAdapter implements IPlatformAdapter {
         await addCodexMcpServer(this.configService!, filePath, tool.name, serverConfig);
         break;
       }
-      case ToolType.Skill:
-        throw new Error('Codex writeTool for Skill not yet implemented');
+      case ToolType.Skill: {
+        const sourceDir = tool.source.directoryPath ?? path.dirname(tool.source.filePath);
+        const targetBaseDir = this.getSkillsDir(scope);
+        const targetDir = path.join(targetBaseDir, path.basename(sourceDir));
+        await copySkill(sourceDir, targetDir);
+        break;
+      }
       default:
         throw new Error(`Unsupported tool type for Codex: ${tool.type}`);
     }
@@ -141,7 +148,8 @@ export class CodexAdapter implements IPlatformAdapter {
         await removeCodexMcpServer(this.configService!, tool.source.filePath, tool.name);
         break;
       case ToolType.Skill:
-        throw new Error('Codex removeTool for Skill not yet implemented');
+        await removeSkill(this.backupService!, tool.source.directoryPath!);
+        break;
       default:
         throw new Error(`Unsupported tool type for Codex: ${tool.type}`);
     }
@@ -170,8 +178,15 @@ export class CodexAdapter implements IPlatformAdapter {
         await toggleCodexMcpServer(this.configService!, tool.source.filePath, tool.name, shouldEnable);
         break;
       }
-      case ToolType.Skill:
-        throw new Error('Codex toggleTool for Skill not yet implemented');
+      case ToolType.Skill: {
+        const dirPath = tool.source.directoryPath ?? path.dirname(tool.source.filePath);
+        const isDisabling = tool.status === ToolStatus.Enabled;
+        const targetPath = isDisabling
+          ? `${dirPath}.disabled`
+          : dirPath.replace(/\.disabled$/, '');
+        await renameSkill(dirPath, targetPath);
+        break;
+      }
       default:
         throw new Error(`Unsupported tool type for Codex: ${tool.type}`);
     }
@@ -337,21 +352,27 @@ export class CodexAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IInstallAdapter -- installSkill (stub)
+  // IInstallAdapter -- installSkill
   // ---------------------------------------------------------------------------
 
   /**
    * Install a skill by writing files to the scope's skills directory.
    *
-   * **Not yet implemented.** Skill installation is Phase 16 scope.
-   * Throws immediately to signal the stub.
+   * Creates the skill subdirectory and writes all provided files.
+   * Identical behavior to ClaudeCodeAdapter since skill format is shared.
    */
   async installSkill(
-    _scope: ConfigScope,
-    _skillName: string,
-    _files: Array<{ name: string; content: string }>,
+    scope: ConfigScope,
+    skillName: string,
+    files: Array<{ name: string; content: string }>,
   ): Promise<void> {
-    throw new Error('Codex installSkill not yet implemented');
+    const { mkdir, writeFile } = await import('fs/promises');
+    const baseDir = this.getSkillsDir(scope);
+    const targetDir = path.join(baseDir, skillName);
+    await mkdir(targetDir, { recursive: true });
+    for (const file of files) {
+      await writeFile(path.join(targetDir, file.name), file.content, 'utf-8');
+    }
   }
 
   // ---------------------------------------------------------------------------
