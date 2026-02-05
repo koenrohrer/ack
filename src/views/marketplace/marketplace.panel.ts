@@ -82,7 +82,8 @@ export class MarketplacePanel {
   /**
    * Notify any open marketplace panel that the active agent changed.
    *
-   * Posts an agentChanged message to the webview and updates the panel title.
+   * Posts an agentChanged message to the webview, updates the panel title,
+   * and sends updated agent context (supported tool types and active agent).
    */
   public static notifyAgentChanged(agentName: string): void {
     if (!MarketplacePanel.currentPanel) {
@@ -90,6 +91,7 @@ export class MarketplacePanel {
     }
     MarketplacePanel.currentPanel.postMessage({ type: 'agentChanged', agentName });
     MarketplacePanel.currentPanel.panel.title = `Tool Marketplace - ${agentName}`;
+    MarketplacePanel.currentPanel.sendAgentContext();
   }
 
   /**
@@ -203,6 +205,7 @@ export class MarketplacePanel {
         }
         void this.loadRegistryData(false);
         void this.loadRepoTools();
+        this.sendAgentContext();
         break;
       case 'requestRegistry':
         void this.loadRegistryData(message.forceRefresh ?? false);
@@ -854,6 +857,7 @@ export class MarketplacePanel {
             sourceName: source.name,
             source: 'registry' as const,
             relevanceScore: 100 + Math.log2(entry.stars + 1) * 10 + Math.log2(entry.installs + 1) * 5,
+            agents: entry.agents ?? [],
           };
           tools.push(entryWithSource);
           this.toolEntryMap.set(entry.id, entryWithSource);
@@ -1062,6 +1066,27 @@ export class MarketplacePanel {
         markdown: 'Content could not be loaded.',
       });
     }
+  }
+
+  /**
+   * Send current agent context (supported tool types and active agent) to webview.
+   */
+  private sendAgentContext(): void {
+    const adapter = this.registry.getActiveAdapter();
+    if (!adapter) {
+      return;
+    }
+
+    // Send supported tool types as string array
+    const types = Array.from(adapter.supportedToolTypes).map((t) => t as string);
+    this.postMessage({ type: 'supportedToolTypes', types });
+
+    // Send active agent info
+    this.postMessage({
+      type: 'activeAgent',
+      agentId: adapter.id,
+      displayName: adapter.displayName,
+    });
   }
 
   /**
