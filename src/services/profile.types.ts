@@ -31,6 +31,8 @@ export interface Profile {
   id: string;
   /** User-visible name */
   name: string;
+  /** Agent this profile belongs to (e.g., 'claude-code', 'codex') */
+  agentId?: string;
   /** Tool states in this profile */
   tools: ProfileToolEntry[];
   /** ISO timestamp of creation */
@@ -45,6 +47,8 @@ export interface Profile {
  * Contains all saved profiles and tracks which one is currently active.
  */
 export interface ProfileStore {
+  /** Schema version for migration gating (v1 implicit for stores without version) */
+  version?: number;
   /** All saved profiles */
   profiles: Profile[];
   /** ID of the active profile, or null for "no profile" (current environment) */
@@ -63,6 +67,7 @@ export const ProfileToolEntrySchema = z.object({
 export const ProfileSchema = z.object({
   id: z.string(),
   name: z.string(),
+  agentId: z.string().optional(),
   tools: z.array(ProfileToolEntrySchema),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -76,6 +81,7 @@ export const ProfileSchema = z.object({
  * from 01-02 decision).
  */
 export const ProfileStoreSchema = z.object({
+  version: z.number().optional(),
   profiles: z.array(ProfileSchema),
   activeProfileId: z.string().nullable(),
 }).passthrough();
@@ -239,8 +245,17 @@ export const ProfileExportBundleSchema = z.object({
 /** globalState storage key for profile data */
 export const PROFILE_STORE_KEY = 'ack.profiles';
 
+/**
+ * Current profile store schema version.
+ *
+ * v1: implicit, stores without version field (pre-agent-scoping)
+ * v2: profiles have agentId field, store has version field
+ */
+export const PROFILE_STORE_VERSION = 2;
+
 /** Default empty store used when no profile data exists yet */
 export const DEFAULT_PROFILE_STORE: ProfileStore = {
+  version: PROFILE_STORE_VERSION,
   profiles: [],
   activeProfileId: null,
 };
