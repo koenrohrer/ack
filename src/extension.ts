@@ -244,9 +244,9 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(switchAgentCmd);
 
-  // 15e. React to agent switches (status bar, file watchers, tree, panels)
+  // 15e. React to agent switches (status bar, file watchers, tree, panels, workspace profiles)
   context.subscriptions.push(
-    agentSwitcher.onDidSwitchAgent((adapter) => {
+    agentSwitcher.onDidSwitchAgent(async (adapter) => {
       updateAgentStatusBar(agentStatusBar, adapter);
       treeProvider.setAgentName(adapter?.displayName);
       MarketplacePanel.notifyAgentChanged(adapter?.displayName ?? 'No Agent');
@@ -254,6 +254,18 @@ export function activate(context: vscode.ExtensionContext): void {
       if (adapter) {
         fileWatcher.setupWatchers(adapter);
         treeProvider.refresh();
+
+        // Re-check workspace profile association for the new agent
+        if (workspaceRoot) {
+          await handleWorkspaceAutoActivation(
+            workspaceRoot,
+            profileService,
+            workspaceProfileService,
+            treeProvider,
+            outputChannel,
+            registry,
+          );
+        }
       }
     }),
   );
@@ -387,6 +399,7 @@ export function activate(context: vscode.ExtensionContext): void {
         workspaceProfileService,
         treeProvider,
         outputChannel,
+        registry,
       );
     }
 
@@ -482,10 +495,13 @@ async function handleCodexNotifications(
 /**
  * Auto-activate the workspace's associated profile after platform detection.
  *
- * Checks the global setting, reads `.vscode/agent-profile.json`, validates
- * that no manual override exists, then switches to the associated profile.
- * Partial activation occurs when some tools are missing (user is prompted
- * to install them from the marketplace).
+ * Checks the global setting, reads `.vscode/agent-profile.json` filtered by
+ * the active agent, validates that no manual override exists, then switches
+ * to the associated profile. Partial activation occurs when some tools are
+ * missing (user is prompted to install them from the marketplace).
+ *
+ * Agent-scoped: Only activates if the workspace association matches the
+ * active agent. Legacy associations (no agentId) are treated as Claude Code.
  */
 async function handleWorkspaceAutoActivation(
   workspaceRoot: string,
@@ -493,6 +509,7 @@ async function handleWorkspaceAutoActivation(
   workspaceProfileService: WorkspaceProfileService,
   treeProvider: ToolTreeProvider,
   outputChannel: vscode.OutputChannel,
+  registry: AdapterRegistry,
 ): Promise<void> {
   // 1. Check global setting -- is auto-activation enabled?
   const autoActivate = vscode.workspace
@@ -502,13 +519,23 @@ async function handleWorkspaceAutoActivation(
     return;
   }
 
-  // 2. Read .vscode/agent-profile.json
-  const association = await workspaceProfileService.getAssociation(workspaceRoot);
-  if (!association) {
+  // 2. Get active agent ID
+  const activeAgentId = registry.getActiveAdapter()?.id;
+  if (!activeAgentId) {
+    outputChannel.appendLine('Workspace profile auto-activation skipped: no active agent');
     return;
   }
 
-  // 3. Check for manual override (validate staleness with current profile names)
+  // 3. Read .vscode/agent-profile.json filtered by active agent
+  const association = await workspaceProfileService.getAssociationForAgent(workspaceRoot, activeAgentId);
+  if (!association) {
+    outputChannel.appendLine(
+      `Workspace profile auto-activation skipped: no association for agent ${activeAgentId}`,
+    );
+    return;
+  }
+
+  // 4. Check for manual override (validate staleness with current profile names)
   const profileNames = profileService.getProfiles().map((p) => p.name);
   if (workspaceProfileService.isOverridden(workspaceRoot, profileNames)) {
     outputChannel.appendLine(
@@ -517,32 +544,33 @@ async function handleWorkspaceAutoActivation(
     return;
   }
 
-  // 4. Find profile by name
+  // 5. Find profile by name (getProfiles() already filters by active agent)
   const profile = profileService.getProfiles().find((p) => p.name === association.profileName);
   if (!profile) {
     vscode.window.showWarningMessage(
-      `Associated profile "${association.profileName}" not found`,
+      `Associated profile "${association.profileName}" not found for ${activeAgentId}`,
     );
     return;
   }
 
-  // 5. Skip if this profile is already active (prevents re-disabling tools on restart)
+  // 6. Skip if this profile is already active (prevents re-disabling tools on restart)
   const currentActiveId = profileService.getActiveProfileId();
   if (currentActiveId === profile.id) {
     treeProvider.setActiveProfile(profile.name);
     return;
   }
 
-  // 6. Switch profile
+  // 7. Switch profile
+  outputChannel.appendLine(`Auto-activating workspace profile "${profile.name}" for ${activeAgentId}`);
   const result = await profileService.switchProfile(profile.id);
 
-  // 7. Update sidebar header
+  // 8. Update sidebar header
   treeProvider.setActiveProfile(profile.name);
 
-  // 8. Show info notification
+  // 9. Show info notification
   vscode.window.showInformationMessage(`Switched to profile: ${profile.name}`);
 
-  // 9. If missing tools, prompt to install
+  // 10. If missing tools, prompt to install
   if (result.skipped > 0) {
     const action = await vscode.window.showWarningMessage(
       `Profile "${profile.name}" has ${result.skipped} missing tool(s).`,
