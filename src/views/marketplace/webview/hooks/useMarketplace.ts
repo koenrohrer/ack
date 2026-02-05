@@ -52,6 +52,11 @@ export function useMarketplace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // --- Agent context ---
+  const [supportedToolTypes, setSupportedToolTypes] = useState<Set<string>>(new Set());
+  const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
+  const [activeAgentName, setActiveAgentName] = useState<string>('');
+
   // --- Repo state ---
   const [repoTools, setRepoTools] = useState<RegistryEntryWithSource[]>([]);
   const [savedRepos, setSavedRepos] = useState<SavedRepoInfo[]>([]);
@@ -197,6 +202,13 @@ export function useMarketplace() {
           setActiveType((message as { type: 'setTypeFilter'; filter: string }).filter as ToolTypeFilter);
           setCurrentPage(1);
           break;
+        case 'supportedToolTypes':
+          setSupportedToolTypes(new Set((message as { type: 'supportedToolTypes'; types: string[] }).types));
+          break;
+        case 'activeAgent':
+          setActiveAgentId((message as { type: 'activeAgent'; agentId: string | null; displayName: string }).agentId);
+          setActiveAgentName((message as { type: 'activeAgent'; agentId: string | null; displayName: string }).displayName);
+          break;
       }
     };
 
@@ -217,6 +229,20 @@ export function useMarketplace() {
   // --- Computed: filtered + sorted + paginated tools ---
   const filteredTools = useMemo(() => {
     let result = allTools;
+
+    // Filter by active agent compatibility
+    // Tools are compatible if:
+    // 1. agents field is missing or empty (backward compatible = all agents)
+    // 2. agents array includes the active agent ID
+    // 3. agents array includes 'all'
+    if (activeAgentId) {
+      result = result.filter((t) => {
+        const agents = (t as RegistryEntryWithSource & { agents?: string[] }).agents ?? [];
+        return agents.length === 0 ||
+               agents.includes(activeAgentId) ||
+               agents.includes('all');
+      });
+    }
 
     // Filter by type
     if (activeType !== 'all') {
@@ -258,7 +284,7 @@ export function useMarketplace() {
     }
 
     return result;
-  }, [allTools, activeType, debouncedSearch, sortBy]);
+  }, [allTools, activeAgentId, activeType, debouncedSearch, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTools.length / ITEMS_PER_PAGE));
 
@@ -396,6 +422,11 @@ export function useMarketplace() {
     sortBy,
     currentPage,
     totalPages,
+
+    // Agent context
+    supportedToolTypes,
+    activeAgentId,
+    activeAgentName,
 
     // Detail view
     selectedTool,

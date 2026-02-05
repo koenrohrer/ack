@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Developers can discover, install, configure, and switch between sets of agent tools without leaving VS Code
-**Current focus:** Phase 18 complete (gap closure plan 18-05). Ready for Phase 19.
+**Current focus:** Phase 19 (Marketplace Adaptation) in progress - Plan 01 complete.
 
 ## Current Position
 
-Phase: 18 of 19 (Agent-Scoped Profiles)
-Plan: 5 of 5 in current phase
-Status: Phase complete
-Last activity: 2026-02-05 -- Completed 18-05-PLAN.md (gap closure)
+Phase: 19 of 19 (Marketplace Adaptation)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-02-05 -- Completed 19-01-PLAN.md
 
-Progress: [██████████████████] 100% (19/19 plans)
+Progress: [██████████████████░] 95% (51/54 plans estimated)
 
 ## Milestone History
 
@@ -23,9 +23,9 @@ Progress: [██████████████████] 100% (19/19 p
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 50 (33 v1.0 + 17 v1.1)
+- Total plans completed: 51 (33 v1.0 + 18 v1.1)
 - Average duration: 5m
-- Total execution time: 258m
+- Total execution time: 263m
 
 ## Accumulated Context
 
@@ -134,6 +134,11 @@ Phase 18 decisions (Plan 05):
 - Preserve agentId from existing association on rename, fallback to active agent or 'claude-code'
 - Guard against no active agent in associate command
 
+Phase 19 decisions (Plan 01):
+- agents field uses empty array for backward compatibility (all agents)
+- Agent context sent as two separate messages (supportedToolTypes and activeAgent)
+- sendAgentContext called on both ready and agentChanged events
+
 ### Roadmap Evolution
 
 v1.0 roadmap archived to `.planning/milestones/v1.0-ROADMAP.md`
@@ -151,5 +156,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Completed 18-05-PLAN.md (gap closure). Phase 18 fully complete. Ready for Phase 19.
+Stopped at: Completed 19-01-PLAN.md. Ready for Plan 02.
 Resume file: None
