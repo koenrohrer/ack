@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import type { ToolManagerService } from '../../services/tool-manager.service.js';
 import type { ProfileService } from '../../services/profile.service.js';
 import type { RegistryService } from '../../services/registry.service.js';
@@ -6,11 +8,23 @@ import type { ConfigService } from '../../services/config.service.js';
 import type { InstallService } from '../../services/install.service.js';
 import type { RepoScannerService } from '../../services/repo-scanner.service.js';
 import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
-import { ConfigScope, ToolStatus } from '../../types/enums.js';
+import { ConfigScope, ToolStatus, ToolType } from '../../types/enums.js';
 import { buildDeleteDescription } from '../../services/tool-manager.utils.js';
 import type { ToolTreeProvider } from './tool-tree.provider.js';
-import type { ToolNode, GroupNode, TreeNode } from './tool-tree.nodes.js';
+import type { ToolNode, GroupNode, SubToolNode, TreeNode } from './tool-tree.nodes.js';
 import { MarketplacePanel } from '../marketplace/marketplace.panel.js';
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * Codex config shape used for writeTomlConfigFile mutations.
+ * Mirrors the shape in config.writer.ts but defined locally
+ * to avoid crossing the adapter boundary.
+ */
+interface CodexConfig {
+  mcp_servers?: Record<string, Record<string, unknown>>;
+  [key: string]: unknown;
+}
 
 /**
  * Register all management command handlers for the tool tree.
@@ -21,6 +35,12 @@ import { MarketplacePanel } from '../marketplace/marketplace.panel.js';
  * - moveToolToUser: Move tool to global/user scope
  * - moveToolToProject: Move tool to project scope
  * - installTool: Placeholder for marketplace install (Phase 4)
+ * - addMcpServer: Multi-step guided flow to add a Codex MCP server
+ * - toggleMcpTool: Toggle individual tool enabled/disabled within an MCP server
+ * - addEnvVar: Add environment variable to an MCP server
+ * - editEnvVar: Edit existing environment variable on an MCP server
+ * - revealEnvVar: Copy environment variable value to clipboard
+ * - removeEnvVar: Remove environment variable from an MCP server
  *
  * All commands receive the tree node that was right-clicked (VS Code
  * passes the TreeItem element to command handlers registered on menus).
@@ -202,11 +222,502 @@ export function registerManagementCommands(
     },
   );
 
+  // ---------------------------------------------------------------------------
+  // Add MCP Server (Codex -- multi-step guided input flow)
+  // ---------------------------------------------------------------------------
+
+  const addMcpServerCmd = vscode.commands.registerCommand(
+    'ack.addMcpServer',
+    async () => {
+      try {
+        const adapter = registry.getActiveAdapter();
+        if (!adapter || adapter.id !== 'codex') {
+          vscode.window.showErrorMessage('Add MCP Server is only available for Codex.');
+          return;
+        }
+
+        // Step 1: Server name
+        const serverName = await vscode.window.showInputBox({
+          title: 'Add MCP Server (1/5)',
+          prompt: 'Server name (no spaces)',
+          placeHolder: 'my-server',
+          validateInput: (value) => {
+            if (!value || value.trim().length === 0) {
+              return 'Server name is required';
+            }
+            if (/\s/.test(value)) {
+              return 'Server name cannot contain spaces';
+            }
+            return undefined;
+          },
+        });
+        if (!serverName) {
+          return;
+        }
+
+        // Step 2: Scope selection
+        const hasWorkspace = (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
+        const scopeItems: vscode.QuickPickItem[] = [
+          { label: 'User (~/.codex/)', description: 'Global configuration' },
+        ];
+        if (hasWorkspace) {
+          scopeItems.push({ label: 'Project (.codex/)', description: 'Workspace-local configuration' });
+        }
+
+        const scopePick = await vscode.window.showQuickPick(scopeItems, {
+          title: 'Add MCP Server (2/5)',
+          placeHolder: 'Select configuration scope',
+        });
+        if (!scopePick) {
+          return;
+        }
+        const scope = scopePick.label.startsWith('User') ? ConfigScope.User : ConfigScope.Project;
+
+        // Step 3: Transport type
+        const transportPick = await vscode.window.showQuickPick(
+          [
+            { label: 'stdio (command)', description: 'Run a local command' },
+            { label: 'HTTP (url)', description: 'Connect to a remote server' },
+          ],
+          {
+            title: 'Add MCP Server (3/5)',
+            placeHolder: 'Select transport type',
+          },
+        );
+        if (!transportPick) {
+          return;
+        }
+        const isStdio = transportPick.label.startsWith('stdio');
+
+        let serverConfig: Record<string, unknown>;
+
+        if (isStdio) {
+          // Step 4a: Command
+          const command = await vscode.window.showInputBox({
+            title: 'Add MCP Server (4/5)',
+            prompt: 'Command to run',
+            placeHolder: 'npx',
+            validateInput: (value) => {
+              if (!value || value.trim().length === 0) {
+                return 'Command is required';
+              }
+              return undefined;
+            },
+          });
+          if (!command) {
+            return;
+          }
+
+          // Step 5: Args (comma-separated, optional)
+          const argsInput = await vscode.window.showInputBox({
+            title: 'Add MCP Server (5/5)',
+            prompt: 'Arguments (comma-separated, leave empty for none)',
+            placeHolder: '-y, @modelcontextprotocol/server-github',
+          });
+          if (argsInput === undefined) {
+            return; // Escape pressed
+          }
+          const parsedArgs = argsInput.trim().length > 0
+            ? argsInput.split(',').map((a) => a.trim()).filter(Boolean)
+            : [];
+
+          // Step 6: Validate command exists on PATH
+          try {
+            await execFileAsync(command, ['--version'], { timeout: 5000 });
+          } catch {
+            const proceed = await vscode.window.showWarningMessage(
+              `Command '${command}' not found on PATH. Continue anyway?`,
+              'Continue',
+              'Cancel',
+            );
+            if (proceed !== 'Continue') {
+              return;
+            }
+          }
+
+          serverConfig = { command, enabled: true };
+          if (parsedArgs.length > 0) {
+            serverConfig.args = parsedArgs;
+          }
+        } else {
+          // Step 4b: URL
+          const url = await vscode.window.showInputBox({
+            title: 'Add MCP Server (4/4)',
+            prompt: 'Server URL',
+            placeHolder: 'https://mcp.example.com/mcp',
+            validateInput: (value) => {
+              if (!value || value.trim().length === 0) {
+                return 'URL is required';
+              }
+              return undefined;
+            },
+          });
+          if (!url) {
+            return;
+          }
+
+          serverConfig = { url, enabled: true };
+        }
+
+        // Write to config via adapter (respects boundary)
+        await adapter.installMcpServer(scope, serverName, serverConfig);
+        await treeProvider.refresh();
+        vscode.window.showInformationMessage(`MCP server '${serverName}' added.`);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Failed to add MCP server: ${msg}`);
+      }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Toggle MCP Tool (per-tool enable/disable within an MCP server)
+  // ---------------------------------------------------------------------------
+
+  const toggleMcpToolCmd = vscode.commands.registerCommand(
+    'ack.toggleMcpTool',
+    async (node: TreeNode) => {
+      try {
+        if (!node || node.kind !== 'subtool') {
+          return;
+        }
+        const subNode = node as SubToolNode;
+        if (subNode.subKind !== 'mcp-tool') {
+          return;
+        }
+
+        const toolName = subNode.label;
+        const serverName = subNode.parentTool.name;
+        const filePath = subNode.parentTool.source.filePath;
+        const currentlyEnabled = subNode.detail === 'enabled';
+
+        // Toggle: if currently enabled, disable; if disabled, enable
+        const shouldEnable = !currentlyEnabled;
+
+        await configService.writeTomlConfigFile<CodexConfig>(
+          filePath,
+          'codex-config',
+          (current) => {
+            const servers = { ...(current.mcp_servers ?? {}) };
+            const server = servers[serverName];
+            if (!server) {
+              return current;
+            }
+
+            const updated = { ...server };
+            let enabledTools = updated.enabled_tools
+              ? [...(updated.enabled_tools as string[])]
+              : undefined;
+            let disabledTools = updated.disabled_tools
+              ? [...(updated.disabled_tools as string[])]
+              : undefined;
+
+            if (shouldEnable) {
+              if (disabledTools) {
+                disabledTools = disabledTools.filter((t) => t !== toolName);
+                if (disabledTools.length === 0) {
+                  disabledTools = undefined;
+                }
+              }
+              if (enabledTools && !enabledTools.includes(toolName)) {
+                enabledTools.push(toolName);
+              }
+            } else {
+              if (!disabledTools) {
+                disabledTools = [toolName];
+              } else if (!disabledTools.includes(toolName)) {
+                disabledTools.push(toolName);
+              }
+              if (enabledTools) {
+                enabledTools = enabledTools.filter((t) => t !== toolName);
+                if (enabledTools.length === 0) {
+                  enabledTools = undefined;
+                }
+              }
+            }
+
+            updated.enabled_tools = enabledTools;
+            updated.disabled_tools = disabledTools;
+            if (updated.enabled_tools === undefined) {
+              delete updated.enabled_tools;
+            }
+            if (updated.disabled_tools === undefined) {
+              delete updated.disabled_tools;
+            }
+
+            servers[serverName] = updated;
+            return { ...current, mcp_servers: servers };
+          },
+        );
+
+        await treeProvider.refresh();
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Failed to toggle tool: ${msg}`);
+      }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Add Environment Variable
+  // ---------------------------------------------------------------------------
+
+  const addEnvVarCmd = vscode.commands.registerCommand(
+    'ack.addEnvVar',
+    async (node: TreeNode) => {
+      try {
+        if (!node || node.kind !== 'tool') {
+          return;
+        }
+        const toolNode = node as ToolNode;
+        if (toolNode.tool.type !== ToolType.McpServer) {
+          return;
+        }
+
+        const key = await vscode.window.showInputBox({
+          title: 'Add Environment Variable',
+          prompt: 'Variable name',
+          placeHolder: 'API_KEY',
+          validateInput: (value) => {
+            if (!value || value.trim().length === 0) {
+              return 'Variable name is required';
+            }
+            return undefined;
+          },
+        });
+        if (!key) {
+          return;
+        }
+
+        const value = await vscode.window.showInputBox({
+          title: 'Add Environment Variable',
+          prompt: `Value for ${key}`,
+          password: true,
+          validateInput: (v) => {
+            if (v === undefined || v.length === 0) {
+              return 'Value is required';
+            }
+            return undefined;
+          },
+        });
+        if (value === undefined) {
+          return;
+        }
+
+        const serverName = toolNode.tool.name;
+        const filePath = toolNode.tool.source.filePath;
+
+        await configService.writeTomlConfigFile<CodexConfig>(
+          filePath,
+          'codex-config',
+          (current) => {
+            const servers = { ...(current.mcp_servers ?? {}) };
+            const server = servers[serverName];
+            if (!server) {
+              return current;
+            }
+
+            const updated = { ...server };
+            const env = { ...((updated.env as Record<string, string>) ?? {}) };
+            env[key] = value;
+            updated.env = env;
+
+            servers[serverName] = updated;
+            return { ...current, mcp_servers: servers };
+          },
+        );
+
+        await treeProvider.refresh();
+        vscode.window.showInformationMessage(`Environment variable '${key}' added to ${serverName}.`);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Failed to add env var: ${msg}`);
+      }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Edit Environment Variable
+  // ---------------------------------------------------------------------------
+
+  const editEnvVarCmd = vscode.commands.registerCommand(
+    'ack.editEnvVar',
+    async (node: TreeNode) => {
+      try {
+        if (!node || node.kind !== 'subtool') {
+          return;
+        }
+        const subNode = node as SubToolNode;
+        if (subNode.subKind !== 'env-var') {
+          return;
+        }
+
+        const key = subNode.label;
+        const serverName = subNode.parentTool.name;
+        const filePath = subNode.parentTool.source.filePath;
+
+        const newValue = await vscode.window.showInputBox({
+          title: 'Edit Environment Variable',
+          prompt: `Enter new value for ${key}`,
+          password: true,
+          validateInput: (v) => {
+            if (v === undefined || v.length === 0) {
+              return 'Value is required';
+            }
+            return undefined;
+          },
+        });
+        if (newValue === undefined) {
+          return;
+        }
+
+        await configService.writeTomlConfigFile<CodexConfig>(
+          filePath,
+          'codex-config',
+          (current) => {
+            const servers = { ...(current.mcp_servers ?? {}) };
+            const server = servers[serverName];
+            if (!server) {
+              return current;
+            }
+
+            const updated = { ...server };
+            const env = { ...((updated.env as Record<string, string>) ?? {}) };
+            env[key] = newValue;
+            updated.env = env;
+
+            servers[serverName] = updated;
+            return { ...current, mcp_servers: servers };
+          },
+        );
+
+        await treeProvider.refresh();
+        vscode.window.showInformationMessage(`Environment variable '${key}' updated.`);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Failed to edit env var: ${msg}`);
+      }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Reveal (Copy) Environment Variable Value
+  // ---------------------------------------------------------------------------
+
+  const revealEnvVarCmd = vscode.commands.registerCommand(
+    'ack.revealEnvVar',
+    async (node: TreeNode) => {
+      try {
+        if (!node || node.kind !== 'subtool') {
+          return;
+        }
+        const subNode = node as SubToolNode;
+        if (subNode.subKind !== 'env-var') {
+          return;
+        }
+
+        const key = subNode.label;
+        const serverName = subNode.parentTool.name;
+        const scope = subNode.parentTool.scope;
+
+        // Read fresh tools to get the actual env var value
+        const tools = await configService.readToolsByScope(ToolType.McpServer, scope);
+        const server = tools.find((t) => t.name === serverName);
+        if (!server) {
+          vscode.window.showErrorMessage(`Server '${serverName}' not found.`);
+          return;
+        }
+
+        const env = server.metadata.env as Record<string, string> | undefined;
+        const value = env?.[key];
+        if (value === undefined) {
+          vscode.window.showErrorMessage(`Env var '${key}' not found on ${serverName}.`);
+          return;
+        }
+
+        await vscode.env.clipboard.writeText(value);
+        vscode.window.showInformationMessage(`Copied ${key} to clipboard.`);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Failed to copy env var: ${msg}`);
+      }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Remove Environment Variable
+  // ---------------------------------------------------------------------------
+
+  const removeEnvVarCmd = vscode.commands.registerCommand(
+    'ack.removeEnvVar',
+    async (node: TreeNode) => {
+      try {
+        if (!node || node.kind !== 'subtool') {
+          return;
+        }
+        const subNode = node as SubToolNode;
+        if (subNode.subKind !== 'env-var') {
+          return;
+        }
+
+        const key = subNode.label;
+        const serverName = subNode.parentTool.name;
+        const filePath = subNode.parentTool.source.filePath;
+
+        const confirm = await vscode.window.showWarningMessage(
+          `Remove env var '${key}' from ${serverName}?`,
+          { modal: true },
+          'Remove',
+        );
+        if (confirm !== 'Remove') {
+          return;
+        }
+
+        await configService.writeTomlConfigFile<CodexConfig>(
+          filePath,
+          'codex-config',
+          (current) => {
+            const servers = { ...(current.mcp_servers ?? {}) };
+            const server = servers[serverName];
+            if (!server) {
+              return current;
+            }
+
+            const updated = { ...server };
+            const env = { ...((updated.env as Record<string, string>) ?? {}) };
+            delete env[key];
+
+            if (Object.keys(env).length === 0) {
+              delete updated.env;
+            } else {
+              updated.env = env;
+            }
+
+            servers[serverName] = updated;
+            return { ...current, mcp_servers: servers };
+          },
+        );
+
+        await treeProvider.refresh();
+        vscode.window.showInformationMessage(`Environment variable '${key}' removed from ${serverName}.`);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Failed to remove env var: ${msg}`);
+      }
+    },
+  );
+
   context.subscriptions.push(
     toggleCmd,
     deleteCmd,
     moveToUserCmd,
     moveToProjectCmd,
     installCmd,
+    addMcpServerCmd,
+    toggleMcpToolCmd,
+    addEnvVarCmd,
+    editEnvVarCmd,
+    revealEnvVarCmd,
+    removeEnvVarCmd,
   );
 }
