@@ -43,12 +43,17 @@ export interface ToolNode {
 }
 
 /**
- * MCP server config detail sub-item (command, args, transport type).
+ * MCP server config detail sub-item (command, args, transport type),
+ * per-tool entry (enabled_tools/disabled_tools), or env var entry.
+ *
+ * The optional `subKind` discriminator enables the provider to render
+ * distinct icons, contextValues, and descriptions for each category.
  *
  * Always a leaf node -- no children.
  */
 export interface SubToolNode {
   readonly kind: 'subtool';
+  readonly subKind?: 'config' | 'mcp-tool' | 'env-var';
   readonly label: string;
   readonly detail: string;
   readonly parentTool: NormalizedTool;

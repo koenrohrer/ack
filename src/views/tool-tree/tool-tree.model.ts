@@ -343,11 +343,17 @@ export class ToolTreeModel {
   }
 
   /**
-   * Build SubToolNode children for an MCP server showing its config details.
+   * Build SubToolNode children for an MCP server showing its config details,
+   * per-tool entries (enabled_tools/disabled_tools), and env var entries.
+   *
+   * Order: config info first, then per-tool entries (alphabetical),
+   * then env var entries (alphabetical).
    */
   private buildMcpSubTools(tool: NormalizedTool, parent: ToolNode): SubToolNode[] {
     const subTools: SubToolNode[] = [];
     const meta = tool.metadata;
+
+    // -- Config info children (subKind: 'config') --
 
     if (meta.command) {
       const args = Array.isArray(meta.args)
@@ -355,6 +361,7 @@ export class ToolTreeModel {
         : '';
       subTools.push({
         kind: 'subtool',
+        subKind: 'config',
         label: 'Command',
         detail: args ? `${meta.command as string} ${args}` : (meta.command as string),
         parentTool: tool,
@@ -365,6 +372,7 @@ export class ToolTreeModel {
     if (meta.url) {
       subTools.push({
         kind: 'subtool',
+        subKind: 'config',
         label: 'URL',
         detail: meta.url as string,
         parentTool: tool,
@@ -375,11 +383,62 @@ export class ToolTreeModel {
     if (meta.transportType) {
       subTools.push({
         kind: 'subtool',
+        subKind: 'config',
         label: 'Transport',
         detail: meta.transportType as string,
         parentTool: tool,
         parent,
       });
+    }
+
+    // -- Per-tool entries (subKind: 'mcp-tool') --
+
+    const enabledTools = Array.isArray(meta.enabled_tools)
+      ? (meta.enabled_tools as string[])
+      : [];
+    const disabledTools = Array.isArray(meta.disabled_tools)
+      ? new Set(meta.disabled_tools as string[])
+      : new Set<string>();
+
+    if (enabledTools.length > 0 || disabledTools.size > 0) {
+      // Collect all unique tool names; disabled_tools takes priority
+      const allToolNames = new Set<string>([
+        ...enabledTools,
+        ...disabledTools,
+      ]);
+      const sortedToolNames = [...allToolNames].sort((a, b) =>
+        a.localeCompare(b),
+      );
+
+      for (const toolName of sortedToolNames) {
+        const isDisabled = disabledTools.has(toolName);
+        subTools.push({
+          kind: 'subtool',
+          subKind: 'mcp-tool',
+          label: toolName,
+          detail: isDisabled ? 'disabled' : 'enabled',
+          parentTool: tool,
+          parent,
+        });
+      }
+    }
+
+    // -- Env var entries (subKind: 'env-var') --
+
+    const env = meta.env as Record<string, string> | undefined;
+    if (env && typeof env === 'object') {
+      const sortedKeys = Object.keys(env).sort((a, b) => a.localeCompare(b));
+
+      for (const key of sortedKeys) {
+        subTools.push({
+          kind: 'subtool',
+          subKind: 'env-var',
+          label: key,
+          detail: '********',
+          parentTool: tool,
+          parent,
+        });
+      }
     }
 
     return subTools;
