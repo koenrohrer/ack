@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Developers can discover, install, configure, and switch between sets of agent tools without leaving VS Code
-**Current focus:** Phase 18 in progress. Plan 18-02 complete.
+**Current focus:** Phase 18 in progress. Plan 18-03 complete.
 
 ## Current Position
 
 Phase: 18 of 19 (Agent-Scoped Profiles)
-Plan: 2 of 4 in current phase
+Plan: 3 of 4 in current phase
 Status: In progress
-Last activity: 2026-02-05 -- Completed 18-02-PLAN.md
+Last activity: 2026-02-05 -- Completed 18-03-PLAN.md
 
-Progress: [████████████████░] 94% (16/17 plans)
+Progress: [████████████████░] 94% (17/18 plans)
 
 ## Milestone History
 
@@ -23,9 +23,9 @@ Progress: [████████████████░] 94% (16/17 plans
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 48 (33 v1.0 + 15 v1.1)
+- Total plans completed: 49 (33 v1.0 + 16 v1.1)
 - Average duration: 5m
-- Total execution time: 242m
+- Total execution time: 257m
 
 ## Accumulated Context
 
@@ -120,6 +120,11 @@ Phase 18 decisions (Plan 02):
 - Empty array return when no agent active for getProfiles()
 - Profile operations fail gracefully (return undefined/false) for wrong-agent profiles
 
+Phase 18 decisions (Plan 03):
+- Export filename format: {sanitized-name}.{agent-id}.ackprofile
+- v1 bundles rejected with re-export message (no legacy support)
+- Agent mismatch triggers conversion modal with tool filtering stats
+
 ### Roadmap Evolution
 
 v1.0 roadmap archived to `.planning/milestones/v1.0-ROADMAP.md`
@@ -137,5 +142,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Completed 18-02-PLAN.md. Ready for 18-03-PLAN.md or 18-04-PLAN.md.
+Stopped at: Completed 18-03-PLAN.md. Ready for 18-04-PLAN.md.
 Resume file: None

@@ -13,14 +13,20 @@ import type { FileIOService } from './fileio.service.js';
  *
  * Uses profile name (not ID) for cross-machine portability since IDs are
  * machine-specific UUIDs.
+ *
+ * The optional `agentId` field scopes the association to a specific agent.
+ * Legacy associations (v1.0, no agentId) are treated as Claude Code scope.
  */
 export interface WorkspaceProfileAssociation {
   profileName: string;
+  /** Agent this association applies to. Absent for legacy v1.0 associations. */
+  agentId?: string;
 }
 
 export const WorkspaceProfileAssociationSchema = z
   .object({
     profileName: z.string(),
+    agentId: z.string().optional(),
   })
   .passthrough();
 
@@ -79,15 +85,48 @@ export class WorkspaceProfileService {
   }
 
   /**
+   * Get the profile association for a specific agent.
+   *
+   * - If the association has no agentId (legacy v1.0), it's treated as 'claude-code'.
+   * - Returns the association if it matches the given agentId, null otherwise.
+   *
+   * This enables per-agent workspace associations: each agent can have its own
+   * profile associated with a workspace, and only the active agent's association
+   * is returned.
+   */
+  async getAssociationForAgent(workspaceRoot: string, agentId: string): Promise<WorkspaceProfileAssociation | null> {
+    const association = await this.getAssociation(workspaceRoot);
+    if (!association) {
+      return null;
+    }
+
+    // Legacy associations (no agentId) are treated as Claude Code scope
+    const effectiveAgentId = association.agentId ?? 'claude-code';
+
+    if (effectiveAgentId !== agentId) {
+      // Association is for a different agent
+      return null;
+    }
+
+    return association;
+  }
+
+  /**
    * Set the profile association for a workspace.
    *
-   * Writes `{ profileName }` to `.vscode/agent-profile.json` and clears
+   * Writes `{ profileName, agentId }` to `.vscode/agent-profile.json` and clears
    * any manual override (the user is explicitly setting an association,
    * so the override should reset).
+   *
+   * If agentId is omitted, the association will apply only to Claude Code
+   * (backward compatible with legacy v1.0 behavior).
    */
-  async setAssociation(workspaceRoot: string, profileName: string): Promise<void> {
+  async setAssociation(workspaceRoot: string, profileName: string, agentId?: string): Promise<void> {
     const filePath = path.join(workspaceRoot, ASSOCIATION_FILE);
-    await this.fileIO.writeJsonFile(filePath, { profileName });
+    const data: WorkspaceProfileAssociation = agentId
+      ? { profileName, agentId }
+      : { profileName };
+    await this.fileIO.writeJsonFile(filePath, data);
     await this.clearOverride(workspaceRoot);
   }
 
