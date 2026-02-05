@@ -233,6 +233,7 @@ export class CodexAdapter implements IPlatformAdapter {
         return [
           CodexPaths.userConfigToml,
           CodexPaths.userSkillsDir,
+          CodexPaths.userPromptsDir,
         ];
 
       case ConfigScope.Project:
@@ -242,6 +243,7 @@ export class CodexAdapter implements IPlatformAdapter {
         return [
           CodexPaths.projectConfigToml(this.workspaceRoot),
           CodexPaths.projectSkillsDir(this.workspaceRoot),
+          // No project prompts per CONTEXT.md - user scope only
         ];
 
       default:
