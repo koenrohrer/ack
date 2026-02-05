@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 18 of 19 (Agent-Scoped Profiles)
-Plan: 3 of 4 in current phase
-Status: In progress
-Last activity: 2026-02-05 -- Completed 18-03-PLAN.md
+Plan: 4 of 4 in current phase
+Status: Phase complete
+Last activity: 2026-02-05 -- Completed 18-04-PLAN.md
 
-Progress: [████████████████░] 94% (17/18 plans)
+Progress: [█████████████████] 100% (18/18 plans)
 
 ## Milestone History
 
@@ -125,6 +125,11 @@ Phase 18 decisions (Plan 03):
 - v1 bundles rejected with re-export message (no legacy support)
 - Agent mismatch triggers conversion modal with tool filtering stats
 
+Phase 18 decisions (Plan 04):
+- Legacy workspace associations (no agentId) treated as 'claude-code'
+- Re-run auto-activation on agent switch for per-agent workspace profiles
+- "View Details" action in warning notification for skipped tools
+
 ### Roadmap Evolution
 
 v1.0 roadmap archived to `.planning/milestones/v1.0-ROADMAP.md`
@@ -142,5 +147,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Completed 18-03-PLAN.md. Ready for 18-04-PLAN.md.
+Stopped at: Completed 18-04-PLAN.md. Phase 18 complete. Ready for Phase 19.
 Resume file: None

@@ -275,7 +275,9 @@ export function registerProfileCommands(
           if (renameWsRoot) {
             const assoc = await workspaceProfileService.getAssociation(renameWsRoot);
             if (assoc && assoc.profileName === oldName) {
-              await workspaceProfileService.setAssociation(renameWsRoot, trimmedName);
+              // Preserve agentId from existing association, or use active agent if legacy
+              const agentIdToUse = assoc.agentId ?? registry.getActiveAdapter()?.id ?? 'claude-code';
+              await workspaceProfileService.setAssociation(renameWsRoot, trimmedName, agentIdToUse);
             }
           }
           vscode.window.showInformationMessage(`Profile renamed to "${trimmedName}"`);
@@ -721,7 +723,12 @@ export function registerProfileCommands(
         await workspaceProfileService.removeAssociation(wsRoot);
         vscode.window.showInformationMessage('Workspace profile association removed');
       } else {
-        await workspaceProfileService.setAssociation(wsRoot, selected.profile.name);
+        const currentAdapter = registry.getActiveAdapter();
+        if (!currentAdapter) {
+          vscode.window.showWarningMessage('No agent is active. Cannot associate profile.');
+          return;
+        }
+        await workspaceProfileService.setAssociation(wsRoot, selected.profile.name, currentAdapter.id);
         vscode.window.showInformationMessage(
           `Workspace associated with profile "${selected.profile.name}"`,
         );
