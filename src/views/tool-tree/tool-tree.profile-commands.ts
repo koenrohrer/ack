@@ -3,7 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import type { ProfileService } from '../../services/profile.service.js';
-import type { Profile } from '../../services/profile.types.js';
+import type { Profile, ProfileExportBundle } from '../../services/profile.types.js';
 import { ProfileExportBundleSchema } from '../../services/profile.types.js';
 import type { ConfigService } from '../../services/config.service.js';
 import type { RegistryService } from '../../services/registry.service.js';
@@ -497,7 +497,7 @@ export function registerProfileCommands(
         return;
       }
 
-      let bundle = validation.data;
+      let bundle: ProfileExportBundle = validation.data;
 
       // Validate version and agent compatibility
       const importValidation = profileService.validateImportBundle(bundle);

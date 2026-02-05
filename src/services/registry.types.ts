@@ -13,6 +13,11 @@ export interface RegistryEntry {
   contentPath: string;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Which agents this tool supports.
+   * Empty array or missing field = all agents (backward compatible).
+   */
+  agents?: string[];
 }
 
 /** The top-level registry index JSON structure. */

@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Developers can discover, install, configure, and switch between sets of agent tools without leaving VS Code
-**Current focus:** Phase 18 in progress. Plan 18-03 complete.
+**Current focus:** Phase 18 complete (gap closure plan 18-05). Ready for Phase 19.
 
 ## Current Position
 
 Phase: 18 of 19 (Agent-Scoped Profiles)
-Plan: 4 of 4 in current phase
+Plan: 5 of 5 in current phase
 Status: Phase complete
-Last activity: 2026-02-05 -- Completed 18-04-PLAN.md
+Last activity: 2026-02-05 -- Completed 18-05-PLAN.md (gap closure)
 
-Progress: [█████████████████] 100% (18/18 plans)
+Progress: [██████████████████] 100% (19/19 plans)
 
 ## Milestone History
 
@@ -23,9 +23,9 @@ Progress: [█████████████████] 100% (18/18 plan
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 49 (33 v1.0 + 16 v1.1)
+- Total plans completed: 50 (33 v1.0 + 17 v1.1)
 - Average duration: 5m
-- Total execution time: 257m
+- Total execution time: 258m
 
 ## Accumulated Context
 
@@ -130,6 +130,10 @@ Phase 18 decisions (Plan 04):
 - Re-run auto-activation on agent switch for per-agent workspace profiles
 - "View Details" action in warning notification for skipped tools
 
+Phase 18 decisions (Plan 05):
+- Preserve agentId from existing association on rename, fallback to active agent or 'claude-code'
+- Guard against no active agent in associate command
+
 ### Roadmap Evolution
 
 v1.0 roadmap archived to `.planning/milestones/v1.0-ROADMAP.md`
@@ -147,5 +151,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Completed 18-04-PLAN.md. Phase 18 complete. Ready for Phase 19.
+Stopped at: Completed 18-05-PLAN.md (gap closure). Phase 18 fully complete. Ready for Phase 19.
 Resume file: None

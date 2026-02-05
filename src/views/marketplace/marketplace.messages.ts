@@ -25,7 +25,9 @@ export type ExtensionMessage =
   | { type: 'repoRemoved'; repoUrl: string }
   | { type: 'savedRepos'; repos: SavedRepoInfo[] }
   | { type: 'setTypeFilter'; filter: string }
-  | { type: 'agentChanged'; agentName: string };
+  | { type: 'agentChanged'; agentName: string }
+  | { type: 'supportedToolTypes'; types: string[] }
+  | { type: 'activeAgent'; agentId: string; displayName: string };
 
 // --- Messages FROM webview TO extension ---
 
@@ -101,4 +103,9 @@ export interface RegistryEntryWithSource {
   repoPath?: string;
   repoFiles?: string[];
   relevanceScore?: number;
+  /**
+   * Which agents this tool supports.
+   * Empty array or missing = all agents.
+   */
+  agents?: string[];
 }
