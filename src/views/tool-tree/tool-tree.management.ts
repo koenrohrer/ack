@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import type { ToolManagerService } from '../../services/tool-manager.service.js';
@@ -707,6 +708,114 @@ export function registerManagementCommands(
     },
   );
 
+  // ---------------------------------------------------------------------------
+  // Install Custom Prompt from File (Codex only)
+  // ---------------------------------------------------------------------------
+
+  const installPromptCmd = vscode.commands.registerCommand(
+    'ack.installPromptFromFile',
+    async () => {
+      try {
+        const adapter = registry.getActiveAdapter();
+        if (!adapter || adapter.id !== 'codex') {
+          vscode.window.showErrorMessage('Install prompt is only available for Codex.');
+          return;
+        }
+
+        const uris = await vscode.window.showOpenDialog({
+          canSelectMany: false,
+          canSelectFolders: false,
+          filters: { 'Markdown': ['md'] },
+          title: 'Install Custom Prompt',
+        });
+
+        if (!uris || uris.length === 0) {
+          return;
+        }
+
+        const sourceFile = uris[0].fsPath;
+        const filename = path.basename(sourceFile);
+        const promptName = path.basename(filename, '.md');
+
+        // Import CodexPaths locally to avoid adapter boundary violation
+        const { CodexPaths } = await import('../../adapters/codex/paths.js');
+        const targetPath = path.join(CodexPaths.userPromptsDir, filename);
+
+        // Check for conflict per CONTEXT.md
+        const { access, mkdir, copyFile } = await import('fs/promises');
+        let exists = false;
+        try {
+          await access(targetPath);
+          exists = true;
+        } catch {
+          // File doesn't exist
+        }
+
+        if (exists) {
+          const choice = await vscode.window.showWarningMessage(
+            `A prompt named '${promptName}' already exists. Overwrite?`,
+            { modal: true },
+            'Overwrite',
+          );
+          if (choice !== 'Overwrite') {
+            return;
+          }
+        }
+
+        // Auto-create directory per CONTEXT.md
+        await mkdir(path.dirname(targetPath), { recursive: true });
+        await copyFile(sourceFile, targetPath);
+
+        await treeProvider.refresh();
+        vscode.window.showInformationMessage(`Custom prompt '${promptName}' installed.`);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Failed to install prompt: ${msg}`);
+      }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Delete Custom Prompt (Codex only, with confirmation)
+  // ---------------------------------------------------------------------------
+
+  const deletePromptCmd = vscode.commands.registerCommand(
+    'ack.deletePrompt',
+    async (node: TreeNode) => {
+      try {
+        if (!node || node.kind !== 'tool') {
+          return;
+        }
+        const toolNode = node as ToolNode;
+        const tool = toolNode.tool;
+
+        if (tool.type !== ToolType.CustomPrompt) {
+          return;
+        }
+
+        // Per CONTEXT.md: Always confirm with modal, warn cannot be undone
+        const choice = await vscode.window.showWarningMessage(
+          `Delete '${tool.name}'?`,
+          { modal: true, detail: 'This action cannot be undone.' },
+          'Delete',
+        );
+
+        if (choice !== 'Delete') {
+          return;
+        }
+
+        const { rm } = await import('fs/promises');
+        await rm(tool.source.filePath);
+
+        await treeProvider.refresh();
+        vscode.window.showInformationMessage(`Custom prompt '${tool.name}' deleted.`);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Failed to delete prompt: ${msg}`);
+      }
+    },
+  );
+
   context.subscriptions.push(
     toggleCmd,
     deleteCmd,
@@ -719,5 +828,7 @@ export function registerManagementCommands(
     editEnvVarCmd,
     revealEnvVarCmd,
     removeEnvVarCmd,
+    installPromptCmd,
+    deletePromptCmd,
   );
 }

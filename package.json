@@ -181,6 +181,15 @@
         "command": "ack.removeEnvVar",
         "title": "Remove Environment Variable",
         "icon": "$(trash)"
+      },
+      {
+        "command": "ack.installPromptFromFile",
+        "title": "Install from file...",
+        "icon": "$(file-add)"
+      },
+      {
+        "command": "ack.deletePrompt",
+        "title": "Delete Prompt"
       }
     ],
     "submenus": [
@@ -272,6 +281,21 @@
           "command": "ack.removeEnvVar",
           "when": "view == ack.toolTree && viewItem == subtool:env-var",
           "group": "3_envvar"
+        },
+        {
+          "command": "ack.installPromptFromFile",
+          "when": "view == ack.toolTree && viewItem == group:custom_prompt",
+          "group": "inline"
+        },
+        {
+          "command": "ack.installPromptFromFile",
+          "when": "view == ack.toolTree && viewItem == group:custom_prompt",
+          "group": "1_install"
+        },
+        {
+          "command": "ack.deletePrompt",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:custom_prompt:/",
+          "group": "3_danger"
         }
       ],
       "ack.moveTo": [
