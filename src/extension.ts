@@ -112,7 +112,13 @@ export function activate(context: vscode.ExtensionContext): void {
   const repoScannerService = new RepoScannerService(context.globalState);
 
   // 9c. Profile service for named tool presets
-  const profileService = new ProfileService(context.globalState, configService, toolManager);
+  const profileService = new ProfileService(context.globalState, configService, toolManager, outputChannel);
+
+  // 9c.1. Run profile migration before any profile operations
+  // Migration is fire-and-forget at activation - errors logged but don't block
+  profileService.migrateIfNeeded().catch((err: unknown) => {
+    outputChannel.appendLine(`Profile migration error: ${err}`);
+  });
 
   // 9d. Workspace-profile association service
   const workspaceProfileService = new WorkspaceProfileService(fileIO, context.globalState);
