@@ -176,7 +176,8 @@ export class ProfileService {
 
     const entries: ProfileToolEntry[] = [];
 
-    for (const type of [ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command]) {
+    // Include all tool types (Skills, MCP Servers, Hooks, Commands, Custom Prompts)
+    for (const type of [ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command, ToolType.CustomPrompt]) {
       const tools = await this.configService.readAllTools(type);
       for (const tool of tools) {
         if (tool.scope === ConfigScope.Managed) {
