@@ -7,6 +7,7 @@ import type { NormalizedTool } from '../../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { CodexPaths } from './paths.js';
 import { parseCodexConfigMcpServers } from './parsers/config.parser.js';
+import { parseSkillsDir } from '../claude-code/parsers/skill.parser.js';
 import { AdapterScopeError } from '../../types/adapter-errors.js';
 import {
   addCodexMcpServer,
@@ -80,8 +81,7 @@ export class CodexAdapter implements IPlatformAdapter {
       case ToolType.McpServer:
         return this.readMcpServers(scope);
       case ToolType.Skill:
-        // Skill parsing is Phase 16 scope -- return empty for now
-        return [];
+        return this.readSkills(scope);
       default:
         return [];
     }
@@ -421,6 +421,24 @@ export class CodexAdapter implements IPlatformAdapter {
           CodexPaths.projectConfigToml(this.workspaceRoot!),
           ConfigScope.Project,
         );
+      default:
+        return [];
+    }
+  }
+
+  /**
+   * Read skills from the skills directory for the given scope.
+   *
+   * Uses the shared skill.parser from Claude Code since the skill format
+   * (SKILL.md with YAML frontmatter) is identical between agents.
+   */
+  private async readSkills(scope: ConfigScope): Promise<NormalizedTool[]> {
+    switch (scope) {
+      case ConfigScope.User:
+        return parseSkillsDir(this.fileIO, this.schemaService, CodexPaths.userSkillsDir, ConfigScope.User);
+      case ConfigScope.Project:
+        if (!this.workspaceRoot) return [];
+        return parseSkillsDir(this.fileIO, this.schemaService, CodexPaths.projectSkillsDir(this.workspaceRoot), ConfigScope.Project);
       default:
         return [];
     }
