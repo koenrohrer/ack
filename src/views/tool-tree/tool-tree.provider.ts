@@ -248,8 +248,31 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       node.label,
       vscode.TreeItemCollapsibleState.None,
     );
-    item.iconPath = new vscode.ThemeIcon('symbol-property');
-    item.description = node.detail;
+
+    switch (node.subKind) {
+      case 'mcp-tool': {
+        item.iconPath = new vscode.ThemeIcon('symbol-method');
+        const isEnabled = node.detail === 'enabled';
+        item.description = isEnabled
+          ? '$(check) enabled'
+          : '$(close) disabled';
+        item.contextValue = isEnabled
+          ? 'subtool:mcp-tool:enabled'
+          : 'subtool:mcp-tool:disabled';
+        break;
+      }
+      case 'env-var':
+        item.iconPath = new vscode.ThemeIcon('symbol-key');
+        item.description = node.detail;
+        item.contextValue = 'subtool:env-var';
+        break;
+      case 'config':
+      default:
+        item.iconPath = new vscode.ThemeIcon('symbol-property');
+        item.description = node.detail;
+        break;
+    }
+
     return item;
   }
 }

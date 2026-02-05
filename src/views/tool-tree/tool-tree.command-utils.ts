@@ -12,16 +12,18 @@ import type { NormalizedTool } from '../../types/config.js';
  * Determine the open route for a tool based on its type.
  *
  * Skills and commands are markdown files -> 'markdown'
- * MCP servers and hooks are JSON config entries -> 'json'
+ * Codex MCP servers are TOML config entries -> 'toml'
+ * Claude Code MCP servers and hooks are JSON config entries -> 'json'
  */
 export function getRouteForTool(
-  tool: Pick<NormalizedTool, 'type'>,
-): 'markdown' | 'json' {
+  tool: Pick<NormalizedTool, 'type' | 'id'>,
+): 'markdown' | 'json' | 'toml' {
   switch (tool.type) {
     case ToolType.Skill:
     case ToolType.Command:
       return 'markdown';
     case ToolType.McpServer:
+      return tool.id?.includes(':codex:') ? 'toml' : 'json';
     case ToolType.Hook:
       return 'json';
   }
@@ -46,4 +48,19 @@ export function getJsonPath(
     case ToolType.Command:
       return [];
   }
+}
+
+/**
+ * Derive the TOML table path for a Codex tool's entry in config.toml.
+ *
+ * For MCP servers: `mcp_servers.{name}` (maps to `[mcp_servers.name]` table header)
+ * Other types return empty string (no TOML path needed).
+ */
+export function getTomlPath(
+  tool: Pick<NormalizedTool, 'type' | 'name'>,
+): string {
+  if (tool.type === ToolType.McpServer) {
+    return `mcp_servers.${tool.name}`;
+  }
+  return '';
 }

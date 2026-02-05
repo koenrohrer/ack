@@ -2,10 +2,10 @@ import * as vscode from 'vscode';
 import * as jsonc from 'jsonc-parser';
 import type { NormalizedTool } from '../../types/config.js';
 import type { ToolTreeProvider } from './tool-tree.provider.js';
-import { getRouteForTool, getJsonPath } from './tool-tree.command-utils.js';
+import { getRouteForTool, getJsonPath, getTomlPath } from './tool-tree.command-utils.js';
 
 // Re-export pure functions so consumers can import from this module
-export { getRouteForTool, getJsonPath } from './tool-tree.command-utils.js';
+export { getRouteForTool, getJsonPath, getTomlPath } from './tool-tree.command-utils.js';
 
 // ---------------------------------------------------------------------------
 // Module-level highlight decoration (RESEARCH: never recreate per call)
@@ -43,6 +43,8 @@ export function registerToolTreeCommands(
       const route = getRouteForTool(tool);
       if (route === 'markdown') {
         await openMarkdownFile(tool.source.filePath);
+      } else if (route === 'toml') {
+        await openTomlAtKey(tool.source.filePath, getTomlPath(tool));
       } else {
         const jsonPath = getJsonPath(tool);
         await openJsonAtKey(tool.source.filePath, jsonPath);
@@ -121,6 +123,49 @@ async function openJsonAtKey(
   const startPos = doc.positionAt(node.offset);
   const endPos = doc.positionAt(node.offset + node.length);
   const range = new vscode.Range(startPos, endPos);
+
+  const editor = await vscode.window.showTextDocument(doc, {
+    selection: range,
+    preview: false,
+  });
+
+  editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
+  applyTemporaryHighlight(editor, range);
+}
+
+/**
+ * Open a TOML config file scrolled to the entry at `tomlPath`.
+ *
+ * Searches for the `[tomlPath]` table header (e.g., `[mcp_servers.my-server]`)
+ * and opens the file with that line selected, centered, and temporarily
+ * highlighted. Falls back to opening the file at the top if the table
+ * header is not found.
+ */
+async function openTomlAtKey(
+  filePath: string,
+  tomlPath: string,
+): Promise<void> {
+  const uri = vscode.Uri.file(filePath);
+  const doc = await vscode.workspace.openTextDocument(uri);
+
+  if (!tomlPath) {
+    await vscode.window.showTextDocument(doc, { preview: false });
+    return;
+  }
+
+  // Search for [mcp_servers.<name>] table header in TOML
+  const text = doc.getText();
+  const pattern = `[${tomlPath}]`;
+  const idx = text.indexOf(pattern);
+
+  if (idx === -1) {
+    await vscode.window.showTextDocument(doc, { preview: false });
+    return;
+  }
+
+  const startPos = doc.positionAt(idx);
+  const endOfLine = doc.lineAt(startPos.line).range.end;
+  const range = new vscode.Range(startPos, endOfLine);
 
   const editor = await vscode.window.showTextDocument(doc, {
     selection: range,
