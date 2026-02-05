@@ -2,6 +2,30 @@ import type { NormalizedTool } from '../types/config.js';
 import { ToolType } from '../types/enums.js';
 
 /**
+ * Extract the tool type from a canonical key.
+ *
+ * Canonical keys use format "type:name" (e.g., "mcp_server:github") or
+ * "hook:eventName:matcher" for hooks.
+ *
+ * Returns the ToolType enum value, or undefined if the type prefix is unrecognized.
+ */
+export function extractToolTypeFromKey(key: string): ToolType | undefined {
+  const colonIndex = key.indexOf(':');
+  if (colonIndex === -1) {
+    return undefined;
+  }
+  const typePrefix = key.substring(0, colonIndex);
+  const typeMap: Record<string, ToolType> = {
+    skill: ToolType.Skill,
+    mcp_server: ToolType.McpServer,
+    hook: ToolType.Hook,
+    command: ToolType.Command,
+    custom_prompt: ToolType.CustomPrompt,
+  };
+  return typeMap[typePrefix];
+}
+
+/**
  * Derive a canonical key for identifying a tool across scopes.
  *
  * The key uniquely identifies the "same" tool regardless of which scope it

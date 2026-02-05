@@ -6,7 +6,7 @@ import type { ConfigService } from './config.service.js';
 import type { ToolManagerService } from './tool-manager.service.js';
 import type { NormalizedTool } from '../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../types/enums.js';
-import { canonicalKey } from '../utils/tool-key.utils.js';
+import { canonicalKey, extractToolTypeFromKey } from '../utils/tool-key.utils.js';
 import {
   PROFILE_STORE_KEY,
   DEFAULT_PROFILE_STORE,
@@ -414,6 +414,8 @@ export class ProfileService {
    * The diff compares each profile tool entry against the current environment:
    * - Missing tools (profile references a tool that no longer exists) are
    *   silently skipped and counted in `result.skipped`.
+   * - Incompatible tools (not supported by active agent) are skipped and
+   *   listed in `result.incompatibleSkipped`.
    * - Tools already in the desired state are not toggled.
    * - Toggles execute **sequentially** to avoid race conditions on shared
    *   config files (e.g. two MCP servers in the same .claude.json).
@@ -422,14 +424,18 @@ export class ProfileService {
     // Deactivate: clear active profile, no tool changes
     if (profileId === null) {
       await this.setActiveProfileId(null);
-      return { success: true, toggled: 0, skipped: 0, failed: 0, errors: [] };
+      return { success: true, toggled: 0, skipped: 0, failed: 0, errors: [], incompatibleSkipped: [] };
     }
 
     // Load target profile
     const profile = this.getProfile(profileId);
     if (!profile) {
-      return { success: false, toggled: 0, skipped: 0, failed: 0, errors: ['Profile not found'] };
+      return { success: false, toggled: 0, skipped: 0, failed: 0, errors: ['Profile not found'], incompatibleSkipped: [] };
     }
+
+    // Get active adapter's supported tool types for compatibility filtering
+    const activeAdapter = this.registry.getActiveAdapter();
+    const supportedTypes = activeAdapter?.supportedToolTypes ?? new Set();
 
     // Read current tool states across all types (including CustomPrompt)
     const currentTools: NormalizedTool[] = [];
@@ -454,8 +460,18 @@ export class ProfileService {
     }
     const ops: ToggleOp[] = [];
     let skipped = 0;
+    const incompatibleSkipped: string[] = [];
 
     for (const entry of profile.tools) {
+      // Check tool type compatibility with active agent
+      const toolType = extractToolTypeFromKey(entry.key);
+      if (toolType && !supportedTypes.has(toolType)) {
+        // Extract tool name from key for display (format: "type:name")
+        const toolName = entry.key.split(':').slice(1).join(':');
+        incompatibleSkipped.push(toolName || entry.key);
+        continue;
+      }
+
       const tool = toolsByKey.get(entry.key);
       if (!tool) {
         // Tool no longer exists in the environment -- silently skip
@@ -492,7 +508,7 @@ export class ProfileService {
     // Set the active profile after all toggles complete
     await this.setActiveProfileId(profileId);
 
-    return { success: failed === 0, toggled, skipped, failed, errors };
+    return { success: failed === 0, toggled, skipped, failed, errors, incompatibleSkipped };
   }
 
   // ---------------------------------------------------------------------------

@@ -12,7 +12,7 @@ import type { WorkspaceProfileService } from '../../services/workspace-profile.s
 import type { ToolTreeProvider } from './tool-tree.provider.js';
 import type { ProfileToolEntry } from '../../services/profile.types.js';
 import { ToolType, ConfigScope } from '../../types/enums.js';
-import { canonicalKey } from '../../utils/tool-key.utils.js';
+import { canonicalKey, extractToolTypeFromKey } from '../../utils/tool-key.utils.js';
 import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
 
 /**
@@ -44,28 +44,6 @@ async function reconcileAndBuildItem(
       ? `${valid} tools (${removed} removed)`
       : `${valid} tools`;
   return { label: updated.name, description: desc, profile: updated };
-}
-
-/**
- * Extract tool type from a canonical key.
- *
- * Canonical keys use format "type:name" (e.g., "mcp_server:github").
- * Returns the ToolType enum value, or undefined if type prefix is unrecognized.
- */
-function extractToolTypeFromKey(key: string): ToolType | undefined {
-  const colonIndex = key.indexOf(':');
-  if (colonIndex === -1) {
-    return undefined;
-  }
-  const typePrefix = key.substring(0, colonIndex);
-  const typeMap: Record<string, ToolType> = {
-    skill: ToolType.Skill,
-    mcp_server: ToolType.McpServer,
-    hook: ToolType.Hook,
-    command: ToolType.Command,
-    custom_prompt: ToolType.CustomPrompt,
-  };
-  return typeMap[typePrefix];
 }
 
 /**
@@ -191,6 +169,19 @@ export function registerProfileCommands(
         vscode.window.showWarningMessage(
           `${result.failed} toggle(s) failed: ${result.errors.join('; ')}`,
         );
+      }
+
+      // Show warning for incompatible tools
+      if (result.incompatibleSkipped.length > 0) {
+        const activeAgent = registry.getActiveAdapter()?.displayName ?? 'active agent';
+        const action = await vscode.window.showWarningMessage(
+          `${result.incompatibleSkipped.length} tool(s) skipped (not supported by ${activeAgent})`,
+          'View Details',
+        );
+        if (action === 'View Details') {
+          const detail = result.incompatibleSkipped.join(', ');
+          vscode.window.showInformationMessage(`Skipped tools: ${detail}`);
+        }
       }
 
       // Track manual override if workspace has an association

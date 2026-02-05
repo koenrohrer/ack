@@ -94,7 +94,8 @@ export const ProfileStoreSchema = z.object({
  * Result of a profile switch operation.
  *
  * Tracks how many tools were toggled, how many profile entries had no
- * matching tool in the current environment (silently skipped), and any
+ * matching tool in the current environment (silently skipped), how many
+ * were skipped due to incompatibility with the active agent, and any
  * toggle failures with error details.
  */
 export interface SwitchResult {
@@ -103,6 +104,8 @@ export interface SwitchResult {
   skipped: number;
   failed: number;
   errors: string[];
+  /** Tools that were skipped because they're incompatible with the active agent */
+  incompatibleSkipped: string[];
 }
 
 // ---------------------------------------------------------------------------
