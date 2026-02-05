@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Developers can discover, install, configure, and switch between sets of agent tools without leaving VS Code
-**Current focus:** Phase 16 in progress. Phases 17, 18 available in parallel.
+**Current focus:** Phase 16 complete. Phases 17, 18 available in parallel.
 
 ## Current Position
 
-Phase: 16 of 19 (Codex Skills)
-Plan: 1 of 2 in current phase
-Status: In progress
-Last activity: 2026-02-04 -- Completed 16-01-PLAN.md (Codex Skill Reading)
+Phase: 16 of 19 (Codex Skills) -- COMPLETE
+Plan: 2 of 2 in current phase (all done)
+Status: Phase complete, verified ✓
+Last activity: 2026-02-04 -- Phase 16 verified (4/4 must-haves passed)
 
-Progress: [███████████░░░░░░] 65% (11/17 plans)
+Progress: [████████████░░░░░] 71% (12/17 plans)
 
 ## Milestone History
 
@@ -23,9 +23,9 @@ Progress: [███████████░░░░░░] 65% (11/17 plans
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 44 (33 v1.0 + 11 v1.1)
+- Total plans completed: 45 (33 v1.0 + 12 v1.1)
 - Average duration: 5m
-- Total execution time: 220m
+- Total execution time: 226m
 
 ## Accumulated Context
 
@@ -95,6 +95,10 @@ Phase 16 decisions (Plan 01):
 - Reuse parseSkillsDir from claude-code/parsers since SKILL.md format is identical between agents
 - Cross-adapter parser imports allowed per ESLint boundary rules when formats are identical
 
+Phase 16 decisions (Plan 02):
+- Reuse skill.writer.ts functions from claude-code since skill filesystem structure is identical
+- Toggle uses .disabled suffix on directory (matches Claude Code convention)
+
 ### Roadmap Evolution
 
 v1.0 roadmap archived to `.planning/milestones/v1.0-ROADMAP.md`
@@ -112,5 +116,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-04
-Stopped at: Completed 16-01-PLAN.md. Ready for 16-02 (Codex Skill Actions) or Phases 17, 18 (parallel-capable).
+Stopped at: Phase 16 complete and verified. Ready for Phases 17, 18 (parallel-capable).
 Resume file: None

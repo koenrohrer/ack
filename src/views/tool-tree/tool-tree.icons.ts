@@ -9,6 +9,7 @@ const GROUP_SVG_FILES: Record<ToolType, string> = {
   [ToolType.McpServer]: 'mcp-servers.svg',
   [ToolType.Hook]: 'hooks.svg',
   [ToolType.Command]: 'commands.svg',
+  [ToolType.CustomPrompt]: 'prompts.svg',
 };
 
 /**

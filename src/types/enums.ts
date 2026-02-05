@@ -3,6 +3,7 @@ export enum ToolType {
   McpServer = 'mcp_server',
   Hook = 'hook',
   Command = 'command',
+  CustomPrompt = 'custom_prompt',
 }
 
 export enum ConfigScope {

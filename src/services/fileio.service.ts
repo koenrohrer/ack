@@ -137,6 +137,28 @@ export class FileIOService {
   }
 
   /**
+   * List file names within a directory, optionally filtering by extension.
+   *
+   * Returns an empty array if the directory does not exist.
+   */
+  async listFiles(dirPath: string, extension?: string): Promise<string[]> {
+    let entries;
+    try {
+      entries = await fs.readdir(dirPath, { withFileTypes: true });
+    } catch (err: unknown) {
+      if (isNodeError(err) && err.code === 'ENOENT') {
+        return [];
+      }
+      throw err;
+    }
+
+    return entries
+      .filter((entry) => entry.isFile())
+      .filter((entry) => !extension || entry.name.endsWith(extension))
+      .map((entry) => entry.name);
+  }
+
+  /**
    * Read and parse a TOML file.
    *
    * Returns `{ success: true, data: null }` when the file does not exist --

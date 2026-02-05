@@ -21,6 +21,7 @@ export function getRouteForTool(
   switch (tool.type) {
     case ToolType.Skill:
     case ToolType.Command:
+    case ToolType.CustomPrompt:
       return 'markdown';
     case ToolType.McpServer:
       return tool.id?.includes(':codex:') ? 'toml' : 'json';
@@ -46,6 +47,7 @@ export function getJsonPath(
       return ['hooks', tool.metadata.eventName as string];
     case ToolType.Skill:
     case ToolType.Command:
+    case ToolType.CustomPrompt:
       return [];
   }
 }
