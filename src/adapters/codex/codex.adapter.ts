@@ -8,6 +8,7 @@ import type { NormalizedTool } from '../../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { CodexPaths } from './paths.js';
 import { parseCodexConfigMcpServers } from './parsers/config.parser.js';
+import { parsePromptsDir } from './parsers/prompt.parser.js';
 import { parseSkillsDir } from '../claude-code/parsers/skill.parser.js';
 import { removeSkill, copySkill, renameSkill } from '../claude-code/writers/skill.writer.js';
 import { AdapterScopeError } from '../../types/adapter-errors.js';
@@ -40,6 +41,7 @@ export class CodexAdapter implements IPlatformAdapter {
   readonly supportedToolTypes: ReadonlySet<ToolType> = new Set([
     ToolType.Skill,
     ToolType.McpServer,
+    ToolType.CustomPrompt,
   ]);
 
   constructor(
@@ -84,6 +86,8 @@ export class CodexAdapter implements IPlatformAdapter {
         return this.readMcpServers(scope);
       case ToolType.Skill:
         return this.readSkills(scope);
+      case ToolType.CustomPrompt:
+        return this.readCustomPrompts(scope);
       default:
         return [];
     }
@@ -463,6 +467,18 @@ export class CodexAdapter implements IPlatformAdapter {
       default:
         return [];
     }
+  }
+
+  /**
+   * Read custom prompts from the prompts directory for the given scope.
+   *
+   * User scope only per CONTEXT.md -- project scope returns empty array.
+   */
+  private async readCustomPrompts(scope: ConfigScope): Promise<NormalizedTool[]> {
+    if (scope !== ConfigScope.User) {
+      return []; // User scope only per CONTEXT.md
+    }
+    return parsePromptsDir(this.fileIO, CodexPaths.userPromptsDir, ConfigScope.User);
   }
 
   /**
