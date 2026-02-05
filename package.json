@@ -151,6 +151,36 @@
         "command": "ack.switchAgent",
         "title": "ACK: Switch Agent",
         "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "ack.addMcpServer",
+        "title": "Add MCP Server",
+        "icon": "$(add)"
+      },
+      {
+        "command": "ack.toggleMcpTool",
+        "title": "Toggle Tool",
+        "icon": "$(symbol-method)"
+      },
+      {
+        "command": "ack.addEnvVar",
+        "title": "Add Environment Variable",
+        "icon": "$(add)"
+      },
+      {
+        "command": "ack.editEnvVar",
+        "title": "Edit Environment Variable",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "ack.revealEnvVar",
+        "title": "Copy Value to Clipboard",
+        "icon": "$(clippy)"
+      },
+      {
+        "command": "ack.removeEnvVar",
+        "title": "Remove Environment Variable",
+        "icon": "$(trash)"
       }
     ],
     "submenus": [
@@ -207,6 +237,41 @@
           "command": "ack.installTool",
           "when": "view == ack.toolTree && viewItem =~ /^group:/",
           "group": "1_install"
+        },
+        {
+          "command": "ack.addMcpServer",
+          "when": "view == ack.toolTree && viewItem == group:mcp_server",
+          "group": "inline"
+        },
+        {
+          "command": "ack.addMcpServer",
+          "when": "view == ack.toolTree && viewItem == group:mcp_server",
+          "group": "2_codex"
+        },
+        {
+          "command": "ack.toggleMcpTool",
+          "when": "view == ack.toolTree && viewItem =~ /^subtool:mcp-tool:/",
+          "group": "inline"
+        },
+        {
+          "command": "ack.addEnvVar",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:mcp_server:/ && viewItem =~ /:(?:user|project)$/",
+          "group": "2_envvar"
+        },
+        {
+          "command": "ack.editEnvVar",
+          "when": "view == ack.toolTree && viewItem == subtool:env-var",
+          "group": "inline"
+        },
+        {
+          "command": "ack.revealEnvVar",
+          "when": "view == ack.toolTree && viewItem == subtool:env-var",
+          "group": "1_envvar"
+        },
+        {
+          "command": "ack.removeEnvVar",
+          "when": "view == ack.toolTree && viewItem == subtool:env-var",
+          "group": "3_envvar"
         }
       ],
       "ack.moveTo": [
