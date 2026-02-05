@@ -1,6 +1,7 @@
 import type { RegistryEntryWithSource } from '../../marketplace.messages';
 import type { InstallState } from '../hooks/useMarketplace';
 import { InstallButton } from './InstallButton';
+import { AgentBadge } from './AgentBadge';
 
 /** Human-readable labels for tool types. */
 const TYPE_LABELS: Record<string, string> = {
@@ -47,6 +48,7 @@ export function ToolCard({
           {tool.source === 'repo' && (
             <span className="source-badge source-badge--repo">Repo</span>
           )}
+          <AgentBadge agents={(tool as RegistryEntryWithSource & { agents?: string[] }).agents} />
         </div>
       </div>
 

@@ -3,6 +3,7 @@ import type { ToolTypeFilter } from '../hooks/useMarketplace';
 interface TypeTabsProps {
   activeType: ToolTypeFilter;
   onChange: (type: ToolTypeFilter) => void;
+  supportedTypes?: Set<string>;
 }
 
 const TABS: { value: ToolTypeFilter; label: string }[] = [
@@ -15,11 +16,19 @@ const TABS: { value: ToolTypeFilter; label: string }[] = [
 
 /**
  * Horizontal tab bar for filtering tools by type.
+ * Filters tabs based on supported tool types for the active agent.
  */
-export function TypeTabs({ activeType, onChange }: TypeTabsProps) {
+export function TypeTabs({ activeType, onChange, supportedTypes }: TypeTabsProps) {
+  // Filter tabs: show 'all' always, plus types the agent supports
+  const visibleTabs = supportedTypes && supportedTypes.size > 0
+    ? TABS.filter((tab) =>
+        tab.value === 'all' || supportedTypes.has(tab.value)
+      )
+    : TABS; // Show all if no supportedTypes provided (backward compat)
+
   return (
     <div className="marketplace-filters">
-      {TABS.map((tab) => (
+      {visibleTabs.map((tab) => (
         <button
           key={tab.value}
           className={`marketplace-filters__tab${

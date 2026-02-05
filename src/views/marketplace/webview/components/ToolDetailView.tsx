@@ -5,6 +5,7 @@ import type { RegistryEntryWithSource } from '../../marketplace.messages';
 import type { InstallState } from '../hooks/useMarketplace';
 import { InstallButton } from './InstallButton';
 import { ConfigForm } from './ConfigForm';
+import { AgentBadge } from './AgentBadge';
 
 // Import progress ring for loading state
 import '@vscode-elements/elements/dist/vscode-progress-ring/index.js';
@@ -79,6 +80,7 @@ export function ToolDetailView({
           {tool.source === 'repo' && (
             <span className="source-badge source-badge--repo">Repo</span>
           )}
+          <AgentBadge agents={(tool as RegistryEntryWithSource & { agents?: string[] }).agents} />
           <span>by {tool.author}</span>
           {tool.source !== 'repo' && tool.version && <span>v{tool.version}</span>}
           {tool.source !== 'repo' && (

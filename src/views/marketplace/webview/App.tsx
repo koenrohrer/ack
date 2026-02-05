@@ -32,6 +32,8 @@ export function App() {
     currentPage,
     totalPages,
 
+    supportedToolTypes,
+
     selectedTool,
     readmeContent,
     readmeLoading,
@@ -162,7 +164,7 @@ export function App() {
         <h1 className="marketplace-header__title">Tool Marketplace</h1>
         <SearchBar value={searchQuery} onChange={setSearchQuery} />
         <div className="marketplace-header__filter-row">
-          <TypeTabs activeType={activeType} onChange={setActiveType} />
+          <TypeTabs activeType={activeType} onChange={setActiveType} supportedTypes={supportedToolTypes} />
           <SortDropdown value={sortBy} onChange={setSortBy} />
         </div>
         <RepoInput onAdd={addRepo} />
