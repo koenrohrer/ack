@@ -4,10 +4,15 @@ import type { ConfigService } from '../../services/config.service.js';
 import type { BackupService } from '../../services/backup.service.js';
 import type { IPlatformAdapter } from '../../types/adapter.js';
 import type { NormalizedTool } from '../../types/config.js';
-import { ToolType, ConfigScope } from '../../types/enums.js';
+import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { CodexPaths } from './paths.js';
 import { parseCodexConfigMcpServers } from './parsers/config.parser.js';
 import { AdapterScopeError } from '../../types/adapter-errors.js';
+import {
+  addCodexMcpServer,
+  removeCodexMcpServer,
+  toggleCodexMcpServer,
+} from './writers/config.writer.js';
 
 /**
  * Platform adapter for OpenAI Codex.
@@ -23,8 +28,8 @@ import { AdapterScopeError } from '../../types/adapter-errors.js';
  * - No hook or command concepts exist in Codex
  * - Skills live in ~/.codex/skills/ (similar to Claude Code)
  *
- * Write operations (toggle, remove, install) are stubbed to throw
- * "not yet implemented" errors. Full write support is Phase 15+ scope.
+ * MCP write operations delegate to config.writer.ts pure functions.
+ * Skill write operations are Phase 16 scope (stubs remain).
  */
 export class CodexAdapter implements IPlatformAdapter {
   readonly id = 'codex';
@@ -83,45 +88,93 @@ export class CodexAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IToolAdapter -- writeTool (stub)
+  // IToolAdapter -- writeTool
   // ---------------------------------------------------------------------------
 
   /**
    * Write (create or update) a tool within a scope.
    *
-   * **Not yet implemented.** Full write support requires the Codex writer
-   * infrastructure from Phase 15+. Throws immediately to signal the stub.
+   * For MCP servers: extracts server config from tool metadata and delegates
+   * to addCodexMcpServer which writes the [mcp_servers.<name>] TOML table.
    */
-  async writeTool(_tool: NormalizedTool, _scope: ConfigScope): Promise<void> {
-    throw new Error('Codex writeTool not yet implemented');
+  async writeTool(tool: NormalizedTool, scope: ConfigScope): Promise<void> {
+    this.ensureWriteServices();
+
+    switch (tool.type) {
+      case ToolType.McpServer: {
+        const { command, args, url, env, enabled, enabled_tools, disabled_tools, ...rest } = tool.metadata;
+        const serverConfig: Record<string, unknown> = { ...rest };
+        if (command !== undefined) { serverConfig.command = command; }
+        if (args !== undefined) { serverConfig.args = args; }
+        if (url !== undefined) { serverConfig.url = url; }
+        if (env !== undefined && Object.keys(env as Record<string, unknown>).length > 0) { serverConfig.env = env; }
+        if (enabled === false) { serverConfig.enabled = false; }
+        if (enabled_tools !== undefined) { serverConfig.enabled_tools = enabled_tools; }
+        if (disabled_tools !== undefined) { serverConfig.disabled_tools = disabled_tools; }
+
+        const filePath = this.getMcpFilePath(scope);
+        await addCodexMcpServer(this.configService!, filePath, tool.name, serverConfig);
+        break;
+      }
+      case ToolType.Skill:
+        throw new Error('Codex writeTool for Skill not yet implemented');
+      default:
+        throw new Error(`Unsupported tool type for Codex: ${tool.type}`);
+    }
   }
 
   // ---------------------------------------------------------------------------
-  // IToolAdapter -- removeTool (stub)
+  // IToolAdapter -- removeTool
   // ---------------------------------------------------------------------------
 
   /**
    * Remove a tool from its scope.
    *
-   * **Not yet implemented.** Full write support requires the Codex writer
-   * infrastructure from Phase 15+. Throws immediately to signal the stub.
+   * For MCP servers: delegates to removeCodexMcpServer which deletes the
+   * [mcp_servers.<name>] table and cleans up empty mcp_servers.
    */
-  async removeTool(_tool: NormalizedTool): Promise<void> {
-    throw new Error('Codex removeTool not yet implemented');
+  async removeTool(tool: NormalizedTool): Promise<void> {
+    this.ensureWriteServices();
+
+    switch (tool.type) {
+      case ToolType.McpServer:
+        await removeCodexMcpServer(this.configService!, tool.source.filePath, tool.name);
+        break;
+      case ToolType.Skill:
+        throw new Error('Codex removeTool for Skill not yet implemented');
+      default:
+        throw new Error(`Unsupported tool type for Codex: ${tool.type}`);
+    }
   }
 
   // ---------------------------------------------------------------------------
-  // IToolAdapter -- toggleTool (stub)
+  // IToolAdapter -- toggleTool
   // ---------------------------------------------------------------------------
 
   /**
    * Toggle a tool between enabled and disabled states.
    *
-   * **Not yet implemented.** Full write support requires the Codex writer
-   * infrastructure from Phase 15+. Throws immediately to signal the stub.
+   * For MCP servers: determines desired state from current status and
+   * delegates to toggleCodexMcpServer. Codex uses enabled:false to disable
+   * (opposite of Claude Code's disabled:true), so when currently Enabled
+   * we pass enabled=false, and when Disabled we pass enabled=true.
    */
-  async toggleTool(_tool: NormalizedTool): Promise<void> {
-    throw new Error('Codex toggleTool not yet implemented');
+  async toggleTool(tool: NormalizedTool): Promise<void> {
+    this.ensureWriteServices();
+
+    switch (tool.type) {
+      case ToolType.McpServer: {
+        // If currently enabled -> we want to disable (enabled=false)
+        // If currently disabled -> we want to enable (enabled=true)
+        const shouldEnable = tool.status !== ToolStatus.Enabled;
+        await toggleCodexMcpServer(this.configService!, tool.source.filePath, tool.name, shouldEnable);
+        break;
+      }
+      case ToolType.Skill:
+        throw new Error('Codex toggleTool for Skill not yet implemented');
+      default:
+        throw new Error(`Unsupported tool type for Codex: ${tool.type}`);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -172,21 +225,23 @@ export class CodexAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IMcpAdapter -- installMcpServer (stub)
+  // IMcpAdapter -- installMcpServer
   // ---------------------------------------------------------------------------
 
   /**
    * Install an MCP server into the config file for the given scope.
    *
-   * **Not yet implemented.** Requires TOML write infrastructure from Phase 15.
-   * Throws immediately to signal the stub.
+   * Determines the file path from scope and delegates to addCodexMcpServer
+   * which writes the [mcp_servers.<name>] TOML table.
    */
   async installMcpServer(
-    _scope: ConfigScope,
-    _serverName: string,
-    _serverConfig: Record<string, unknown>,
+    scope: ConfigScope,
+    serverName: string,
+    serverConfig: Record<string, unknown>,
   ): Promise<void> {
-    throw new Error('Codex installMcpServer not yet implemented');
+    this.ensureWriteServices();
+    const filePath = this.getMcpFilePath(scope);
+    await addCodexMcpServer(this.configService!, filePath, serverName, serverConfig);
   }
 
   // ---------------------------------------------------------------------------
@@ -336,6 +391,16 @@ export class CodexAdapter implements IPlatformAdapter {
   // ---------------------------------------------------------------------------
   // Private methods
   // ---------------------------------------------------------------------------
+
+  /**
+   * Guard that write-time services have been injected.
+   * Throws if ConfigService or BackupService are missing.
+   */
+  private ensureWriteServices(): void {
+    if (!this.configService || !this.backupService) {
+      throw new Error('Write services not initialized. Call setWriteServices() first.');
+    }
+  }
 
   /**
    * Read MCP servers from the config.toml file for the given scope.
