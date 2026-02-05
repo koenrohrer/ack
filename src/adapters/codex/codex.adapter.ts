@@ -154,6 +154,12 @@ export class CodexAdapter implements IPlatformAdapter {
       case ToolType.Skill:
         await removeSkill(this.backupService!, tool.source.directoryPath!);
         break;
+      case ToolType.CustomPrompt: {
+        // Custom prompts are single files - delete directly
+        const { rm } = await import('fs/promises');
+        await rm(tool.source.filePath);
+        break;
+      }
       default:
         throw new Error(`Unsupported tool type for Codex: ${tool.type}`);
     }
