@@ -119,7 +119,8 @@ export type ExportedToolConfig =
   | { kind: 'mcp_server'; command: string; args: string[]; env: Record<string, string>; transport?: string; url?: string }
   | { kind: 'skill'; files: { name: string; content: string }[] }
   | { kind: 'command'; files: { name: string; content: string }[] }
-  | { kind: 'hook'; eventName: string; matcher: string; hooks: Array<Record<string, unknown>> };
+  | { kind: 'hook'; eventName: string; matcher: string; hooks: Array<Record<string, unknown>> }
+  | { kind: 'custom_prompt'; files: { name: string; content: string }[] };
 
 /**
  * A single tool within an export bundle.
@@ -127,7 +128,7 @@ export type ExportedToolConfig =
 export interface ExportedTool {
   key: string;
   enabled: boolean;
-  type: 'skill' | 'mcp_server' | 'hook' | 'command';
+  type: 'skill' | 'mcp_server' | 'hook' | 'command' | 'custom_prompt';
   name: string;
   config: ExportedToolConfig;
 }
@@ -137,9 +138,16 @@ export interface ExportedTool {
  *
  * Contains full tool configuration data so profiles can be shared across
  * machines and projects without requiring pre-installed tools.
+ *
+ * v2 bundles include version and agentId for cross-machine portability
+ * and agent-aware import conversion.
  */
 export interface ProfileExportBundle {
   bundleType: 'ack-profile';
+  /** Bundle format version (2 for agent-aware bundles) */
+  version: number;
+  /** Agent this profile was created for (e.g., 'claude-code', 'codex') */
+  agentId: string;
   profile: {
     name: string;
     createdAt: string;
@@ -207,11 +215,17 @@ const HookConfigSchema = z.object({
   hooks: z.array(z.record(z.string(), z.unknown())),
 }).passthrough();
 
+const CustomPromptConfigSchema = z.object({
+  kind: z.literal('custom_prompt'),
+  files: z.array(ExportedFileSchema),
+}).passthrough();
+
 export const ExportedToolConfigSchema = z.discriminatedUnion('kind', [
   McpServerConfigSchema,
   SkillConfigSchema,
   CommandConfigSchema,
   HookConfigSchema,
+  CustomPromptConfigSchema,
 ]);
 
 export const ExportedToolSchema = z.object({

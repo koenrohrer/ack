@@ -23,6 +23,7 @@ import type {
   ExportedToolConfig,
   ImportAnalysis,
 } from './profile.types.js';
+import type { AdapterRegistry } from '../adapters/adapter.registry.js';
 
 /**
  * Manages named profiles -- preset collections of tool enabled/disabled states.
@@ -42,8 +43,20 @@ export class ProfileService {
     private readonly globalState: vscode.Memento,
     private readonly configService: ConfigService,
     private readonly toolManager: ToolManagerService,
+    private readonly registry: AdapterRegistry,
     private readonly outputChannel?: vscode.OutputChannel,
   ) {}
+
+  // ---------------------------------------------------------------------------
+  // Agent scoping helper
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Get the ID of the currently active agent, or undefined if none.
+   */
+  private getActiveAgentId(): string | undefined {
+    return this.registry.getActiveAdapter()?.id;
+  }
 
   // ---------------------------------------------------------------------------
   // Migration
@@ -102,10 +115,17 @@ export class ProfileService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Get all saved profiles.
+   * Get all saved profiles for the active agent.
+   *
+   * Returns only profiles that belong to the currently active agent.
+   * If no agent is active, returns an empty array.
    */
   getProfiles(): Profile[] {
-    return this.loadStore().profiles;
+    const agentId = this.getActiveAgentId();
+    if (!agentId) {
+      return [];
+    }
+    return this.loadStore().profiles.filter((p) => p.agentId === agentId);
   }
 
   /**
@@ -118,10 +138,19 @@ export class ProfileService {
   /**
    * Get a single profile by ID.
    *
-   * Returns undefined if the profile does not exist.
+   * Returns undefined if the profile does not exist or if it belongs
+   * to a different agent than the currently active one.
    */
   getProfile(id: string): Profile | undefined {
-    return this.loadStore().profiles.find((p) => p.id === id);
+    const agentId = this.getActiveAgentId();
+    if (!agentId) {
+      return undefined;
+    }
+    const profile = this.loadStore().profiles.find((p) => p.id === id);
+    if (!profile || profile.agentId !== agentId) {
+      return undefined;
+    }
+    return profile;
   }
 
   // ---------------------------------------------------------------------------
@@ -134,8 +163,16 @@ export class ProfileService {
    * Reads all tools across every type (Skill, McpServer, Hook, Command),
    * filters out managed-scope tools, and maps each to a ProfileToolEntry
    * with its canonical key and current enabled/disabled state.
+   *
+   * The new profile is automatically associated with the active agent.
+   * Throws if no agent is active (cannot create profile without agent context).
    */
   async createProfile(name: string): Promise<Profile> {
+    const agentId = this.getActiveAgentId();
+    if (!agentId) {
+      throw new Error('Cannot create profile: no agent is active');
+    }
+
     const entries: ProfileToolEntry[] = [];
 
     for (const type of [ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command]) {
@@ -155,6 +192,7 @@ export class ProfileService {
     const profile: Profile = {
       id: crypto.randomUUID(),
       name,
+      agentId,
       tools: entries,
       createdAt: now,
       updatedAt: now,
@@ -171,12 +209,18 @@ export class ProfileService {
    * Update an existing profile with partial changes.
    *
    * Accepts optional name and/or tools updates. Sets updatedAt to now.
-   * Returns the updated profile, or undefined if the profile was not found.
+   * Returns the updated profile, or undefined if the profile was not found
+   * or belongs to a different agent.
    */
   async updateProfile(
     id: string,
     updates: { name?: string; tools?: ProfileToolEntry[] },
   ): Promise<Profile | undefined> {
+    const agentId = this.getActiveAgentId();
+    if (!agentId) {
+      return undefined;
+    }
+
     const store = this.loadStore();
     const index = store.profiles.findIndex((p) => p.id === id);
     if (index === -1) {
@@ -184,6 +228,11 @@ export class ProfileService {
     }
 
     const profile = store.profiles[index];
+    // Verify profile belongs to active agent
+    if (profile.agentId !== agentId) {
+      return undefined;
+    }
+
     if (updates.name !== undefined) {
       profile.name = updates.name;
     }
@@ -202,12 +251,23 @@ export class ProfileService {
    * Delete a profile by ID.
    *
    * If the deleted profile was the active one, clears activeProfileId to null.
-   * Returns true if the profile was found and deleted, false otherwise.
+   * Returns true if the profile was found and deleted, false if not found
+   * or if the profile belongs to a different agent.
    */
   async deleteProfile(id: string): Promise<boolean> {
+    const agentId = this.getActiveAgentId();
+    if (!agentId) {
+      return false;
+    }
+
     const store = this.loadStore();
     const index = store.profiles.findIndex((p) => p.id === id);
     if (index === -1) {
+      return false;
+    }
+
+    // Verify profile belongs to active agent
+    if (store.profiles[index].agentId !== agentId) {
       return false;
     }
 
