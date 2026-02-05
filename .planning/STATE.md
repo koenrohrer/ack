@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Developers can discover, install, configure, and switch between sets of agent tools without leaving VS Code
-**Current focus:** Phase 16 complete. Phases 17, 18 available in parallel.
+**Current focus:** Phase 18 in progress. Plan 18-02 complete.
 
 ## Current Position
 
-Phase: 16 of 19 (Codex Skills) -- COMPLETE
-Plan: 2 of 2 in current phase (all done)
-Status: Phase complete, verified ✓
-Last activity: 2026-02-04 -- Phase 16 verified (4/4 must-haves passed)
+Phase: 18 of 19 (Agent-Scoped Profiles)
+Plan: 2 of 4 in current phase
+Status: In progress
+Last activity: 2026-02-05 -- Completed 18-02-PLAN.md
 
-Progress: [████████████░░░░░] 71% (12/17 plans)
+Progress: [████████████████░] 94% (16/17 plans)
 
 ## Milestone History
 
@@ -23,9 +23,9 @@ Progress: [████████████░░░░░] 71% (12/17 plans
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 45 (33 v1.0 + 12 v1.1)
+- Total plans completed: 48 (33 v1.0 + 15 v1.1)
 - Average duration: 5m
-- Total execution time: 226m
+- Total execution time: 242m
 
 ## Accumulated Context
 
@@ -99,6 +99,27 @@ Phase 16 decisions (Plan 02):
 - Reuse skill.writer.ts functions from claude-code since skill filesystem structure is identical
 - Toggle uses .disabled suffix on directory (matches Claude Code convention)
 
+Phase 17 decisions (Plan 01):
+- Custom prompts parsed as single .md files (not directories like skills)
+- Alphabetical sort for prompts in tree (consistent with other tool types)
+- User scope only for custom prompts (per CONTEXT.md)
+- ID format prompt:codex:{scope}:{filename} for consistency
+
+Phase 17 decisions (Plan 02):
+- Delete prompts directly in command handler (not through ToolManagerService) for simplicity
+- Dynamic import of CodexPaths in view layer to avoid adapter boundary violation
+- Prompts directory uses recursive watching (same as skills/commands)
+
+Phase 18 decisions (Plan 01):
+- Migration runs at activation (fire-and-forget with error logging)
+- v1 stores implicit (no version field), v2 explicit
+- agentId='claude-code' for all migrated profiles
+
+Phase 18 decisions (Plan 02):
+- Direct globalState access for cross-agent profile creation in clone-to-agent
+- Empty array return when no agent active for getProfiles()
+- Profile operations fail gracefully (return undefined/false) for wrong-agent profiles
+
 ### Roadmap Evolution
 
 v1.0 roadmap archived to `.planning/milestones/v1.0-ROADMAP.md`
@@ -115,6 +136,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-04
-Stopped at: Phase 16 complete and verified. Ready for Phases 17, 18 (parallel-capable).
+Last session: 2026-02-05
+Stopped at: Completed 18-02-PLAN.md. Ready for 18-03-PLAN.md or 18-04-PLAN.md.
 Resume file: None

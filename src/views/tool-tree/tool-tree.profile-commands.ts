@@ -411,6 +411,7 @@ export function registerProfileCommands(
       }
 
       const profileName = selected.profile.name;
+      const agentId = bundle.agentId;
 
       // Warn about potential secrets in MCP env vars
       const proceed = await vscode.window.showWarningMessage(
@@ -422,12 +423,17 @@ export function registerProfileCommands(
         return;
       }
 
+      // Sanitize profile name for filename: lowercase, replace spaces with hyphens
+      const sanitizedName = profileName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      // Format: {name}.{agent-id}.ackprofile per CONTEXT.md
+      const defaultFilename = `${sanitizedName}.${agentId}.ackprofile`;
+
       const defaultDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? os.homedir();
-      const defaultUri = vscode.Uri.file(path.join(defaultDir, `${profileName}.agent-profile.json`));
+      const defaultUri = vscode.Uri.file(path.join(defaultDir, defaultFilename));
 
       const uri = await vscode.window.showSaveDialog({
         defaultUri,
-        filters: { 'Agent Profile': ['json'] },
+        filters: { 'ACK Profile': ['ackprofile', 'json'] },
         title: `Export Profile: ${profileName}`,
       });
 
@@ -449,7 +455,7 @@ export function registerProfileCommands(
     async () => {
       const uris = await vscode.window.showOpenDialog({
         canSelectMany: false,
-        filters: { 'Agent Profile': ['json'] },
+        filters: { 'ACK Profile': ['ackprofile', 'json'] },
         title: 'Import Profile',
       });
 
@@ -475,15 +481,76 @@ export function registerProfileCommands(
         return;
       }
 
+      // First do a basic shape check for bundleType
+      const basicCheck = parsed as { bundleType?: string };
+      if (basicCheck.bundleType !== 'ack-profile') {
+        vscode.window.showErrorMessage('Invalid profile bundle: not an ACK profile file.');
+        return;
+      }
+
       const validation = ProfileExportBundleSchema.safeParse(parsed);
       if (!validation.success) {
+        // Check if this is a v1 bundle (missing version/agentId)
+        const v1Check = parsed as { version?: number; agentId?: string };
+        if (!v1Check.version || !v1Check.agentId) {
+          vscode.window.showErrorMessage(
+            'Legacy bundle format (v1). Please re-export the profile with v1.1 or later.',
+          );
+          return;
+        }
         vscode.window.showErrorMessage(
           `Invalid profile bundle: ${validation.error.message}`,
         );
         return;
       }
 
-      const bundle = validation.data;
+      let bundle = validation.data;
+
+      // Validate version and agent compatibility
+      const importValidation = profileService.validateImportBundle(bundle);
+      if (!importValidation.valid) {
+        vscode.window.showErrorMessage(importValidation.error ?? 'Invalid bundle');
+        return;
+      }
+
+      // Handle agent mismatch - offer conversion
+      if (importValidation.requiresConversion) {
+        const activeAgent = registry.getActiveAdapter();
+        if (!activeAgent) {
+          vscode.window.showErrorMessage('No agent is active. Cannot import profile.');
+          return;
+        }
+
+        const convertChoice = await vscode.window.showWarningMessage(
+          `This profile was created for ${importValidation.sourceAgent}. Convert to ${activeAgent.displayName}?`,
+          { modal: true },
+          'Convert',
+          'Cancel',
+        );
+
+        if (convertChoice !== 'Convert') {
+          return;
+        }
+
+        // Convert the bundle
+        const conversion = profileService.convertBundleForAgent(bundle, activeAgent.id);
+        bundle = conversion.bundle;
+
+        // Show conversion results
+        if (conversion.stats.skipped > 0) {
+          const skippedList = conversion.stats.skippedTools.slice(0, 5).join(', ');
+          const more = conversion.stats.skippedTools.length > 5
+            ? ` and ${conversion.stats.skippedTools.length - 5} more`
+            : '';
+          vscode.window.showInformationMessage(
+            `Converted: ${conversion.stats.compatible} tools kept, ${conversion.stats.skipped} skipped (${skippedList}${more})`,
+          );
+        } else {
+          vscode.window.showInformationMessage(
+            `Converted: all ${conversion.stats.compatible} tools are compatible.`,
+          );
+        }
+      }
 
       // Name collision check
       let finalName = bundle.profile.name;
