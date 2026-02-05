@@ -12,6 +12,7 @@ import {
   DEFAULT_PROFILE_STORE,
   ProfileStoreSchema,
   PROFILE_STORE_VERSION,
+  EXPORT_BUNDLE_VERSION,
 } from './profile.types.js';
 import type {
   Profile,
@@ -319,9 +320,9 @@ export class ProfileService {
       return { valid: 0, removed: 0 };
     }
 
-    // Read current tool keys
+    // Read current tool keys (including CustomPrompt)
     const currentKeys = new Set<string>();
-    for (const type of [ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command]) {
+    for (const type of [ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command, ToolType.CustomPrompt]) {
       const tools = await this.configService.readAllTools(type);
       for (const tool of tools) {
         if (tool.scope !== ConfigScope.Managed) {
@@ -429,9 +430,9 @@ export class ProfileService {
       return { success: false, toggled: 0, skipped: 0, failed: 0, errors: ['Profile not found'] };
     }
 
-    // Read current tool states across all types
+    // Read current tool states across all types (including CustomPrompt)
     const currentTools: NormalizedTool[] = [];
-    for (const type of [ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command]) {
+    for (const type of [ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command, ToolType.CustomPrompt]) {
       const tools = await this.configService.readAllTools(type);
       currentTools.push(...tools);
     }
@@ -501,21 +502,26 @@ export class ProfileService {
    * Export a profile as a self-contained bundle with full tool config data.
    *
    * Reads each tool's actual configuration (MCP env vars, skill file contents,
-   * hook definitions, command files) so the bundle works on machines that
-   * don't have the same tools pre-installed.
+   * hook definitions, command files, custom prompts) so the bundle works on
+   * machines that don't have the same tools pre-installed.
    *
-   * Returns null if the profile is not found. Silently skips profile entries
-   * whose corresponding tool no longer exists in the environment.
+   * Returns null if the profile is not found or no agent is active.
+   * Silently skips profile entries whose corresponding tool no longer exists.
    */
   async exportProfile(profileId: string): Promise<ProfileExportBundle | null> {
+    const agentId = this.getActiveAgentId();
+    if (!agentId) {
+      return null;
+    }
+
     const profile = this.getProfile(profileId);
     if (!profile) {
       return null;
     }
 
-    // Read all tools across all types for key-based lookup
+    // Read all tools across all types for key-based lookup (including CustomPrompt)
     const toolsByKey = new Map<string, NormalizedTool>();
-    for (const type of [ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command]) {
+    for (const type of [ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command, ToolType.CustomPrompt]) {
       const tools = await this.configService.readAllTools(type);
       for (const tool of tools) {
         if (tool.scope === ConfigScope.Managed) {
@@ -542,7 +548,7 @@ export class ProfileService {
       exportedTools.push({
         key: entry.key,
         enabled: entry.enabled,
-        type: tool.type as 'skill' | 'mcp_server' | 'hook' | 'command',
+        type: tool.type as 'skill' | 'mcp_server' | 'hook' | 'command' | 'custom_prompt',
         name: tool.name,
         config,
       });
@@ -550,6 +556,8 @@ export class ProfileService {
 
     return {
       bundleType: 'ack-profile',
+      version: EXPORT_BUNDLE_VERSION,
+      agentId,
       profile: {
         name: profile.name,
         createdAt: profile.createdAt,
@@ -569,9 +577,9 @@ export class ProfileService {
    * - **missing**: no local tool with this key
    */
   async analyzeImport(bundle: ProfileExportBundle): Promise<ImportAnalysis> {
-    // Read all current tools for key-based lookup
+    // Read all current tools for key-based lookup (including CustomPrompt)
     const localByKey = new Map<string, NormalizedTool>();
-    for (const type of [ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command]) {
+    for (const type of [ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command, ToolType.CustomPrompt]) {
       const tools = await this.configService.readAllTools(type);
       for (const tool of tools) {
         if (tool.scope === ConfigScope.Managed) {
@@ -600,6 +608,111 @@ export class ProfileService {
     }
 
     return { matching, conflicts, missing };
+  }
+
+  /**
+   * Validate an import bundle for version and agent compatibility.
+   *
+   * Returns validation result with:
+   * - valid: true if bundle can be imported (possibly with conversion)
+   * - error: set if bundle is invalid (e.g., legacy v1 format)
+   * - requiresConversion: true if bundle is for a different agent
+   * - sourceAgent: the agentId from the bundle (for display in conversion prompts)
+   */
+  validateImportBundle(bundle: ProfileExportBundle): {
+    valid: boolean;
+    error?: string;
+    requiresConversion?: boolean;
+    sourceAgent?: string;
+  } {
+    // Check bundle version - v1 bundles lack version field
+    if (!bundle.version || bundle.version < EXPORT_BUNDLE_VERSION) {
+      return {
+        valid: false,
+        error: 'Legacy bundle format (v1). Please re-export the profile with v1.1 or later.',
+      };
+    }
+
+    const activeAgentId = this.getActiveAgentId();
+    if (!activeAgentId) {
+      return {
+        valid: false,
+        error: 'No agent is active. Cannot import profile.',
+      };
+    }
+
+    // Check agent compatibility
+    if (bundle.agentId !== activeAgentId) {
+      return {
+        valid: true,
+        requiresConversion: true,
+        sourceAgent: bundle.agentId,
+      };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Convert a bundle for a different target agent.
+   *
+   * Filters out tools that are not supported by the target agent.
+   * Returns the converted bundle and conversion statistics.
+   */
+  convertBundleForAgent(
+    bundle: ProfileExportBundle,
+    targetAgentId: string,
+  ): {
+    bundle: ProfileExportBundle;
+    stats: { compatible: number; skipped: number; skippedTools: string[] };
+  } {
+    const targetAdapter = this.registry.getAdapter(targetAgentId);
+    if (!targetAdapter) {
+      // No adapter found - return bundle unchanged with all tools marked as skipped
+      return {
+        bundle: { ...bundle, agentId: targetAgentId, tools: [] },
+        stats: {
+          compatible: 0,
+          skipped: bundle.tools.length,
+          skippedTools: bundle.tools.map((t) => t.name),
+        },
+      };
+    }
+
+    const supportedTypes = targetAdapter.supportedToolTypes;
+    const compatibleTools: ExportedTool[] = [];
+    const skippedTools: string[] = [];
+
+    // Map exported tool types to ToolType enum for comparison
+    const typeMap: Record<string, ToolType> = {
+      skill: ToolType.Skill,
+      mcp_server: ToolType.McpServer,
+      hook: ToolType.Hook,
+      command: ToolType.Command,
+      custom_prompt: ToolType.CustomPrompt,
+    };
+
+    for (const tool of bundle.tools) {
+      const toolType = typeMap[tool.type];
+      if (toolType && supportedTypes.has(toolType)) {
+        compatibleTools.push(tool);
+      } else {
+        skippedTools.push(tool.name);
+      }
+    }
+
+    return {
+      bundle: {
+        ...bundle,
+        agentId: targetAgentId,
+        tools: compatibleTools,
+      },
+      stats: {
+        compatible: compatibleTools.length,
+        skipped: skippedTools.length,
+        skippedTools,
+      },
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -648,6 +761,12 @@ export class ProfileService {
           matcher: parts.matcher,
           hooks: (tool.metadata.hooks as Array<Record<string, unknown>>) ?? [],
         };
+      }
+
+      case ToolType.CustomPrompt: {
+        // Custom prompts are single-file .md files, use same approach as skills
+        const files = await this.readDirectoryFiles(tool);
+        return { kind: 'custom_prompt', files };
       }
 
       default:
@@ -717,7 +836,8 @@ export class ProfileService {
       }
 
       case 'skill':
-      case 'command': {
+      case 'command':
+      case 'custom_prompt': {
         // Compare by file count as a simple heuristic
         const localDir = local.source.directoryPath;
         // If we can't determine local file count, treat as matching
