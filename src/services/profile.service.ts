@@ -11,6 +11,7 @@ import {
   PROFILE_STORE_KEY,
   DEFAULT_PROFILE_STORE,
   ProfileStoreSchema,
+  PROFILE_STORE_VERSION,
 } from './profile.types.js';
 import type {
   Profile,
@@ -41,7 +42,60 @@ export class ProfileService {
     private readonly globalState: vscode.Memento,
     private readonly configService: ConfigService,
     private readonly toolManager: ToolManagerService,
+    private readonly outputChannel?: vscode.OutputChannel,
   ) {}
+
+  // ---------------------------------------------------------------------------
+  // Migration
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Migrate profile store to the current schema version if needed.
+   *
+   * v1 -> v2: Assign agentId='claude-code' to all existing profiles.
+   *
+   * This method is idempotent - calling it multiple times after migration
+   * is safe because the version check gates re-execution.
+   *
+   * Per CONTEXT.md: migration happens at activation with minimal friction.
+   */
+  async migrateIfNeeded(): Promise<void> {
+    const store = this.loadStore();
+    const currentVersion = store.version ?? 1;
+
+    if (currentVersion >= PROFILE_STORE_VERSION) {
+      // Already at current version, nothing to do
+      return;
+    }
+
+    // v1 -> v2: Add agentId to all profiles
+    let migratedCount = 0;
+    for (const profile of store.profiles) {
+      if (!profile.agentId) {
+        profile.agentId = 'claude-code';
+        migratedCount++;
+      }
+    }
+
+    // Update version
+    store.version = PROFILE_STORE_VERSION;
+
+    // Per RESEARCH.md Pitfall 1: Clear activeProfileId if it doesn't belong
+    // to the active agent. Since we're at activation before agent selection,
+    // we just ensure activeProfileId references a valid profile.
+    if (store.activeProfileId) {
+      const activeProfile = store.profiles.find((p) => p.id === store.activeProfileId);
+      if (!activeProfile) {
+        store.activeProfileId = null;
+      }
+    }
+
+    await this.saveStore(store);
+
+    if (migratedCount > 0) {
+      this.outputChannel?.appendLine(`Migrated ${migratedCount} profiles to Claude Code scope`);
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Read operations
