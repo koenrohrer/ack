@@ -466,9 +466,14 @@ export class ConfigPanel {
           this.postMessage({ type: 'operationError', op: 'associateProfile', error: 'Profile not found' });
           return;
         }
-        await this.workspaceProfileService.setAssociation(wsRoot, profile.name);
+        const activeAgentId = this.registry.getActiveAdapter()?.id;
+        if (!activeAgentId) {
+          this.postMessage({ type: 'operationError', op: 'associateProfile', error: 'No agent is active' });
+          return;
+        }
+        await this.workspaceProfileService.setAssociation(wsRoot, profile.name, activeAgentId);
         this.postMessage({ type: 'workspaceAssociation', profileName: profile.name });
-        this.outputChannel.appendLine(`[ConfigPanel] Associated workspace with profile "${profile.name}"`);
+        this.outputChannel.appendLine(`[ConfigPanel] Associated workspace with profile "${profile.name}" for agent "${activeAgentId}"`);
       }
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to associate profile';

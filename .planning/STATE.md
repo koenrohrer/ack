@@ -5,27 +5,29 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Developers can discover, install, configure, and switch between sets of agent tools without leaving VS Code
-**Current focus:** Phase 19 (Marketplace Adaptation) in progress - Plan 01 complete.
+**Current focus:** v1.1 milestone complete. All 19 phases delivered.
 
 ## Current Position
 
 Phase: 19 of 19 (Marketplace Adaptation)
-Plan: 1 of 3 in current phase
-Status: In progress
-Last activity: 2026-02-05 -- Completed 19-01-PLAN.md
+Plan: 2 of 2 in current phase
+Status: All gaps closed, audit passed
+Last activity: 2026-02-05 -- Fixed ConfigPanel workspace association agentId bug
 
-Progress: [██████████████████░] 95% (51/54 plans estimated)
+Progress: [████████████████████] 100% (52/52 plans)
+Audit: See .planning/v1.1-MILESTONE-AUDIT.md
 
 ## Milestone History
 
 - v1.0 MVP -- Shipped 2026-02-03 (11 phases, 33 plans)
+- v1.1 Codex Support -- Shipped 2026-02-05 (8 phases, 19 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 51 (33 v1.0 + 18 v1.1)
+- Total plans completed: 52 (33 v1.0 + 19 v1.1)
 - Average duration: 5m
-- Total execution time: 263m
+- Total execution time: 271m
 
 ## Accumulated Context
 
@@ -139,6 +141,11 @@ Phase 19 decisions (Plan 01):
 - Agent context sent as two separate messages (supportedToolTypes and activeAgent)
 - sendAgentContext called on both ready and agentChanged events
 
+Phase 19 decisions (Plan 02):
+- Agent filtering applied before type filtering in useMarketplace
+- Empty/missing agents array treated as all-agents compatible (backward compat)
+- TypeTabs shows all tabs when no supportedTypes provided (graceful degradation)
+
 ### Roadmap Evolution
 
 v1.0 roadmap archived to `.planning/milestones/v1.0-ROADMAP.md`
@@ -151,10 +158,10 @@ v1.1 roadmap: 8 phases (12-19), 17 estimated plans, 34 requirements
 
 ### Blockers/Concerns
 
-None.
+No active blockers. All audit gaps resolved.
 
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Completed 19-01-PLAN.md. Ready for Plan 02.
+Stopped at: v1.1 audit gap fixed. Ready for /gsd:complete-milestone.
 Resume file: None
