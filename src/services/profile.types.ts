@@ -231,7 +231,7 @@ export const ExportedToolConfigSchema = z.discriminatedUnion('kind', [
 export const ExportedToolSchema = z.object({
   key: z.string(),
   enabled: z.boolean(),
-  type: z.enum(['skill', 'mcp_server', 'hook', 'command']),
+  type: z.enum(['skill', 'mcp_server', 'hook', 'command', 'custom_prompt']),
   name: z.string(),
   config: ExportedToolConfigSchema,
 }).passthrough();
@@ -239,10 +239,13 @@ export const ExportedToolSchema = z.object({
 /**
  * Zod schema for validating imported profile bundles.
  *
+ * v2 bundles require version and agentId fields.
  * Uses `.passthrough()` for forward compatibility (project convention from 01-02).
  */
 export const ProfileExportBundleSchema = z.object({
   bundleType: z.literal('ack-profile'),
+  version: z.number(),
+  agentId: z.string(),
   profile: z.object({
     name: z.string(),
     createdAt: z.string(),
@@ -266,6 +269,14 @@ export const PROFILE_STORE_KEY = 'ack.profiles';
  * v2: profiles have agentId field, store has version field
  */
 export const PROFILE_STORE_VERSION = 2;
+
+/**
+ * Current export bundle format version.
+ *
+ * v1: pre-agent-scoping bundles (no version/agentId fields)
+ * v2: agent-aware bundles with version and agentId
+ */
+export const EXPORT_BUNDLE_VERSION = 2;
 
 /** Default empty store used when no profile data exists yet */
 export const DEFAULT_PROFILE_STORE: ProfileStore = {
