@@ -1,7 +1,7 @@
 import type { ConfigService } from '../../services/config.service.js';
 import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import type { NormalizedTool } from '../../types/config.js';
-import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
+import { ToolType, ConfigScope } from '../../types/enums.js';
 import type {
   TreeNode,
   GroupNode,
@@ -18,6 +18,7 @@ const GROUP_DISPLAY_NAMES: Record<ToolType, string> = {
   [ToolType.McpServer]: 'MCP Servers',
   [ToolType.Hook]: 'Hooks',
   [ToolType.Command]: 'Commands',
+  [ToolType.CustomPrompt]: 'Custom Prompts',
 };
 
 /**
@@ -51,6 +52,7 @@ const APPLICABLE_SCOPES: Record<ToolType, readonly ConfigScope[]> = {
     ConfigScope.Project,
     ConfigScope.Managed,
   ],
+  [ToolType.CustomPrompt]: [ConfigScope.User],
 };
 
 /**
@@ -74,6 +76,7 @@ const GROUP_ORDER: readonly ToolType[] = [
   ToolType.McpServer,
   ToolType.Hook,
   ToolType.Command,
+  ToolType.CustomPrompt,
 ];
 
 /**
