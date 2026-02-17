@@ -110,10 +110,13 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
    */
   async refresh(): Promise<void> {
     this._onDidChangeTreeData.fire(undefined);
-    // Re-assert the title after firing the change event to prevent
-    // VS Code from resetting it during tree data refresh.
-    if (this.treeView && this.activeProfileName !== undefined) {
-      this.treeView.title = this.activeProfileName ?? 'Default';
+    // Re-assert title and description after firing the change event to prevent
+    // VS Code from resetting them during tree data refresh.
+    if (this.treeView) {
+      if (this.activeProfileName !== undefined) {
+        this.treeView.title = this.activeProfileName ?? 'Default';
+      }
+      this.treeView.description = this.agentName ?? '';
     }
   }
 

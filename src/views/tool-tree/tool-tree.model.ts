@@ -147,8 +147,8 @@ export class ToolTreeModel {
         }
       }
 
-      if (allTools.length === 0) {
-        continue; // Hide empty groups
+      if (allTools.length === 0 && type !== ToolType.CustomPrompt) {
+        continue; // Hide empty groups (except Custom Prompts -- needs install button)
       }
 
       // Mark effective entries for dual-scope tools
