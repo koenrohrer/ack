@@ -675,17 +675,20 @@ export class MarketplacePanel {
       vscode.workspace.workspaceFolders !== undefined &&
       vscode.workspace.workspaceFolders.length > 0;
 
+    const adapter = this.registry.getActiveAdapter();
+    const configDir = adapter?.id === 'codex' ? '.codex' : '.claude';
+
     const items: vscode.QuickPickItem[] = [
       {
         label: 'Global',
-        description: 'Available in all projects (~/.claude)',
+        description: `Available in all projects (~/${configDir})`,
       },
     ];
 
     if (hasWorkspace) {
       items.push({
         label: 'Project',
-        description: 'Available only in this workspace (.claude/)',
+        description: `Available only in this workspace (${configDir}/)`,
       });
     }
 

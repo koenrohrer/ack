@@ -50,6 +50,8 @@ export class ConfigPanel {
     }
     ConfigPanel.currentPanel.postMessage({ type: 'agentChanged', agentName });
     ConfigPanel.currentPanel.panel.title = `Configure Agent - ${agentName}`;
+    void ConfigPanel.currentPanel.sendProfilesData();
+    void ConfigPanel.currentPanel.sendToolsData();
   }
 
   /**

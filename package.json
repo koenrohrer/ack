@@ -184,8 +184,12 @@
       },
       {
         "command": "ack.installPromptFromFile",
-        "title": "Install from file...",
+        "title": "ACK: Install Custom Prompt from File",
         "icon": "$(file-add)"
+      },
+      {
+        "command": "ack.cloneProfileToAgent",
+        "title": "ACK: Clone Profile to Agent"
       },
       {
         "command": "ack.deletePrompt",
