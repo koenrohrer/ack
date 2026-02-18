@@ -7,6 +7,7 @@ A walkthrough of every feature in ACK, from first install to advanced workflows.
 ## Table of Contents
 
 - [Installation](#installation)
+- [Switching Agents](#switching-agents)
 - [The Tool Tree](#the-tool-tree)
 - [Installing Tools from the Marketplace](#installing-tools-from-the-marketplace)
 - [Managing Tools](#managing-tools)
@@ -35,6 +36,34 @@ After installation, the ACK icon appears in the activity bar.
 
 ---
 
+## Switching Agents
+
+ACK auto-detects which agent CLIs are installed on your machine. The status bar shows the active agent by name.
+
+**To switch agents:**
+
+- Click the agent name in the status bar, or
+- Run `ACK: Switch Agent` from the command palette
+
+A QuickPick lists all detected agents with their detection status. Selecting one instantly switches the sidebar, marketplace, and config panel to that agent's tools.
+
+**If you just installed Codex** and it isn't listed yet, run `ACK: Re-detect Agents` to refresh detection without restarting VS Code.
+
+### Codex setup
+
+The first time you switch to Codex for a project, run `ACK: Initialize Codex for This Project`. This scaffolds:
+
+```
+.codex/
+  config.toml     ← MCP server configuration
+  skills/         ← project-scoped skills
+  prompts/        ← custom prompts
+```
+
+Global Codex config lives in `~/.codex/`.
+
+---
+
 ## The Tool Tree
 
 The sidebar is the heart of ACK. It automatically discovers your agent's configuration and displays every tool grouped by type.
@@ -48,19 +77,22 @@ The sidebar is the heart of ACK. It automatically discovers your agent's configu
 
 ### What you'll see
 
-| Group | What it contains |
-|-------|-----------------|
-| **MCP Servers** | Model Context Protocol servers configured for your agent |
-| **Slash Commands** | Custom commands available in the agent's prompt |
-| **Hooks** | Event-driven scripts that run on agent lifecycle events |
-| **Skills** | Reusable skill definitions |
+The groups displayed depend on the active agent:
+
+| Group | Claude Code | Codex |
+|-------|-------------|-------|
+| **MCP Servers** | ✓ | ✓ |
+| **Skills** | ✓ | ✓ |
+| **Slash Commands** | ✓ | — |
+| **Hooks** | ✓ | — |
+| **Custom Prompts** | — | ✓ |
 
 ### Scopes
 
 Every tool has a scope badge:
 
-- **User** (globe icon) -- Configured globally in `~/.claude/`, available in all projects
-- **Project** (folder icon) -- Configured in `.claude/` within the current workspace
+- **User** (globe icon) -- Configured globally (`~/.claude/` or `~/.codex/`), available in all projects
+- **Project** (folder icon) -- Configured in `.claude/` or `.codex/` within the current workspace
 
 ### Status indicators
 
@@ -85,8 +117,11 @@ Click the **extensions icon** in the tool tree title bar (or run `ACK: Open Mark
 ### Browsing
 
 - **Search** -- Type in the search bar to filter tools by name or description
-- **Type tabs** -- Filter by MCP servers, commands, hooks, or skills
+- **Type tabs** -- Filter by tool type; tabs are filtered to show only types the active agent supports
+- **Agent badges** -- Each tool card shows which agents it's compatible with
 - **Sort** -- Order results by relevance, name, or date
+
+The marketplace automatically filters out tools that aren't compatible with the active agent.
 
 ### Installing
 
@@ -121,13 +156,15 @@ Right-click and select **Delete Tool**. By default, ACK asks for confirmation. T
 
 ### Open the source file
 
-Right-click any tool and select **Open Tool Source** to jump directly to the JSON config file where the tool is defined.
+Right-click any tool and select **Open Tool Source** to jump directly to the config file where the tool is defined (JSON for Claude Code tools, TOML for Codex tools).
 
 ---
 
 ## Profiles
 
 Profiles are named snapshots of your tool configuration. Use them to maintain different setups for different workflows.
+
+Profiles are **scoped per agent** -- each agent maintains its own profile list. A profile you create while Claude Code is active won't appear when you switch to Codex.
 
 ### Create a profile
 
@@ -150,14 +187,18 @@ Click the **profile icon** in the tool tree title bar, or run `ACK: Switch Profi
 
 ### Import and export
 
-- `ACK: Export Profile` -- Save a profile as a `.json` file to share or back up
-- `ACK: Import Profile` -- Load a profile from a `.json` file
+- `ACK: Export Profile` -- Save a profile as a `.ackprofile` file to share or back up. The file includes the agent ID so ACK knows which agent it belongs to.
+- `ACK: Import Profile` -- Load a profile from a `.ackprofile` file. If the agent doesn't match, ACK offers to convert the profile, filtering to compatible tool types.
+
+### Clone to another agent
+
+Run `ACK: Clone Profile to Agent` to copy a profile from one agent to another. ACK shows how many tools are compatible and which will be skipped (e.g., hooks are skipped when cloning to Codex, which has no hook system).
 
 ### Workspace association
 
-Run `ACK: Associate Profile with Workspace` to bind a profile to the current workspace. When `ack.autoActivateWorkspaceProfiles` is enabled (the default), opening that workspace automatically activates the associated profile.
+Run `ACK: Associate Profile with Workspace` to bind a profile to the current workspace. When `ack.autoActivateWorkspaceProfiles` is enabled (the default), opening that workspace automatically activates the associated profile for the active agent.
 
-This is useful for teams or multi-project setups where each repo needs a different tool configuration.
+Each agent can have its own workspace association -- switching from Claude Code to Codex activates the Codex profile for that workspace, if one is set.
 
 ---
 
@@ -225,7 +266,7 @@ These repos are scanned for installable tools and surfaced in the marketplace.
 1. Set up the tools your project needs
 2. Save them as a profile (`ACK: Save Current State as Profile`)
 3. Export the profile (`ACK: Export Profile`)
-4. Commit the JSON file to your repo
+4. Commit the `.ackprofile` file to your repo
 5. Teammates import it and associate it with the workspace
 
 ### Experimenting with tools

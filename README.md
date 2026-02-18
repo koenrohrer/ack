@@ -19,7 +19,7 @@
 
 Agent tools are scattered across JSON files in hidden directories. You add an MCP server here, a slash command there, tweak a permission somewhere else -- and none of it is visible until something breaks.
 
-**ACK puts it all in one place.** Browse, install, toggle, and organize every tool your AI agent uses -- without ever opening a config file.
+**ACK puts it all in one place.** Browse, install, toggle, and organize every tool your AI agent uses -- without ever opening a config file. Switch between Claude Code and Codex with a single click.
 
 <!-- Screenshot: sidebar tool tree showing MCP servers, commands, and hooks -->
 <p align="center">
@@ -31,6 +31,10 @@ Agent tools are scattered across JSON files in hidden directories. You add an MC
 ---
 
 ## What ACK Does
+
+### Switch between agents
+
+ACK detects your installed agents (Claude Code and Codex) and lets you switch between them from the status bar or command palette. The sidebar, marketplace, and config panel all context-switch to show the active agent's tools.
 
 ### See everything at a glance
 
@@ -49,11 +53,12 @@ The built-in marketplace connects to a community tool registry. Search, filter b
 
 ### Switch contexts with profiles
 
-Different projects need different tool setups. Profiles let you snapshot your current configuration and restore it later with a single command.
+Different projects need different tool setups. Profiles let you snapshot your current configuration and restore it later with a single command. Profiles are scoped per agent -- each agent maintains its own profile set.
 
 - **Save as profile** -- Freeze your current tools, servers, and settings into a named snapshot
-- **Import / Export** -- Share configurations as portable JSON files
+- **Import / Export** -- Share configurations as portable JSON files with agent compatibility metadata
 - **Workspace association** -- Bind a profile to a workspace so it activates the moment you open it
+- **Clone to agent** -- Copy a profile from one agent to another, filtering to compatible tools
 
 <!-- Screenshot: profile switcher quick pick showing multiple profiles -->
 <p align="center">
@@ -104,14 +109,19 @@ All commands are available from the command palette (`Ctrl+Shift+P` / `Cmd+Shift
 |---------|-------------|
 | `ACK: Open Marketplace` | Browse and install tools from the community registry |
 | `ACK: Configure Agent` | Open the visual config panel |
+| `ACK: Switch Agent` | Switch the active agent (Claude Code / Codex) |
+| `ACK: Initialize Codex for This Project` | Scaffold `.codex/config.toml`, `prompts/`, and `skills/` |
+| `ACK: Re-detect Agents` | Re-run agent detection after installing a new CLI |
 | `ACK: Switch Profile` | Switch to a saved profile |
 | `ACK: Create Profile` | Create a new empty profile |
 | `ACK: Save Current State as Profile` | Snapshot current tools as a profile |
 | `ACK: Edit Profile` | Modify an existing profile |
 | `ACK: Delete Profile` | Remove a profile |
-| `ACK: Export Profile` | Export a profile to a JSON file |
-| `ACK: Import Profile` | Import a profile from a JSON file |
+| `ACK: Export Profile` | Export a profile to a `.ackprofile` file |
+| `ACK: Import Profile` | Import a profile from a `.ackprofile` file |
+| `ACK: Clone Profile to Agent` | Copy a profile to another agent, filtering compatible tools |
 | `ACK: Associate Profile with Workspace` | Bind a profile to auto-activate for this workspace |
+| `ACK: Install Custom Prompt from File` | Copy a `.md` file into Codex's prompts directory |
 | `ACK: Refresh Tool Tree` | Force-refresh the sidebar tree |
 
 ---
@@ -149,7 +159,12 @@ Add your own tool registries by configuring `ack.registrySources`:
 
 ## Supported Agents
 
-ACK v1.0 is built for **Claude Code**. The adapter architecture is designed to support additional agents in the future -- the internal API already separates parsing, writing, and schema validation per agent.
+| Agent | Config format | Tool types |
+|-------|--------------|------------|
+| **Claude Code** | JSON (`~/.claude/`, `.claude/`) | MCP servers, slash commands, hooks, skills |
+| **Codex** | TOML (`~/.codex/`, `.codex/`) | MCP servers, skills, custom prompts |
+
+ACK auto-detects which agents are installed. If both are present, a status bar item lets you switch between them. Each agent has its own sidebar view, marketplace filter, and profile set.
 
 ---
 
@@ -169,6 +184,10 @@ ACK v1.0 is built for **Claude Code**. The adapter architecture is designed to s
 │  │  ┌────────────────────────────┐   │  │
 │  │  │  Claude Code Adapter       │   │  │
 │  │  │  parsers / writers / paths │   │  │
+│  │  └────────────────────────────┘   │  │
+│  │  ┌────────────────────────────┐   │  │
+│  │  │  Codex Adapter             │   │  │
+│  │  │  TOML parsers / writers    │   │  │
 │  │  └────────────────────────────┘   │  │
 │  └───────────────────────────────────┘  │
 │                                         │
