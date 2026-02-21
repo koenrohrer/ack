@@ -84,7 +84,10 @@ export class CopilotAdapter implements IPlatformAdapter {
    * each time the QuickPick opens so it stays current without caching.
    */
   async detect(): Promise<boolean> {
-    return vscode.extensions.getExtension('GitHub.copilot') !== undefined;
+    return (
+      vscode.extensions.getExtension('GitHub.copilot') !== undefined ||
+      vscode.extensions.getExtension('GitHub.copilot-chat') !== undefined
+    );
   }
 
   // ---------------------------------------------------------------------------
