@@ -9,6 +9,7 @@ import { claudeCodeSchemas } from './adapters/claude-code/schemas.js';
 import { CodexAdapter } from './adapters/codex/codex.adapter.js';
 import { codexSchemas } from './adapters/codex/schemas.js';
 import { CopilotAdapter } from './adapters/copilot/copilot.adapter.js';
+import { copilotSchemas } from './adapters/copilot/schemas.js';
 import { CodexPaths } from './adapters/codex/paths.js';
 import { ToolTreeProvider } from './views/tool-tree/tool-tree.provider.js';
 import { registerToolTreeCommands } from './views/tool-tree/tool-tree.commands.js';
@@ -80,6 +81,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // 3. Register schemas
   schemas.registerSchemas(claudeCodeSchemas);
   schemas.registerSchemas(codexSchemas);
+  schemas.registerSchemas(copilotSchemas);
 
   // 4. Workspace root (undefined when no folder is open)
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;

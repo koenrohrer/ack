@@ -10,11 +10,13 @@ function makeTool(overrides: {
   type: ToolType;
   name?: string;
   metadata?: Record<string, unknown>;
+  source?: { filePath: string };
 }) {
   return {
     type: overrides.type,
     name: overrides.name ?? 'test-tool',
     metadata: overrides.metadata ?? {},
+    source: overrides.source ?? { filePath: '' },
   };
 }
 
@@ -45,12 +47,48 @@ describe('getRouteForTool', () => {
 // ---------------------------------------------------------------------------
 
 describe('getJsonPath', () => {
-  it('returns ["mcpServers", name] for MCP server', () => {
+  it('returns ["mcpServers", name] for MCP server with empty filePath (Claude Code default)', () => {
     const tool = makeTool({
       type: ToolType.McpServer,
       name: 'my-server',
     });
     expect(getJsonPath(tool)).toEqual(['mcpServers', 'my-server']);
+  });
+
+  it('returns ["mcpServers", name] for Claude Code MCP server with .mcp.json path', () => {
+    const tool = makeTool({
+      type: ToolType.McpServer,
+      name: 'my-server',
+      source: { filePath: '/home/user/.mcp.json' },
+    });
+    expect(getJsonPath(tool)).toEqual(['mcpServers', 'my-server']);
+  });
+
+  it('returns ["servers", name] for Copilot project-scope MCP server (.vscode/mcp.json)', () => {
+    const tool = makeTool({
+      type: ToolType.McpServer,
+      name: 'copilot-server',
+      source: { filePath: '/workspace/my-project/.vscode/mcp.json' },
+    });
+    expect(getJsonPath(tool)).toEqual(['servers', 'copilot-server']);
+  });
+
+  it('returns ["servers", name] for Copilot user-scope MCP server (Code/User/mcp.json)', () => {
+    const tool = makeTool({
+      type: ToolType.McpServer,
+      name: 'copilot-user-server',
+      source: { filePath: '/Users/someone/Library/Application Support/Code/User/mcp.json' },
+    });
+    expect(getJsonPath(tool)).toEqual(['servers', 'copilot-user-server']);
+  });
+
+  it('returns ["servers", name] for Copilot user-scope MCP server (Windows Code\\User path)', () => {
+    const tool = makeTool({
+      type: ToolType.McpServer,
+      name: 'win-copilot-server',
+      source: { filePath: 'C:\\Users\\user\\AppData\\Roaming\\Code\\User\\mcp.json' },
+    });
+    expect(getJsonPath(tool)).toEqual(['servers', 'win-copilot-server']);
   });
 
   it('returns ["hooks", eventName] for Hook', () => {

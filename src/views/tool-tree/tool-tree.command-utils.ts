@@ -33,16 +33,28 @@ export function getRouteForTool(
 /**
  * Derive the JSON path (for jsonc-parser) to the tool's entry in its config file.
  *
- * For MCP servers: `["mcpServers", name]`
+ * For MCP servers:
+ * - Copilot mcp.json files use `["servers", name]` (Copilot's key is `servers`, not `mcpServers`)
+ * - Claude Code and Codex use `["mcpServers", name]`
+ * Copilot paths are identified by file path: .vscode/mcp.json (project) or
+ * {Code/User}/mcp.json (user scope).
+ *
  * For hooks: `["hooks", eventName]`
  * For markdown types: empty array (no JSON path needed)
  */
 export function getJsonPath(
-  tool: Pick<NormalizedTool, 'type' | 'name' | 'metadata'>,
+  tool: Pick<NormalizedTool, 'type' | 'name' | 'metadata' | 'source'>,
 ): (string | number)[] {
   switch (tool.type) {
-    case ToolType.McpServer:
-      return ['mcpServers', tool.name];
+    case ToolType.McpServer: {
+      // Copilot mcp.json uses "servers" key; Claude Code and Codex use "mcpServers"
+      // Copilot paths: .vscode/mcp.json (project) or {Code/User}/mcp.json (user)
+      const fp = tool.source?.filePath ?? '';
+      const isCopilot =
+        fp.endsWith('mcp.json') &&
+        (fp.includes('.vscode') || fp.includes('Code/User') || fp.includes('Code\\User'));
+      return [isCopilot ? 'servers' : 'mcpServers', tool.name];
+    }
     case ToolType.Hook:
       return ['hooks', tool.metadata.eventName as string];
     case ToolType.Skill:
