@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 21 of 25
-Plan: 2 of ? in current phase
-Status: Phase 21 Plan 02 complete — CopilotAdapter wired, copilotSchemas registered, getJsonPath fixed
-Last activity: 2026-02-21 — Phase 21 Plan 02 executed (CopilotAdapter MCP methods, copilotSchemas registration, getJsonPath Copilot routing)
+Plan: 3 of ? in current phase
+Status: Phase 21 Plan 03 complete — Copilot MCP TDD test suite (13 tests) passing; Pitfall 1 + Pitfall 2 regression guards in place
+Last activity: 2026-02-21 — Phase 21 Plan 03 executed (parseCopilotMcpFile + addCopilotMcpServer/removeCopilotMcpServer test suite)
 
-Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 2 plans complete.
+Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 3 plans complete.
 
 ## Milestone History
 
@@ -56,6 +56,11 @@ Phase 21 Plan 02 execution decisions (2026-02-21):
 - copilotSchemas registered at startup in extension.ts alongside claudeCodeSchemas and codexSchemas
 - writeTool Phase 21+ stub left in place — writeTool is not in scope for Phase 21
 
+Phase 21 Plan 03 execution decisions (2026-02-21):
+- Tests use real services (FileIOService, SchemaService, ConfigService, BackupService) on tmpdir — consistent with parsers.test.ts and writers.test.ts patterns
+- copilotSchemas (not claudeCodeSchemas) registered in test SchemaService — schema-specific isolation
+- Tests went GREEN immediately (Plan 01 implementations were correct); no RED phase iteration needed
+
 ### Roadmap Evolution
 
 v1.0 roadmap archived to `.planning/milestones/v1.0-ROADMAP.md`
@@ -82,5 +87,5 @@ Known gaps to validate during implementation:
 ## Session Continuity
 
 Last session: 2026-02-21
-Stopped at: Completed 21-mcp-server-support/21-02-PLAN.md
+Stopped at: Completed 21-mcp-server-support/21-03-PLAN.md
 Resume file: None
