@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 21 of 25
-Plan: 3 of ? in current phase
-Status: Phase 21 Plan 03 complete — Copilot MCP TDD test suite (13 tests) passing; Pitfall 1 + Pitfall 2 regression guards in place
-Last activity: 2026-02-21 — Phase 21 Plan 03 executed (parseCopilotMcpFile + addCopilotMcpServer/removeCopilotMcpServer test suite)
+Plan: 4 of 4 in current phase
+Status: Phase 21 Plan 04 complete — all five MCP requirements (MCP-01 through MCP-05) human-verified in Extension Development Host; copilot-chat detection fix applied
+Last activity: 2026-02-21 — Phase 21 Plan 04 executed (human verification checkpoint — all MCP requirements approved)
 
-Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 3 plans complete.
+Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 4 plans complete (phase complete).
 
 ## Milestone History
 
@@ -61,6 +61,9 @@ Phase 21 Plan 03 execution decisions (2026-02-21):
 - copilotSchemas (not claudeCodeSchemas) registered in test SchemaService — schema-specific isolation
 - Tests went GREEN immediately (Plan 01 implementations were correct); no RED phase iteration needed
 
+Phase 21 Plan 04 execution decisions (2026-02-21):
+- detect() checks GitHub.copilot OR GitHub.copilot-chat — users may have only the chat extension installed; checking both ensures Copilot appears for all valid installs
+
 ### Roadmap Evolution
 
 v1.0 roadmap archived to `.planning/milestones/v1.0-ROADMAP.md`
@@ -87,5 +90,5 @@ Known gaps to validate during implementation:
 ## Session Continuity
 
 Last session: 2026-02-21
-Stopped at: Completed 21-mcp-server-support/21-03-PLAN.md
+Stopped at: Completed 21-mcp-server-support/21-04-PLAN.md (Phase 21 fully verified and complete)
 Resume file: None
