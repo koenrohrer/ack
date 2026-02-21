@@ -128,7 +128,7 @@ Plans:
 | 18. Agent-Scoped Profiles | v1.1 | 5/5 | Complete | 2026-02-05 |
 | 19. Marketplace Adaptation | v1.1 | 2/2 | Complete | 2026-02-05 |
 | v1.1-full-uat. UAT Gap Closure | v1.1 | 1/1 | Complete | 2026-02-17 |
-| 20. CopilotAdapter Scaffold | 1/2 | In Progress|  | - |
+| 20. CopilotAdapter Scaffold | 2/2 | Complete   | 2026-02-21 | - |
 | 21. MCP Server Support | v1.2 | 0/TBD | Not started | - |
 | 22. Custom Instructions and Prompts | v1.2 | 0/TBD | Not started | - |
 | 23. Custom Agents | v1.2 | 0/TBD | Not started | - |
