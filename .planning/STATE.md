@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 21 of 25
-Plan: 1 of ? in current phase
-Status: Phase 21 Plan 01 complete — schemas, parser, writer for Copilot MCP
-Last activity: 2026-02-21 — Phase 21 Plan 01 executed (Copilot MCP schemas, parseCopilotMcpFile, addCopilotMcpServer, removeCopilotMcpServer)
+Plan: 2 of ? in current phase
+Status: Phase 21 Plan 02 complete — CopilotAdapter wired, copilotSchemas registered, getJsonPath fixed
+Last activity: 2026-02-21 — Phase 21 Plan 02 executed (CopilotAdapter MCP methods, copilotSchemas registration, getJsonPath Copilot routing)
 
-Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 1 plan complete.
+Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 2 plans complete.
 
 ## Milestone History
 
@@ -50,6 +50,12 @@ Phase 21 Plan 01 execution decisions (2026-02-21):
 - Both writer mutators return { ...current, servers } — spread current first — to preserve inputs on write-back
 - No toggleCopilotMcpServer — Copilot has no server-level disable mechanism
 
+Phase 21 Plan 02 execution decisions (2026-02-21):
+- getJsonPath uses source.filePath heuristic to detect Copilot: endsWith('mcp.json') + (.vscode OR Code/User OR Code\\User)
+- getJsonPath Pick extended to include 'source' — callers pass full NormalizedTool so no call site updates required
+- copilotSchemas registered at startup in extension.ts alongside claudeCodeSchemas and codexSchemas
+- writeTool Phase 21+ stub left in place — writeTool is not in scope for Phase 21
+
 ### Roadmap Evolution
 
 v1.0 roadmap archived to `.planning/milestones/v1.0-ROADMAP.md`
@@ -76,5 +82,5 @@ Known gaps to validate during implementation:
 ## Session Continuity
 
 Last session: 2026-02-21
-Stopped at: Completed 21-mcp-server-support/21-01-PLAN.md
+Stopped at: Completed 21-mcp-server-support/21-02-PLAN.md
 Resume file: None
