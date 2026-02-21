@@ -9,6 +9,8 @@ import type { NormalizedTool } from '../../types/config.js';
 import { ToolType, ConfigScope } from '../../types/enums.js';
 import { AdapterScopeError } from '../../types/adapter-errors.js';
 import { CopilotPaths } from './paths.js';
+import { parseCopilotMcpFile } from './parsers/mcp.parser.js';
+import { addCopilotMcpServer, removeCopilotMcpServer } from './writers/mcp.writer.js';
 
 /**
  * Platform adapter for GitHub Copilot.
@@ -18,10 +20,9 @@ import { CopilotPaths } from './paths.js';
  * resolution through CopilotPaths. All file paths come exclusively from
  * CopilotPaths.
  *
- * **Phase 20 — Scaffold only:**
- * All read methods return empty arrays. All write/remove/toggle/install
- * methods throw descriptive errors. Phase 21+ implements full read/write
- * support.
+ * **Phase 21 — Full MCP read/write support:**
+ * readTools, removeTool, installMcpServer, and getWatchPaths are fully
+ * implemented for McpServer type. Phase 22+ adds CustomPrompt and Skill support.
  *
  * Copilot differs from Claude Code and Codex in several ways:
  * - Detection uses vscode.extensions.getExtension (not filesystem)
@@ -93,11 +94,19 @@ export class CopilotAdapter implements IPlatformAdapter {
   /**
    * Return filesystem paths that should be watched for changes in a scope.
    *
-   * Returns empty array in Phase 20 — Phase 21+ will populate watch paths
-   * for user mcp.json and workspace .vscode/mcp.json.
+   * Project scope: watches .vscode/mcp.json (non-empty return triggers FileWatcherManager).
+   * User scope: watches {vsCodeUserDir}/mcp.json.
    */
-  getWatchPaths(_scope: ConfigScope): string[] {
-    return [];
+  getWatchPaths(scope: ConfigScope): string[] {
+    switch (scope) {
+      case ConfigScope.Project:
+        if (!this.workspaceRoot) return [];
+        return [CopilotPaths.workspaceMcpJson(this.workspaceRoot)];
+      case ConfigScope.User:
+        return [CopilotPaths.userMcpJson(this.vsCodeUserDir)];
+      default:
+        return [];
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -107,11 +116,31 @@ export class CopilotAdapter implements IPlatformAdapter {
   /**
    * Read all tools of a given type within a scope.
    *
-   * **Phase 20 scaffold:** Returns empty array for all types and scopes.
-   * Phase 21+ implements actual reads from Copilot config files.
+   * McpServer: reads from the appropriate mcp.json file via parseCopilotMcpFile.
+   * CustomPrompt and Skill: returns empty (Phase 22+ implements these).
    */
-  async readTools(_type: ToolType, _scope: ConfigScope): Promise<NormalizedTool[]> {
-    return Promise.resolve([]);
+  async readTools(type: ToolType, scope: ConfigScope): Promise<NormalizedTool[]> {
+    if (type !== ToolType.McpServer) {
+      return []; // Phase 22+ handles CustomPrompt, Skill
+    }
+    if (scope === ConfigScope.Project) {
+      if (!this.workspaceRoot) return [];
+      return parseCopilotMcpFile(
+        this.fileIO,
+        this.schemaService,
+        CopilotPaths.workspaceMcpJson(this.workspaceRoot),
+        scope,
+      );
+    }
+    if (scope === ConfigScope.User) {
+      return parseCopilotMcpFile(
+        this.fileIO,
+        this.schemaService,
+        CopilotPaths.userMcpJson(this.vsCodeUserDir),
+        scope,
+      );
+    }
+    return [];
   }
 
   // ---------------------------------------------------------------------------
@@ -132,12 +161,18 @@ export class CopilotAdapter implements IPlatformAdapter {
   // ---------------------------------------------------------------------------
 
   /**
-   * Remove a tool from its scope.
+   * Remove an MCP server tool from its scope's mcp.json file.
    *
-   * **Phase 20 scaffold:** Not yet implemented.
+   * Delegates to removeCopilotMcpServer for McpServer type.
+   * CustomPrompt and Skill removal is not implemented (Phase 22+).
    */
-  async removeTool(_tool: NormalizedTool): Promise<void> {
-    throw new Error('CopilotAdapter: remove operations not yet implemented (Phase 21+)');
+  async removeTool(tool: NormalizedTool): Promise<void> {
+    this.ensureWriteServices();
+    if (tool.type !== ToolType.McpServer) {
+      throw new Error(`CopilotAdapter: removeTool not implemented for ${tool.type} (Phase 22+)`);
+    }
+    const filePath = this.getMcpFilePath(tool.scope);
+    await removeCopilotMcpServer(this.configService!, filePath, tool.name);
   }
 
   // ---------------------------------------------------------------------------
@@ -147,10 +182,10 @@ export class CopilotAdapter implements IPlatformAdapter {
   /**
    * Toggle a tool between enabled and disabled states.
    *
-   * **Phase 20 scaffold:** Not yet implemented.
+   * Copilot MCP servers have no enable/disable state — toggle is not supported.
    */
   async toggleTool(_tool: NormalizedTool): Promise<void> {
-    throw new Error('CopilotAdapter: toggle operations not yet implemented (Phase 21+)');
+    throw new Error('CopilotAdapter: Copilot MCP servers have no enable/disable state — toggle is not supported');
   }
 
   // ---------------------------------------------------------------------------
@@ -160,14 +195,17 @@ export class CopilotAdapter implements IPlatformAdapter {
   /**
    * Install an MCP server into the config file for the given scope.
    *
-   * **Phase 20 scaffold:** Not yet implemented.
+   * Delegates to addCopilotMcpServer, which writes to the appropriate mcp.json.
+   * Creates the file (and parent directories) if they do not exist.
    */
   async installMcpServer(
-    _scope: ConfigScope,
-    _serverName: string,
-    _serverConfig: Record<string, unknown>,
+    scope: ConfigScope,
+    serverName: string,
+    serverConfig: Record<string, unknown>,
   ): Promise<void> {
-    throw new Error('CopilotAdapter: installMcpServer not yet implemented (Phase 21+)');
+    this.ensureWriteServices();
+    const filePath = this.getMcpFilePath(scope);
+    await addCopilotMcpServer(this.configService!, filePath, serverName, serverConfig);
   }
 
   // ---------------------------------------------------------------------------
@@ -203,7 +241,6 @@ export class CopilotAdapter implements IPlatformAdapter {
    * Return the schema key used to validate MCP config for the scope.
    *
    * Copilot uses the 'copilot-mcp' schema for all scopes.
-   * Schema is registered in Phase 21.
    */
   getMcpSchemaKey(_scope: ConfigScope): string {
     return 'copilot-mcp';
@@ -216,7 +253,7 @@ export class CopilotAdapter implements IPlatformAdapter {
   /**
    * Return the skills directory path for the given scope.
    *
-   * **Phase 20 scaffold:** Copilot agent/skills support is implemented in Phase 23+.
+   * Copilot agent/skills support is implemented in Phase 23+.
    */
   getSkillsDir(scope: ConfigScope): string {
     throw new AdapterScopeError('GitHub Copilot', scope, 'getSkillsDir (Phase 23+)');
@@ -255,7 +292,7 @@ export class CopilotAdapter implements IPlatformAdapter {
   /**
    * Install a skill by writing files to the scope's skills directory.
    *
-   * **Phase 20 scaffold:** Not yet implemented.
+   * Copilot skill/agent support is implemented in Phase 23+.
    */
   async installSkill(
     scope: ConfigScope,
@@ -272,7 +309,7 @@ export class CopilotAdapter implements IPlatformAdapter {
   /**
    * Install a command.
    *
-   * **Copilot has no slash commands.** Always throws AdapterScopeError.
+   * Copilot has no slash commands. Always throws AdapterScopeError.
    */
   async installCommand(
     scope: ConfigScope,
@@ -289,7 +326,7 @@ export class CopilotAdapter implements IPlatformAdapter {
   /**
    * Install a hook.
    *
-   * **Copilot has no hook concept.** Always throws AdapterScopeError.
+   * Copilot has no hook concept. Always throws AdapterScopeError.
    */
   async installHook(
     scope: ConfigScope,
@@ -297,5 +334,22 @@ export class CopilotAdapter implements IPlatformAdapter {
     _matcherGroup: { matcher: string; hooks: unknown[] },
   ): Promise<void> {
     throw new AdapterScopeError('GitHub Copilot', scope, 'installHook (Copilot has no hook concept)');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Assert that write services have been injected before performing mutations.
+   *
+   * ConfigService and BackupService are optional at construction time due to
+   * circular init order. This guard ensures callers get a clear error if
+   * setWriteServices() was not called before a write operation.
+   */
+  private ensureWriteServices(): void {
+    if (!this.configService || !this.backupService) {
+      throw new Error('CopilotAdapter: write services not initialized — call setWriteServices() first');
+    }
   }
 }
