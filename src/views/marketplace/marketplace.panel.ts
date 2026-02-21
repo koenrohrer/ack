@@ -676,7 +676,12 @@ export class MarketplacePanel {
       vscode.workspace.workspaceFolders.length > 0;
 
     const adapter = this.registry.getActiveAdapter();
-    const configDir = adapter?.id === 'codex' ? '.codex' : '.claude';
+    const CONFIG_DIR_LABELS: Record<string, string> = {
+      'claude-code': '.claude',
+      'codex': '.codex',
+      'copilot': '.vscode',
+    };
+    const configDir = (adapter?.id && CONFIG_DIR_LABELS[adapter.id]) ?? '.claude';
 
     const items: vscode.QuickPickItem[] = [
       {
