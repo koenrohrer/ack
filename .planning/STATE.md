@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 21 of 25
-Plan: 0 of ? in current phase
-Status: Phase 20 complete — ready for Phase 21
-Last activity: 2026-02-21 — Phase 20 Plan 02 executed (ESLint guard, QuickPick hide, marketplace configDir fix)
+Plan: 1 of ? in current phase
+Status: Phase 21 Plan 01 complete — schemas, parser, writer for Copilot MCP
+Last activity: 2026-02-21 — Phase 21 Plan 01 executed (Copilot MCP schemas, parseCopilotMcpFile, addCopilotMcpServer, removeCopilotMcpServer)
 
-Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans).
+Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 1 plan complete.
 
 ## Milestone History
 
@@ -44,6 +44,12 @@ Phase 20 execution decisions (2026-02-21):
 - CONFIG_DIR_LABELS Record<string, string> lookup map replaces two-way ternary in marketplace promptForScope
 - copilot boundary guard ignores src/adapters/copilot/** (same pattern as claude-code and codex)
 
+Phase 21 Plan 01 execution decisions (2026-02-21):
+- inputs array modeled explicitly in CopilotMcpFileSchema (not via passthrough) to survive read-mutate-validate-write cycles
+- transport metadata mapped from config.type (Copilot's field name), not config.transport (Claude Code's name)
+- Both writer mutators return { ...current, servers } — spread current first — to preserve inputs on write-back
+- No toggleCopilotMcpServer — Copilot has no server-level disable mechanism
+
 ### Roadmap Evolution
 
 v1.0 roadmap archived to `.planning/milestones/v1.0-ROADMAP.md`
@@ -70,5 +76,5 @@ Known gaps to validate during implementation:
 ## Session Continuity
 
 Last session: 2026-02-21
-Stopped at: Completed 20-copilot-adapter-scaffold/20-02-PLAN.md
+Stopped at: Completed 21-mcp-server-support/21-01-PLAN.md
 Resume file: None
