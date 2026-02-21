@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Developers can discover, install, configure, and switch between sets of agent tools without leaving VS Code or touching config files manually.
-**Current focus:** Planning next milestone (v1.2)
+**Current focus:** v1.2 Copilot Support — Phase 20 (CopilotAdapter Scaffold)
 
 ## Current Position
 
-Phase: Not started
-Plan: Not started
-Status: Ready to plan next milestone
-Last activity: 2026-02-18 — v1.1 Codex Support milestone complete and archived
+Phase: 20 of 25 (CopilotAdapter Scaffold)
+Plan: 1 of 1 in current phase
+Status: Phase 20 complete — ready for Phase 21
+Last activity: 2026-02-21 — Phase 20 Plan 01 executed (CopilotAdapter scaffold)
 
-Progress: v1.1 complete (53/53 plans across v1.0 + v1.1)
+Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (1/1 plan).
 
 ## Milestone History
 
@@ -26,6 +26,20 @@ Progress: v1.1 complete (53/53 plans across v1.0 + v1.1)
 ### Decisions
 
 All decisions logged in PROJECT.md Key Decisions table.
+
+Recent decisions affecting v1.2:
+- CopilotAdapter fits IPlatformAdapter exactly — no interface changes needed
+- Detection via `vscode.extensions.getExtension('GitHub.copilot')` (not filesystem)
+- MCP schema uses `servers` key (not `mcpServers`) — must be defined independently
+- `inputs` array must be preserved on write (modeled explicitly in Zod schema)
+- Phase 20 must land before any other v1.2 phase — ESLint boundary and marketplace conditional fix are prerequisites
+
+Phase 20 execution decisions (2026-02-21):
+- vsCodeUserDir derived at construction time via path.dirname(path.dirname(context.globalStorageUri.fsPath))
+- getMcpFilePath fully implemented using CopilotPaths so Phase 21 reads immediately
+- getMcpSchemaKey returns 'copilot-mcp' — schema registration deferred to Phase 21
+- Scaffold read methods return Promise.resolve([]) without routing
+- Scaffold write methods throw Error with Phase 21+ reference
 
 ### Roadmap Evolution
 
@@ -40,16 +54,18 @@ v1.1 requirements archived to `.planning/milestones/v1.1-REQUIREMENTS.md`
 
 ### Blockers/Concerns
 
-No active blockers.
+Known tech debt from v1.1 (addressed in Phase 20):
+- Marketplace `configDir` two-way conditional (`adapter?.id === 'codex' ? '.codex' : '.claude'`) falls to `.claude` for Copilot
+- ESLint boundary guard does not yet cover `**/adapters/copilot/*`
 
-Known tech debt from v1.1 (low severity, no blockers):
-- custom_prompt absent from marketplace RegistryEntryWithSource.toolType union
-- activeAgentName from useMarketplace not surfaced in marketplace header
-- switchProfile workspace override check uses getAssociation() not getAssociationForAgent()
-- fileWatcher closure ordering fragility in extension.ts (line 249 vs 335)
+Known gaps to validate during implementation:
+- Phase 21: Verify `FileWatcherManager` handles non-existent `.vscode/` at extension activate
+- Phase 21: Confirm Windows CI handles `APPDATA` fallback in `getVSCodeUserDir()`
+- Phase 22/23: Confirm `extractFrontmatter()` handles files with no `---` delimiters
+- Phase 24/25: Non-default VS Code profiles use UUID-based paths not derivable from current API — support default profile only, emit warning for non-default
 
 ## Session Continuity
 
-Last session: 2026-02-18
-Stopped at: v1.1 milestone completion and archival
+Last session: 2026-02-21
+Stopped at: Completed 20-copilot-adapter-scaffold/20-01-PLAN.md
 Resume file: None

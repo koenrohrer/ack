@@ -24,6 +24,7 @@ export default tseslint.config(
     ignores: [
       'src/adapters/claude-code/**',
       'src/adapters/codex/**',
+      'src/adapters/copilot/**',
       'src/extension.ts',
       'src/test/**',
       'src/views/marketplace/webview/**',
@@ -39,6 +40,10 @@ export default tseslint.config(
           {
             group: ['**/adapters/codex/*', '**/adapters/codex/**'],
             message: 'Do not import codex modules directly. Use IPlatformAdapter methods via AdapterRegistry.',
+          },
+          {
+            group: ['**/adapters/copilot/*', '**/adapters/copilot/**'],
+            message: 'Do not import copilot modules directly. Use IPlatformAdapter methods via AdapterRegistry.',
           },
         ],
       }],
