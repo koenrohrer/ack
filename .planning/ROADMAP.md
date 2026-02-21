@@ -56,10 +56,13 @@ Plans:
   3. User can install a Copilot MCP server from the marketplace with one click and have it written to `.vscode/mcp.json` using the correct `servers` key
   4. User can remove a Copilot MCP server from the sidebar and have it deleted from the config file
   5. When `.vscode/mcp.json` is edited externally, the sidebar refreshes automatically without restarting the extension
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 21-01: TBD
+- [ ] 21-01-PLAN.md — Copilot MCP schema, parser (reads `servers` key), and writer (add/remove with inputs preservation)
+- [ ] 21-02-PLAN.md — Wire CopilotAdapter MCP methods + register copilotSchemas in extension.ts + fix getJsonPath for Copilot
+- [ ] 21-03-PLAN.md — TDD: Copilot MCP parser and writer tests (servers key, inputs preservation, missing file, wrong key pitfalls)
+- [ ] 21-04-PLAN.md — Human verification checkpoint: all five MCP requirements end-to-end in running extension
 
 #### Phase 22: Custom Instructions and Prompts
 **Goal**: Users can browse, preview, install, and delete Copilot instruction and prompt files from the sidebar
@@ -128,7 +131,7 @@ Plans:
 | 18. Agent-Scoped Profiles | v1.1 | 5/5 | Complete | 2026-02-05 |
 | 19. Marketplace Adaptation | v1.1 | 2/2 | Complete | 2026-02-05 |
 | v1.1-full-uat. UAT Gap Closure | v1.1 | 1/1 | Complete | 2026-02-17 |
-| 20. CopilotAdapter Scaffold | 2/2 | Complete   | 2026-02-21 | - |
+| 20. CopilotAdapter Scaffold | 2/2 | Complete    | 2026-02-21 | - |
 | 21. MCP Server Support | v1.2 | 0/TBD | Not started | - |
 | 22. Custom Instructions and Prompts | v1.2 | 0/TBD | Not started | - |
 | 23. Custom Agents | v1.2 | 0/TBD | Not started | - |
