@@ -74,10 +74,13 @@ Plans:
   3. User can see all `.github/prompts/*.prompt.md` files listed in the sidebar
   4. User can install instruction or prompt files from the marketplace and have them written to the correct `.github/` location
   5. User can delete any instruction or prompt file from the sidebar and preview its markdown content inline
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 22-01: TBD
+- [ ] 22-01-PLAN.md — Instructions + prompts parsers: create instructions.parser.ts and prompts.parser.ts; wire CopilotAdapter.readTools() for CustomPrompt; extend APPLICABLE_SCOPES to include Project
+- [ ] 22-02-PLAN.md — TDD: Copilot instructions and prompts parser tests (no-frontmatter, missing dir, compound extensions, applyTo, mode/agent aliasing)
+- [ ] 22-03-PLAN.md — Delete and file-install: CopilotAdapter.removeTool() for CustomPrompt; extend ack.deletePrompt; add ack.installInstructionFromFile command; package.json menu entries
+- [ ] 22-04-PLAN.md — Marketplace install + human verification: CopilotAdapter.installInstruction(); custom_prompt branch in handleRepoInstall; INST-01 through INST-06 end-to-end checkpoint
 
 #### Phase 23: Custom Agents
 **Goal**: Users can browse, toggle, install, delete, and preview Copilot custom agent files from the sidebar
@@ -132,7 +135,7 @@ Plans:
 | 19. Marketplace Adaptation | v1.1 | 2/2 | Complete | 2026-02-05 |
 | v1.1-full-uat. UAT Gap Closure | v1.1 | 1/1 | Complete | 2026-02-17 |
 | 20. CopilotAdapter Scaffold | 2/2 | Complete    | 2026-02-21 | - |
-| 21. MCP Server Support | 4/4 | Complete   | 2026-02-21 | - |
+| 21. MCP Server Support | 4/4 | Complete    | 2026-02-21 | - |
 | 22. Custom Instructions and Prompts | v1.2 | 0/TBD | Not started | - |
 | 23. Custom Agents | v1.2 | 0/TBD | Not started | - |
 | 24. Agent-Scoped Profiles | v1.2 | 0/TBD | Not started | - |

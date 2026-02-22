@@ -13,7 +13,7 @@ Requirements for v1.2 Copilot Support milestone. Each maps to roadmap phases.
 - [x] **MCP-02**: User can view user-scoped Copilot MCP servers (VS Code profile `mcp.json`) in the sidebar
 - [x] **MCP-03**: User can install a Copilot MCP server from the marketplace
 - [x] **MCP-04**: User can remove a Copilot MCP server from the sidebar
-- [ ] **MCP-05**: Sidebar refreshes automatically when `.vscode/mcp.json` is changed externally
+- [x] **MCP-05**: Sidebar refreshes automatically when `.vscode/mcp.json` is changed externally
 
 ### INST — Custom Instructions and Prompts
 
@@ -79,7 +79,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MCP-02 | Phase 21 | Complete |
 | MCP-03 | Phase 21 | Complete |
 | MCP-04 | Phase 21 | Complete |
-| MCP-05 | Phase 21 | Pending |
+| MCP-05 | Phase 21 | Complete |
 | INST-01 | Phase 22 | Pending |
 | INST-02 | Phase 22 | Pending |
 | INST-03 | Phase 22 | Pending |
