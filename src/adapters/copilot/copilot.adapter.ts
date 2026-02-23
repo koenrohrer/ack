@@ -12,6 +12,7 @@ import { CopilotPaths } from './paths.js';
 import { parseCopilotMcpFile } from './parsers/mcp.parser.js';
 import { parseCopilotInstructions } from './parsers/instructions.parser.js';
 import { parseCopilotPrompts } from './parsers/prompts.parser.js';
+import { parseCopilotAgents } from './parsers/agents.parser.js';
 import { addCopilotMcpServer, removeCopilotMcpServer } from './writers/mcp.writer.js';
 
 /**
@@ -99,8 +100,9 @@ export class CopilotAdapter implements IPlatformAdapter {
   /**
    * Return filesystem paths that should be watched for changes in a scope.
    *
-   * Project scope: watches .vscode/mcp.json plus the three .github/ paths
-   *   that hold instruction/prompt files (global file, instructions dir, prompts dir).
+   * Project scope: watches .vscode/mcp.json plus the four .github/ paths
+   *   that hold instruction/prompt/agent files (global file, instructions dir,
+   *   prompts dir, agents dir).
    * User scope: watches {vsCodeUserDir}/mcp.json.
    */
   getWatchPaths(scope: ConfigScope): string[] {
@@ -112,6 +114,7 @@ export class CopilotAdapter implements IPlatformAdapter {
           CopilotPaths.workspaceCopilotInstructionsFile(this.workspaceRoot),
           CopilotPaths.workspaceInstructionsDir(this.workspaceRoot),
           CopilotPaths.workspacePromptsDir(this.workspaceRoot),
+          CopilotPaths.workspaceAgentsDir(this.workspaceRoot),
         ];
       case ConfigScope.User:
         return [CopilotPaths.userMcpJson(this.vsCodeUserDir)];
@@ -130,7 +133,8 @@ export class CopilotAdapter implements IPlatformAdapter {
    * McpServer: reads from the appropriate mcp.json file via parseCopilotMcpFile.
    * CustomPrompt (Phase 22): reads instructions and prompt files from .github/
    *   via parseCopilotInstructions and parseCopilotPrompts (Project scope only).
-   * Skill: returns empty (Phase 23+ implements these).
+   * Skill (Phase 23): reads agent definition files from .github/agents/ via
+   *   parseCopilotAgents (Project scope only).
    */
   async readTools(type: ToolType, scope: ConfigScope): Promise<NormalizedTool[]> {
     if (type === ToolType.McpServer) {
@@ -158,6 +162,10 @@ export class CopilotAdapter implements IPlatformAdapter {
       const instructions = await parseCopilotInstructions(this.fileIO, this.workspaceRoot);
       const prompts = await parseCopilotPrompts(this.fileIO, this.workspaceRoot);
       return [...instructions, ...prompts];
+    }
+    if (type === ToolType.Skill && scope === ConfigScope.Project) {
+      if (!this.workspaceRoot) return [];
+      return parseCopilotAgents(this.fileIO, this.workspaceRoot);
     }
     return [];
   }
@@ -212,7 +220,7 @@ export class CopilotAdapter implements IPlatformAdapter {
    * Copilot MCP servers have no enable/disable state — toggle is not supported.
    */
   async toggleTool(_tool: NormalizedTool): Promise<void> {
-    throw new Error('CopilotAdapter: Copilot MCP servers have no enable/disable state — toggle is not supported');
+    throw new Error('Copilot has no enable/disable state');
   }
 
   // ---------------------------------------------------------------------------
