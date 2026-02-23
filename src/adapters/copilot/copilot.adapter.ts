@@ -230,6 +230,44 @@ export class CopilotAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
+  // Copilot-specific -- installInstruction
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Install an instruction or prompt file to the correct .github/ subdirectory.
+   *
+   * Routes by filename extension:
+   * - 'copilot-instructions.md'  -> .github/copilot-instructions.md
+   * - '*.instructions.md'        -> .github/instructions/<filename>
+   * - '*.prompt.md'              -> .github/prompts/<filename>
+   *
+   * Uses fileIO.writeTextFile() for atomic write with auto-mkdir.
+   */
+  async installInstruction(
+    _scope: ConfigScope,
+    filename: string,
+    content: string,
+  ): Promise<void> {
+    if (!this.workspaceRoot) {
+      throw new AdapterScopeError('GitHub Copilot', _scope, 'installInstruction (no workspace open)');
+    }
+    let targetPath: string;
+    if (filename === 'copilot-instructions.md') {
+      targetPath = CopilotPaths.workspaceCopilotInstructionsFile(this.workspaceRoot);
+    } else if (filename.endsWith('.instructions.md')) {
+      targetPath = path.join(CopilotPaths.workspaceInstructionsDir(this.workspaceRoot), filename);
+    } else if (filename.endsWith('.prompt.md')) {
+      targetPath = path.join(CopilotPaths.workspacePromptsDir(this.workspaceRoot), filename);
+    } else {
+      throw new Error(
+        `CopilotAdapter: unrecognized instruction/prompt filename: '${filename}'. ` +
+        `Expected 'copilot-instructions.md', '*.instructions.md', or '*.prompt.md'.`,
+      );
+    }
+    await this.fileIO.writeTextFile(targetPath, content);
+  }
+
+  // ---------------------------------------------------------------------------
   // IMcpAdapter -- getMcpFilePath
   // ---------------------------------------------------------------------------
 
