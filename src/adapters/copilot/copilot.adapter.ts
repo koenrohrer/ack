@@ -10,6 +10,8 @@ import { ToolType, ConfigScope } from '../../types/enums.js';
 import { AdapterScopeError } from '../../types/adapter-errors.js';
 import { CopilotPaths } from './paths.js';
 import { parseCopilotMcpFile } from './parsers/mcp.parser.js';
+import { parseCopilotInstructions } from './parsers/instructions.parser.js';
+import { parseCopilotPrompts } from './parsers/prompts.parser.js';
 import { addCopilotMcpServer, removeCopilotMcpServer } from './writers/mcp.writer.js';
 
 /**
@@ -120,28 +122,36 @@ export class CopilotAdapter implements IPlatformAdapter {
    * Read all tools of a given type within a scope.
    *
    * McpServer: reads from the appropriate mcp.json file via parseCopilotMcpFile.
-   * CustomPrompt and Skill: returns empty (Phase 22+ implements these).
+   * CustomPrompt (Phase 22): reads instructions and prompt files from .github/
+   *   via parseCopilotInstructions and parseCopilotPrompts (Project scope only).
+   * Skill: returns empty (Phase 23+ implements these).
    */
   async readTools(type: ToolType, scope: ConfigScope): Promise<NormalizedTool[]> {
-    if (type !== ToolType.McpServer) {
-      return []; // Phase 22+ handles CustomPrompt, Skill
+    if (type === ToolType.McpServer) {
+      if (scope === ConfigScope.Project) {
+        if (!this.workspaceRoot) return [];
+        return parseCopilotMcpFile(
+          this.fileIO,
+          this.schemaService,
+          CopilotPaths.workspaceMcpJson(this.workspaceRoot),
+          scope,
+        );
+      }
+      if (scope === ConfigScope.User) {
+        return parseCopilotMcpFile(
+          this.fileIO,
+          this.schemaService,
+          CopilotPaths.userMcpJson(this.vsCodeUserDir),
+          scope,
+        );
+      }
+      return [];
     }
-    if (scope === ConfigScope.Project) {
+    if (type === ToolType.CustomPrompt && scope === ConfigScope.Project) {
       if (!this.workspaceRoot) return [];
-      return parseCopilotMcpFile(
-        this.fileIO,
-        this.schemaService,
-        CopilotPaths.workspaceMcpJson(this.workspaceRoot),
-        scope,
-      );
-    }
-    if (scope === ConfigScope.User) {
-      return parseCopilotMcpFile(
-        this.fileIO,
-        this.schemaService,
-        CopilotPaths.userMcpJson(this.vsCodeUserDir),
-        scope,
-      );
+      const instructions = await parseCopilotInstructions(this.fileIO, this.workspaceRoot);
+      const prompts = await parseCopilotPrompts(this.fileIO, this.workspaceRoot);
+      return [...instructions, ...prompts];
     }
     return [];
   }

@@ -52,7 +52,7 @@ const APPLICABLE_SCOPES: Record<ToolType, readonly ConfigScope[]> = {
     ConfigScope.Project,
     ConfigScope.Managed,
   ],
-  [ToolType.CustomPrompt]: [ConfigScope.User],
+  [ToolType.CustomPrompt]: [ConfigScope.User, ConfigScope.Project],
 };
 
 /**
