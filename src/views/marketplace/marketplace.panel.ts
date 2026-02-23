@@ -416,6 +416,12 @@ export class MarketplacePanel {
       return;
     }
 
+    // Custom prompts bypass the scope QuickPick — always project-scoped for Copilot
+    if (toolEntry.toolType === 'custom_prompt') {
+      await this.handleCustomPromptInstall(toolId, toolEntry);
+      return;
+    }
+
     const scope = await this.promptForScope(toolEntry.name);
     if (scope === undefined) {
       this.postMessage({ type: 'installCancelled', toolId });
@@ -494,6 +500,46 @@ export class MarketplacePanel {
       this.outputChannel.appendLine(
         `Repo install error for ${toolId}: ${errorMsg}`,
       );
+      this.postMessage({ type: 'installError', toolId, error: errorMsg });
+    }
+  }
+
+  /**
+   * Handle install for custom_prompt repo-sourced tools.
+   *
+   * Custom prompts are always project-scoped for Copilot — no scope QuickPick.
+   * Fetches the file content from the repo, casts to CopilotAdapter, and
+   * calls installInstruction() which routes to the correct .github/ subdirectory.
+   */
+  private async handleCustomPromptInstall(
+    toolId: string,
+    toolEntry: RegistryEntryWithSource,
+  ): Promise<void> {
+    const adapter = this.getAdapter();
+    const { CopilotAdapter } = await import('../../adapters/copilot/copilot.adapter.js');
+    if (!(adapter instanceof CopilotAdapter)) {
+      this.postMessage({ type: 'installError', toolId, error: 'custom_prompt install requires Copilot.' });
+      return;
+    }
+
+    this.postMessage({ type: 'installProgress', toolId, status: 'downloading' });
+    try {
+      const content = await this.repoScanner.fetchRepoFile(
+        toolEntry.repoFullName!,
+        toolEntry.defaultBranch!,
+        toolEntry.repoPath!,
+      );
+      const fileName = toolEntry.repoPath!.split('/').pop()!;
+      await adapter.installInstruction(ConfigScope.Project, fileName, content);
+
+      this.postMessage({ type: 'installComplete', toolId, scope: ConfigScope.Project as string });
+      void vscode.window.showInformationMessage(`Installed "${toolEntry.name}"`);
+
+      const installedTools = await this.getInstalledTools();
+      this.postMessage({ type: 'installedTools', tools: installedTools });
+      void vscode.commands.executeCommand('ack.refreshToolTree');
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Install failed';
       this.postMessage({ type: 'installError', toolId, error: errorMsg });
     }
   }
