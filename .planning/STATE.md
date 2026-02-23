@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Developers can discover, install, configure, and switch between sets of agent tools without leaving VS Code or touching config files manually.
-**Current focus:** v1.2 Copilot Support — Phase 21 (Copilot MCP Read)
+**Current focus:** v1.2 Copilot Support — Phase 22 (Custom Instructions and Prompts)
 
 ## Current Position
 
-Phase: 21 of 25
-Plan: 4 of 4 in current phase
-Status: Phase 21 Plan 04 complete — all five MCP requirements (MCP-01 through MCP-05) human-verified in Extension Development Host; copilot-chat detection fix applied
-Last activity: 2026-02-21 — Phase 21 Plan 04 executed (human verification checkpoint — all MCP requirements approved)
+Phase: 22 of 25
+Plan: 1 of ? in current phase
+Status: Phase 22 Plan 01 complete — Copilot instructions and prompts parsers created, wired into CopilotAdapter.readTools(), APPLICABLE_SCOPES extended
+Last activity: 2026-02-23 — Phase 22 Plan 01 executed (parsers for .github/ instruction/prompt files)
 
-Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 4 plans complete (phase complete).
+Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 4 plans complete (phase complete). Phase 22: 1 plan complete.
 
 ## Milestone History
 
@@ -64,6 +64,12 @@ Phase 21 Plan 03 execution decisions (2026-02-21):
 Phase 21 Plan 04 execution decisions (2026-02-21):
 - detect() checks GitHub.copilot OR GitHub.copilot-chat — users may have only the chat extension installed; checking both ensures Copilot appears for all valid installs
 
+Phase 22 Plan 01 execution decisions (2026-02-23):
+- instructionKind metadata ('global', 'file-pattern', 'prompt') distinguishes kinds for future tree rendering
+- Codex project scope guard: APPLICABLE_SCOPES now queries Project for CustomPrompt; CodexAdapter returns [] for project scope (existing guard) — no CodexAdapter changes needed
+- YAML array tools field in prompt frontmatter intentionally skipped — extractFrontmatter handles flat k:v only; acceptable for Phase 22
+- parseCopilotPrompts prefers 'mode' over 'agent' field name — Copilot uses both for the same concept
+
 ### Roadmap Evolution
 
 v1.0 roadmap archived to `.planning/milestones/v1.0-ROADMAP.md`
@@ -89,6 +95,6 @@ Known gaps to validate during implementation:
 
 ## Session Continuity
 
-Last session: 2026-02-21
-Stopped at: Completed 21-mcp-server-support/21-04-PLAN.md (Phase 21 fully verified and complete)
+Last session: 2026-02-23
+Stopped at: Completed 22-custom-instructions-and-prompts/22-01-PLAN.md (instructions + prompts parsers wired)
 Resume file: None
