@@ -381,16 +381,28 @@ export class CopilotAdapter implements IPlatformAdapter {
   // ---------------------------------------------------------------------------
 
   /**
-   * Install a skill by writing files to the scope's skills directory.
+   * Install a skill (agent) by writing `.agent.md` files to `.github/agents/`.
    *
-   * Copilot skill/agent support is implemented in Phase 23+.
+   * Writes each file in the `files` array to `CopilotPaths.workspaceAgentsDir()`.
+   * `fileIO.writeTextFile()` creates parent directories automatically — no
+   * explicit `fs.mkdir` call required.
+   *
+   * Throws `AdapterScopeError` if no workspace is open (Copilot agents are
+   * workspace-scoped only — there is no user-scope agents directory).
    */
   async installSkill(
     scope: ConfigScope,
     _skillName: string,
-    _files: Array<{ name: string; content: string }>,
+    files: Array<{ name: string; content: string }>,
   ): Promise<void> {
-    throw new AdapterScopeError('GitHub Copilot', scope, 'installSkill (Phase 23+)');
+    if (!this.workspaceRoot) {
+      throw new AdapterScopeError('GitHub Copilot', scope, 'installSkill (no workspace open)');
+    }
+    const agentsDir = CopilotPaths.workspaceAgentsDir(this.workspaceRoot);
+    for (const file of files) {
+      const targetPath = path.join(agentsDir, file.name);
+      await this.fileIO.writeTextFile(targetPath, file.content);
+    }
   }
 
   // ---------------------------------------------------------------------------
