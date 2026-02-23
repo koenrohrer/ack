@@ -91,10 +91,12 @@ Plans:
   2. User can toggle the `user-invokable` field of a custom agent from the sidebar and have the frontmatter updated in the file immediately
   3. User can install a custom agent from the marketplace and have it written to `.github/agents/`
   4. User can delete a custom agent from the sidebar and preview its markdown content inline
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 23-01: TBD
+- [ ] 23-01-PLAN.md — Agents parser + CopilotAdapter readTools(Skill) + file-watcher agents dir (AGNT-01)
+- [ ] 23-02-PLAN.md — Agents writer (toggle frontmatter), CopilotAdapter toggleTool/removeTool(Skill), TDD tests (AGNT-02, AGNT-04, AGNT-05)
+- [ ] 23-03-PLAN.md — CopilotAdapter installSkill() + human verification of all AGNT requirements (AGNT-03)
 
 #### Phase 24: Agent-Scoped Profiles
 **Goal**: Copilot has its own profile set where users can create, switch, delete, export, and import profiles that capture MCP servers and agent states
@@ -136,7 +138,7 @@ Plans:
 | v1.1-full-uat. UAT Gap Closure | v1.1 | 1/1 | Complete | 2026-02-17 |
 | 20. CopilotAdapter Scaffold | 2/2 | Complete    | 2026-02-21 | - |
 | 21. MCP Server Support | 4/4 | Complete    | 2026-02-21 | - |
-| 22. Custom Instructions and Prompts | 4/4 | Complete   | 2026-02-23 | - |
+| 22. Custom Instructions and Prompts | 4/4 | Complete    | 2026-02-23 | - |
 | 23. Custom Agents | v1.2 | 0/TBD | Not started | - |
 | 24. Agent-Scoped Profiles | v1.2 | 0/TBD | Not started | - |
 | 25. Marketplace Routing | v1.2 | 0/TBD | Not started | - |
