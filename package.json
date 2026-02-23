@@ -2,7 +2,7 @@
   "name": "ack",
   "displayName": "ACK - Agent Config Keeper",
   "description": "Discover, install, configure, and switch between agent tool sets",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "publisher": "koenrohrer",
   "license": "MIT",
   "repository": {
@@ -188,6 +188,11 @@
         "icon": "$(file-add)"
       },
       {
+        "command": "ack.installInstructionFromFile",
+        "title": "ACK: Install Instruction or Prompt from File",
+        "icon": "$(file-add)"
+      },
+      {
         "command": "ack.cloneProfileToAgent",
         "title": "ACK: Clone Profile to Agent"
       },
@@ -293,6 +298,16 @@
         },
         {
           "command": "ack.installPromptFromFile",
+          "when": "view == ack.toolTree && viewItem == group:custom_prompt",
+          "group": "1_install"
+        },
+        {
+          "command": "ack.installInstructionFromFile",
+          "when": "view == ack.toolTree && viewItem == group:custom_prompt",
+          "group": "inline"
+        },
+        {
+          "command": "ack.installInstructionFromFile",
           "when": "view == ack.toolTree && viewItem == group:custom_prompt",
           "group": "1_install"
         },
