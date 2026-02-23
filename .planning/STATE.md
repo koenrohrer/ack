@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 22 of 25
-Plan: 1 of ? in current phase
-Status: Phase 22 Plan 01 complete — Copilot instructions and prompts parsers created, wired into CopilotAdapter.readTools(), APPLICABLE_SCOPES extended
-Last activity: 2026-02-23 — Phase 22 Plan 01 executed (parsers for .github/ instruction/prompt files)
+Plan: 2 of ? in current phase
+Status: Phase 22 Plan 02 complete — TDD test suites for instructions and prompts parsers (8+7 cases), vitest config extended for co-located adapter tests
+Last activity: 2026-02-23 — Phase 22 Plan 02 executed (parser TDD tests for .github/ instruction/prompt files)
 
-Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 4 plans complete (phase complete). Phase 22: 1 plan complete.
+Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 4 plans complete (phase complete). Phase 22: 2 plans complete.
 
 ## Milestone History
 
@@ -70,6 +70,10 @@ Phase 22 Plan 01 execution decisions (2026-02-23):
 - YAML array tools field in prompt frontmatter intentionally skipped — extractFrontmatter handles flat k:v only; acceptable for Phase 22
 - parseCopilotPrompts prefers 'mode' over 'agent' field name — Copilot uses both for the same concept
 
+Phase 22 Plan 02 execution decisions (2026-02-23):
+- vitest.config.ts extended to include src/adapters/**/*.test.ts glob for co-located adapter tests
+- Tests for instructions and prompts parsers went GREEN immediately (Plan 01 implementations were correct)
+
 ### Roadmap Evolution
 
 v1.0 roadmap archived to `.planning/milestones/v1.0-ROADMAP.md`
@@ -96,5 +100,5 @@ Known gaps to validate during implementation:
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 22-custom-instructions-and-prompts/22-01-PLAN.md (instructions + prompts parsers wired)
+Stopped at: Completed 22-custom-instructions-and-prompts/22-02-PLAN.md (instructions + prompts parser TDD tests)
 Resume file: None
