@@ -174,18 +174,26 @@ export class CopilotAdapter implements IPlatformAdapter {
   // ---------------------------------------------------------------------------
 
   /**
-   * Remove an MCP server tool from its scope's mcp.json file.
+   * Remove a tool from Copilot configuration.
    *
-   * Delegates to removeCopilotMcpServer for McpServer type.
-   * CustomPrompt and Skill removal is not implemented (Phase 22+).
+   * McpServer: delegates to removeCopilotMcpServer (modifies mcp.json).
+   * CustomPrompt: deletes the instruction/prompt .md file directly via fs.rm.
+   * Other types: not implemented (Phase 23+).
    */
   async removeTool(tool: NormalizedTool): Promise<void> {
     this.ensureWriteServices();
-    if (tool.type !== ToolType.McpServer) {
-      throw new Error(`CopilotAdapter: removeTool not implemented for ${tool.type} (Phase 22+)`);
+    if (tool.type === ToolType.McpServer) {
+      const filePath = this.getMcpFilePath(tool.scope);
+      await removeCopilotMcpServer(this.configService!, filePath, tool.name);
+      return;
     }
-    const filePath = this.getMcpFilePath(tool.scope);
-    await removeCopilotMcpServer(this.configService!, filePath, tool.name);
+    if (tool.type === ToolType.CustomPrompt) {
+      // Direct file deletion — instruction/prompt files are single .md files
+      const { rm } = await import('fs/promises');
+      await rm(tool.source.filePath);
+      return;
+    }
+    throw new Error(`CopilotAdapter: removeTool not implemented for ${tool.type} (Phase 23+)`);
   }
 
   // ---------------------------------------------------------------------------
