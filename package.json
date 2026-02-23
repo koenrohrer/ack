@@ -228,7 +228,7 @@
       "view/item/context": [
         {
           "command": "ack.toggleTool",
-          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project|local)$/",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem !~ /^tool:custom_prompt:/ && viewItem =~ /:(?:user|project|local)$/",
           "group": "inline"
         },
         {
@@ -238,7 +238,7 @@
         },
         {
           "command": "ack.toggleTool",
-          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project|local)$/",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem !~ /^tool:custom_prompt:/ && viewItem =~ /:(?:user|project|local)$/",
           "group": "1_toggle"
         },
         {
@@ -248,7 +248,7 @@
         },
         {
           "command": "ack.deleteTool",
-          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project|local)$/",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem !~ /^tool:custom_prompt:/ && viewItem =~ /:(?:user|project|local)$/",
           "group": "3_danger"
         },
         {
