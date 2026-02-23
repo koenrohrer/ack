@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 22 of 25
-Plan: 3 of ? in current phase
-Status: Phase 22 Plan 03 complete — CopilotAdapter.removeTool() extended for CustomPrompt, ack.installInstructionFromFile command wired in management.ts and package.json
-Last activity: 2026-02-23 — Phase 22 Plan 03 executed (delete + file-picker install for Copilot instruction/prompt files)
+Plan: 4 of 4 in current phase (phase complete)
+Status: Phase 22 Plan 04 complete — CopilotAdapter.installInstruction() added, marketplace custom_prompt branch wired, all six INST requirements human-verified
+Last activity: 2026-02-23 — Phase 22 Plan 04 executed (marketplace install + end-to-end verification of all INST requirements)
 
-Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 4 plans complete (phase complete). Phase 22: 3 plans complete.
+Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 4 plans complete (phase complete). Phase 22: 4 plans complete (phase complete).
 
 ## Milestone History
 
@@ -80,6 +80,13 @@ Phase 22 Plan 03 execution decisions (2026-02-23):
 - package.json when-clause uses viewItem == group:custom_prompt without adapter id check — command handler enforces copilot guard (same pattern as other commands)
 - removeTool CustomPrompt branch uses fs.rm directly — does not need configService (skips ensureWriteServices route through ConfigService)
 
+Phase 22 Plan 04 execution decisions (2026-02-23):
+- installInstruction is Copilot-specific (not on IInstallAdapter) — cast to CopilotAdapter at call site in marketplace.panel.ts; instanceof guard throws for non-Copilot adapters
+- custom_prompt early-return before promptForScope: handleCustomPromptInstall private method avoids restructuring the existing promptForScope flow
+- ack.activeAdapterId VS Code context key set in extension.ts on agent switch — command when-clauses filter by adapter ID so install commands don't appear simultaneously
+- getWatchPaths extended with .github/copilot-instructions.md, .github/instructions/, .github/prompts/ so tree refreshes on file changes; 'instructions' added to recursive-dir list in file-watcher.utils.ts
+- ack.toggleTool when-clause excludes tool:custom_prompt:* — custom prompt files have no enable/disable concept; toggle was surfacing "Toggle failed" error for all Copilot tools
+
 ### Roadmap Evolution
 
 v1.0 roadmap archived to `.planning/milestones/v1.0-ROADMAP.md`
@@ -106,5 +113,5 @@ Known gaps to validate during implementation:
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 22-custom-instructions-and-prompts/22-03-PLAN.md (delete + file-picker install for Copilot instruction/prompt files)
+Stopped at: Completed 22-custom-instructions-and-prompts/22-04-PLAN.md (marketplace install + end-to-end verification of all INST requirements — Phase 22 complete)
 Resume file: None

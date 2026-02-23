@@ -20,7 +20,7 @@ Requirements for v1.2 Copilot Support milestone. Each maps to roadmap phases.
 - [x] **INST-01**: User can view the always-on instructions file (`.github/copilot-instructions.md`) in the sidebar
 - [x] **INST-02**: User can view file-pattern instruction files (`.github/instructions/*.instructions.md`) in the sidebar
 - [x] **INST-03**: User can view prompt files (`.github/prompts/*.prompt.md`) in the sidebar
-- [ ] **INST-04**: User can install instruction or prompt files from the marketplace
+- [x] **INST-04**: User can install instruction or prompt files from the marketplace
 - [x] **INST-05**: User can delete instruction or prompt files from the sidebar
 - [x] **INST-06**: User can preview instruction and prompt file content as markdown
 
@@ -83,7 +83,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INST-01 | Phase 22 | Complete |
 | INST-02 | Phase 22 | Complete |
 | INST-03 | Phase 22 | Complete |
-| INST-04 | Phase 22 | Pending |
+| INST-04 | Phase 22 | Complete |
 | INST-05 | Phase 22 | Complete |
 | INST-06 | Phase 22 | Complete |
 | AGNT-01 | Phase 23 | Pending |
