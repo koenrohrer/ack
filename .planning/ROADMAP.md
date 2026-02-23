@@ -139,6 +139,6 @@ Plans:
 | 20. CopilotAdapter Scaffold | 2/2 | Complete    | 2026-02-21 | - |
 | 21. MCP Server Support | 4/4 | Complete    | 2026-02-21 | - |
 | 22. Custom Instructions and Prompts | 4/4 | Complete    | 2026-02-23 | - |
-| 23. Custom Agents | v1.2 | 0/TBD | Not started | - |
+| 23. Custom Agents | 1/3 | In Progress|  | - |
 | 24. Agent-Scoped Profiles | v1.2 | 0/TBD | Not started | - |
 | 25. Marketplace Routing | v1.2 | 0/TBD | Not started | - |

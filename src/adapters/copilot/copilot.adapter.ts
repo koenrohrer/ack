@@ -6,13 +6,14 @@ import type { ConfigService } from '../../services/config.service.js';
 import type { BackupService } from '../../services/backup.service.js';
 import type { IPlatformAdapter } from '../../types/adapter.js';
 import type { NormalizedTool } from '../../types/config.js';
-import { ToolType, ConfigScope } from '../../types/enums.js';
+import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { AdapterScopeError } from '../../types/adapter-errors.js';
 import { CopilotPaths } from './paths.js';
 import { parseCopilotMcpFile } from './parsers/mcp.parser.js';
 import { parseCopilotInstructions } from './parsers/instructions.parser.js';
 import { parseCopilotPrompts } from './parsers/prompts.parser.js';
 import { parseCopilotAgents } from './parsers/agents.parser.js';
+import { toggleAgentUserInvokable } from './writers/agents.writer.js';
 import { addCopilotMcpServer, removeCopilotMcpServer } from './writers/mcp.writer.js';
 
 /**
@@ -192,7 +193,7 @@ export class CopilotAdapter implements IPlatformAdapter {
    *
    * McpServer: delegates to removeCopilotMcpServer (modifies mcp.json).
    * CustomPrompt: deletes the instruction/prompt .md file directly via fs.rm.
-   * Other types: not implemented (Phase 23+).
+   * Skill (Phase 23): deletes the .agent.md file directly via fs.rm.
    */
   async removeTool(tool: NormalizedTool): Promise<void> {
     this.ensureWriteServices();
@@ -207,7 +208,13 @@ export class CopilotAdapter implements IPlatformAdapter {
       await rm(tool.source.filePath);
       return;
     }
-    throw new Error(`CopilotAdapter: removeTool not implemented for ${tool.type} (Phase 23+)`);
+    if (tool.type === ToolType.Skill) {
+      // Direct file deletion — agent files are single .agent.md files in .github/agents/
+      const { rm } = await import('fs/promises');
+      await rm(tool.source.filePath);
+      return;
+    }
+    throw new Error(`CopilotAdapter: removeTool not implemented for ${tool.type}`);
   }
 
   // ---------------------------------------------------------------------------
@@ -217,9 +224,20 @@ export class CopilotAdapter implements IPlatformAdapter {
   /**
    * Toggle a tool between enabled and disabled states.
    *
-   * Copilot MCP servers have no enable/disable state — toggle is not supported.
+   * Skill (Phase 23): rewrites the `user-invokable` frontmatter field in the
+   *   `.agent.md` file via toggleAgentUserInvokable. Direction is determined
+   *   by the tool's current status (Enabled → disable, Disabled → enable).
+   * Other types: toggle is not supported — Copilot MCP servers have no
+   *   enable/disable state.
    */
-  async toggleTool(_tool: NormalizedTool): Promise<void> {
+  async toggleTool(tool: NormalizedTool): Promise<void> {
+    if (tool.type === ToolType.Skill) {
+      // Use tool.status directly — isToggleDisable checks directory naming
+      // (.disabled suffix) which is not applicable to Copilot agent files.
+      const shouldDisable = tool.status === ToolStatus.Enabled;
+      await toggleAgentUserInvokable(this.fileIO, tool.source.filePath, shouldDisable);
+      return;
+    }
     throw new Error('Copilot has no enable/disable state');
   }
 

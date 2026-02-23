@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Developers can discover, install, configure, and switch between sets of agent tools without leaving VS Code or touching config files manually.
-**Current focus:** v1.2 Copilot Support — Phase 22 (Custom Instructions and Prompts)
+**Current focus:** v1.2 Copilot Support — Phase 23 (Custom Agents)
 
 ## Current Position
 
-Phase: 22 of 25
-Plan: 4 of 4 in current phase (phase complete)
-Status: Phase 22 Plan 04 complete — CopilotAdapter.installInstruction() added, marketplace custom_prompt branch wired, all six INST requirements human-verified
-Last activity: 2026-02-23 — Phase 22 Plan 04 executed (marketplace install + end-to-end verification of all INST requirements)
+Phase: 23 of 25
+Plan: 1 of 3 in current phase (plan 01 complete)
+Status: Phase 23 Plan 01 complete — agents.parser.ts created, CopilotAdapter.readTools(Skill) wired, getWatchPaths includes agents dir, file-watcher.utils.ts updated
+Last activity: 2026-02-23 — Phase 23 Plan 01 executed (agents parser + adapter wiring + file-watcher update)
 
-Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 4 plans complete (phase complete). Phase 22: 4 plans complete (phase complete).
+Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 4 plans complete (phase complete). Phase 22: 4 plans complete (phase complete). Phase 23: 1/3 plans complete.
 
 ## Milestone History
 
@@ -80,6 +80,12 @@ Phase 22 Plan 03 execution decisions (2026-02-23):
 - package.json when-clause uses viewItem == group:custom_prompt without adapter id check — command handler enforces copilot guard (same pattern as other commands)
 - removeTool CustomPrompt branch uses fs.rm directly — does not need configService (skips ensureWriteServices route through ConfigService)
 
+Phase 23 Plan 01 execution decisions (2026-02-23):
+- String-compare user-invokable frontmatter: `=== 'false'` (string) not boolean — extractFrontmatter returns strings
+- Use .agent.md extension filter in listFiles — not .md — to exclude non-agent markdown files
+- agents dir added as 5th path in getWatchPaths Project scope; 'agents' added to isRecursiveDir check in file-watcher.utils.ts
+- id format: skill:project:{baseName} consistent with instruction:project: and prompt:project: patterns
+
 Phase 22 Plan 04 execution decisions (2026-02-23):
 - installInstruction is Copilot-specific (not on IInstallAdapter) — cast to CopilotAdapter at call site in marketplace.panel.ts; instanceof guard throws for non-Copilot adapters
 - custom_prompt early-return before promptForScope: handleCustomPromptInstall private method avoids restructuring the existing promptForScope flow
@@ -113,5 +119,5 @@ Known gaps to validate during implementation:
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 22-custom-instructions-and-prompts/22-04-PLAN.md (marketplace install + end-to-end verification of all INST requirements — Phase 22 complete)
+Stopped at: Completed 23-custom-agents/23-01-PLAN.md (agents parser + CopilotAdapter wiring + file-watcher update — AGNT-01 complete)
 Resume file: None

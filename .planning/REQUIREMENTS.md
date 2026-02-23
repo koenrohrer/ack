@@ -26,7 +26,7 @@ Requirements for v1.2 Copilot Support milestone. Each maps to roadmap phases.
 
 ### AGNT — Custom Agents
 
-- [ ] **AGNT-01**: User can view custom agent files (`.github/agents/*.agent.md`) in the sidebar
+- [x] **AGNT-01**: User can view custom agent files (`.github/agents/*.agent.md`) in the sidebar
 - [ ] **AGNT-02**: User can enable or disable a custom agent (toggles `user-invokable` field in frontmatter)
 - [ ] **AGNT-03**: User can install a custom agent from the marketplace
 - [ ] **AGNT-04**: User can delete a custom agent from the sidebar
@@ -86,7 +86,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INST-04 | Phase 22 | Complete |
 | INST-05 | Phase 22 | Complete |
 | INST-06 | Phase 22 | Complete |
-| AGNT-01 | Phase 23 | Pending |
+| AGNT-01 | Phase 23 | Complete |
 | AGNT-02 | Phase 23 | Pending |
 | AGNT-03 | Phase 23 | Pending |
 | AGNT-04 | Phase 23 | Pending |
