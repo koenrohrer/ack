@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 22 of 25
-Plan: 2 of ? in current phase
-Status: Phase 22 Plan 02 complete — TDD test suites for instructions and prompts parsers (8+7 cases), vitest config extended for co-located adapter tests
-Last activity: 2026-02-23 — Phase 22 Plan 02 executed (parser TDD tests for .github/ instruction/prompt files)
+Plan: 3 of ? in current phase
+Status: Phase 22 Plan 03 complete — CopilotAdapter.removeTool() extended for CustomPrompt, ack.installInstructionFromFile command wired in management.ts and package.json
+Last activity: 2026-02-23 — Phase 22 Plan 03 executed (delete + file-picker install for Copilot instruction/prompt files)
 
-Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 4 plans complete (phase complete). Phase 22: 2 plans complete.
+Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 4 plans complete (phase complete). Phase 22: 3 plans complete.
 
 ## Milestone History
 
@@ -74,6 +74,12 @@ Phase 22 Plan 02 execution decisions (2026-02-23):
 - vitest.config.ts extended to include src/adapters/**/*.test.ts glob for co-located adapter tests
 - Tests for instructions and prompts parsers went GREEN immediately (Plan 01 implementations were correct)
 
+Phase 22 Plan 03 execution decisions (2026-02-23):
+- deletePromptCmd has no adapter guard — rm(tool.source.filePath) works identically for Codex and Copilot, no change needed
+- installInstructionCmd routes to .github/instructions/ or .github/prompts/ based on filename extension (.instructions.md vs .prompt.md)
+- package.json when-clause uses viewItem == group:custom_prompt without adapter id check — command handler enforces copilot guard (same pattern as other commands)
+- removeTool CustomPrompt branch uses fs.rm directly — does not need configService (skips ensureWriteServices route through ConfigService)
+
 ### Roadmap Evolution
 
 v1.0 roadmap archived to `.planning/milestones/v1.0-ROADMAP.md`
@@ -100,5 +106,5 @@ Known gaps to validate during implementation:
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 22-custom-instructions-and-prompts/22-02-PLAN.md (instructions + prompts parser TDD tests)
+Stopped at: Completed 22-custom-instructions-and-prompts/22-03-PLAN.md (delete + file-picker install for Copilot instruction/prompt files)
 Resume file: None

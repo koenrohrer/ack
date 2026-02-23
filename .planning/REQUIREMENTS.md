@@ -17,12 +17,12 @@ Requirements for v1.2 Copilot Support milestone. Each maps to roadmap phases.
 
 ### INST — Custom Instructions and Prompts
 
-- [ ] **INST-01**: User can view the always-on instructions file (`.github/copilot-instructions.md`) in the sidebar
-- [ ] **INST-02**: User can view file-pattern instruction files (`.github/instructions/*.instructions.md`) in the sidebar
-- [ ] **INST-03**: User can view prompt files (`.github/prompts/*.prompt.md`) in the sidebar
+- [x] **INST-01**: User can view the always-on instructions file (`.github/copilot-instructions.md`) in the sidebar
+- [x] **INST-02**: User can view file-pattern instruction files (`.github/instructions/*.instructions.md`) in the sidebar
+- [x] **INST-03**: User can view prompt files (`.github/prompts/*.prompt.md`) in the sidebar
 - [ ] **INST-04**: User can install instruction or prompt files from the marketplace
-- [ ] **INST-05**: User can delete instruction or prompt files from the sidebar
-- [ ] **INST-06**: User can preview instruction and prompt file content as markdown
+- [x] **INST-05**: User can delete instruction or prompt files from the sidebar
+- [x] **INST-06**: User can preview instruction and prompt file content as markdown
 
 ### AGNT — Custom Agents
 
@@ -80,12 +80,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MCP-03 | Phase 21 | Complete |
 | MCP-04 | Phase 21 | Complete |
 | MCP-05 | Phase 21 | Complete |
-| INST-01 | Phase 22 | Pending |
-| INST-02 | Phase 22 | Pending |
-| INST-03 | Phase 22 | Pending |
+| INST-01 | Phase 22 | Complete |
+| INST-02 | Phase 22 | Complete |
+| INST-03 | Phase 22 | Complete |
 | INST-04 | Phase 22 | Pending |
-| INST-05 | Phase 22 | Pending |
-| INST-06 | Phase 22 | Pending |
+| INST-05 | Phase 22 | Complete |
+| INST-06 | Phase 22 | Complete |
 | AGNT-01 | Phase 23 | Pending |
 | AGNT-02 | Phase 23 | Pending |
 | AGNT-03 | Phase 23 | Pending |
