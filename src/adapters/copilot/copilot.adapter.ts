@@ -99,14 +99,20 @@ export class CopilotAdapter implements IPlatformAdapter {
   /**
    * Return filesystem paths that should be watched for changes in a scope.
    *
-   * Project scope: watches .vscode/mcp.json (non-empty return triggers FileWatcherManager).
+   * Project scope: watches .vscode/mcp.json plus the three .github/ paths
+   *   that hold instruction/prompt files (global file, instructions dir, prompts dir).
    * User scope: watches {vsCodeUserDir}/mcp.json.
    */
   getWatchPaths(scope: ConfigScope): string[] {
     switch (scope) {
       case ConfigScope.Project:
         if (!this.workspaceRoot) return [];
-        return [CopilotPaths.workspaceMcpJson(this.workspaceRoot)];
+        return [
+          CopilotPaths.workspaceMcpJson(this.workspaceRoot),
+          CopilotPaths.workspaceCopilotInstructionsFile(this.workspaceRoot),
+          CopilotPaths.workspaceInstructionsDir(this.workspaceRoot),
+          CopilotPaths.workspacePromptsDir(this.workspaceRoot),
+        ];
       case ConfigScope.User:
         return [CopilotPaths.userMcpJson(this.vsCodeUserDir)];
       default:

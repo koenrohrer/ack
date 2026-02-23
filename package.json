@@ -293,22 +293,22 @@
         },
         {
           "command": "ack.installPromptFromFile",
-          "when": "view == ack.toolTree && viewItem == group:custom_prompt",
+          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.activeAdapterId == codex",
           "group": "inline"
         },
         {
           "command": "ack.installPromptFromFile",
-          "when": "view == ack.toolTree && viewItem == group:custom_prompt",
+          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.activeAdapterId == codex",
           "group": "1_install"
         },
         {
           "command": "ack.installInstructionFromFile",
-          "when": "view == ack.toolTree && viewItem == group:custom_prompt",
+          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.activeAdapterId == copilot",
           "group": "inline"
         },
         {
           "command": "ack.installInstructionFromFile",
-          "when": "view == ack.toolTree && viewItem == group:custom_prompt",
+          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.activeAdapterId == copilot",
           "group": "1_install"
         },
         {

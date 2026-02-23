@@ -37,7 +37,7 @@ export function collectWatchDirs(adapter: IPlatformAdapter): {
       // Skills, commands, and prompts directories need recursive watching
       // because they contain subdirectories (skills/commands) or multiple files (prompts).
       const basename = path.basename(p);
-      const isRecursiveDir = basename === 'skills' || basename === 'commands' || basename === 'prompts';
+      const isRecursiveDir = basename === 'skills' || basename === 'commands' || basename === 'prompts' || basename === 'instructions';
 
       if (isRecursiveDir) {
         // Watch the directory itself recursively

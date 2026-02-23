@@ -253,6 +253,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // 15e. React to agent switches (status bar, file watchers, tree, panels, workspace profiles)
   context.subscriptions.push(
     agentSwitcher.onDidSwitchAgent(async (adapter) => {
+      await vscode.commands.executeCommand('setContext', 'ack.activeAdapterId', adapter?.id ?? '');
       updateAgentStatusBar(agentStatusBar, adapter);
       treeProvider.setAgentName(adapter?.displayName);
       MarketplacePanel.notifyAgentChanged(adapter?.displayName ?? 'No Agent');
