@@ -816,6 +816,89 @@ export function registerManagementCommands(
     },
   );
 
+  // ---------------------------------------------------------------------------
+  // Install Instruction or Prompt from File (Copilot only)
+  // ---------------------------------------------------------------------------
+
+  const installInstructionCmd = vscode.commands.registerCommand(
+    'ack.installInstructionFromFile',
+    async () => {
+      try {
+        const adapter = registry.getActiveAdapter();
+        if (!adapter || adapter.id !== 'copilot') {
+          vscode.window.showErrorMessage('Install instruction is only available for Copilot.');
+          return;
+        }
+
+        const uris = await vscode.window.showOpenDialog({
+          canSelectMany: false,
+          canSelectFolders: false,
+          filters: { 'Markdown': ['md'] },
+          title: 'Install Copilot Instruction or Prompt',
+        });
+
+        if (!uris || uris.length === 0) {
+          return;
+        }
+
+        const sourcePath = uris[0].fsPath;
+        const filename = path.basename(sourcePath);
+
+        // Validate extension — must be .instructions.md or .prompt.md
+        if (!filename.endsWith('.instructions.md') && !filename.endsWith('.prompt.md')) {
+          vscode.window.showErrorMessage(
+            `File must end in .instructions.md or .prompt.md. Got: '${filename}'`,
+          );
+          return;
+        }
+
+        // Import CopilotPaths locally to avoid adapter boundary violation
+        const { CopilotPaths } = await import('../../adapters/copilot/paths.js');
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!workspaceRoot) {
+          vscode.window.showErrorMessage('No workspace folder open. Cannot install instruction.');
+          return;
+        }
+
+        const targetDir = filename.endsWith('.instructions.md')
+          ? CopilotPaths.workspaceInstructionsDir(workspaceRoot)
+          : CopilotPaths.workspacePromptsDir(workspaceRoot);
+
+        const targetPath = path.join(targetDir, filename);
+        const { access, mkdir, copyFile } = await import('fs/promises');
+
+        // Check for existing file
+        let exists = false;
+        try {
+          await access(targetPath);
+          exists = true;
+        } catch {
+          // File doesn't exist
+        }
+
+        if (exists) {
+          const choice = await vscode.window.showWarningMessage(
+            `'${filename}' already exists. Overwrite?`,
+            { modal: true },
+            'Overwrite',
+          );
+          if (choice !== 'Overwrite') {
+            return;
+          }
+        }
+
+        await mkdir(targetDir, { recursive: true });
+        await copyFile(sourcePath, targetPath);
+
+        await treeProvider.refresh();
+        vscode.window.showInformationMessage(`Installed '${filename}'.`);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Failed to install instruction: ${msg}`);
+      }
+    },
+  );
+
   context.subscriptions.push(
     toggleCmd,
     deleteCmd,
@@ -830,5 +913,6 @@ export function registerManagementCommands(
     removeEnvVarCmd,
     installPromptCmd,
     deletePromptCmd,
+    installInstructionCmd,
   );
 }
