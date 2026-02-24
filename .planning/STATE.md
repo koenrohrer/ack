@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 24 of 25
-Plan: 1 of 2 in current phase
-Status: Phase 24 Plan 01 complete — toggleableToolTypes gating added to IToolAdapter, CopilotAdapter, and switchProfile; Copilot profiles silently skip McpServer/CustomPrompt entries
-Last activity: 2026-02-24 — Phase 24 Plan 01 executed (toggle-compatibility gating for Copilot profile switching)
+Plan: 2 of 2 in current phase
+Status: Phase 24 complete — UX-04 and UX-05 verified end-to-end in Extension Development Host; Copilot profile create/switch/delete/export/import all confirmed working
+Last activity: 2026-02-24 — Phase 24 Plan 02 executed (human verification of Copilot agent-scoped profiles)
 
-Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 4 plans complete (phase complete). Phase 22: 4 plans complete (phase complete). Phase 23: 3/3 plans complete (phase complete). Phase 24: 1/2 plans complete.
+Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 4 plans complete (phase complete). Phase 22: 4 plans complete (phase complete). Phase 23: 3/3 plans complete (phase complete). Phase 24: 2/2 plans complete (phase complete).
 
 ## Milestone History
 
@@ -80,6 +80,12 @@ Phase 22 Plan 03 execution decisions (2026-02-23):
 - package.json when-clause uses viewItem == group:custom_prompt without adapter id check — command handler enforces copilot guard (same pattern as other commands)
 - removeTool CustomPrompt branch uses fs.rm directly — does not need configService (skips ensureWriteServices route through ConfigService)
 
+Phase 24 Plan 02 execution decisions (2026-02-24):
+- UX-04 and UX-05 verified in running Extension Development Host — no code changes needed at verification checkpoint
+- Profile scoping confirmed: Copilot profiles invisible when Claude Code or Codex is active; agent switcher change correctly filters getProfiles() by agentId
+- Known limitation accepted: switching a Copilot profile applies only Skill (user-invokable) state changes; MCP server entries are stored in snapshot but silently skipped during switch (by design)
+- Export file confirmed to use .copilot.ackprofile compound extension with agentId: copilot in bundle JSON
+
 Phase 24 Plan 01 execution decisions (2026-02-24):
 - toggleableToolTypes is optional on IToolAdapter — undefined means all types are toggleable (Claude Code, Codex unchanged; backward-compatible)
 - Non-toggleable entries in switchProfile increment skipped (not incompatibleSkipped) — tools are supported but adapter has no toggle concept for that type
@@ -134,5 +140,5 @@ Known gaps to validate during implementation:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 24-agent-scoped-profiles/24-01-PLAN.md (toggleableToolTypes gating — switchProfile no longer throws for Copilot MCP/CustomPrompt entries)
+Stopped at: Completed 24-agent-scoped-profiles/24-02-PLAN.md (human verification — UX-04 and UX-05 confirmed end-to-end; Phase 24 complete)
 Resume file: None

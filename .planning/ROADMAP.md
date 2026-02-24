@@ -109,8 +109,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 24-01-PLAN.md — Add toggleableToolTypes to IToolAdapter + CopilotAdapter + switchProfile compatibility guard
-- [ ] 24-02-PLAN.md — Human verification of UX-04 and UX-05 end-to-end with Copilot active
+- [x] 24-01-PLAN.md — Add toggleableToolTypes to IToolAdapter + CopilotAdapter + switchProfile compatibility guard
+- [x] 24-02-PLAN.md — Human verification of UX-04 and UX-05 end-to-end with Copilot active
 
 #### Phase 25: Marketplace Routing
 **Goal**: The marketplace surfaces only Copilot-compatible tools when Copilot is active and routes installs correctly to the CopilotAdapter
@@ -141,5 +141,5 @@ Plans:
 | 21. MCP Server Support | 4/4 | Complete    | 2026-02-21 | - |
 | 22. Custom Instructions and Prompts | 4/4 | Complete    | 2026-02-23 | - |
 | 23. Custom Agents | 3/3 | Complete    | 2026-02-24 | - |
-| 24. Agent-Scoped Profiles | 1/2 | In Progress|  | - |
+| 24. Agent-Scoped Profiles | 2/2 | Complete    | 2026-02-24 | - |
 | 25. Marketplace Routing | v1.2 | 0/TBD | Not started | - |
