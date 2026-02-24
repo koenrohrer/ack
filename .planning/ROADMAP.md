@@ -106,10 +106,11 @@ Plans:
   1. User can create a named Copilot profile, switch between Copilot profiles, and delete a Copilot profile without affecting Claude Code or Codex profiles
   2. Switching Copilot profiles applies the correct MCP server configuration and agent `user-invokable` state to the workspace
   3. User can export a Copilot profile as an `.ackprofile` bundle and import it on another machine or workspace, restoring the full tool set
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 24-01: TBD
+- [ ] 24-01-PLAN.md — Add toggleableToolTypes to IToolAdapter + CopilotAdapter + switchProfile compatibility guard
+- [ ] 24-02-PLAN.md — Human verification of UX-04 and UX-05 end-to-end with Copilot active
 
 #### Phase 25: Marketplace Routing
 **Goal**: The marketplace surfaces only Copilot-compatible tools when Copilot is active and routes installs correctly to the CopilotAdapter
@@ -139,6 +140,6 @@ Plans:
 | 20. CopilotAdapter Scaffold | 2/2 | Complete    | 2026-02-21 | - |
 | 21. MCP Server Support | 4/4 | Complete    | 2026-02-21 | - |
 | 22. Custom Instructions and Prompts | 4/4 | Complete    | 2026-02-23 | - |
-| 23. Custom Agents | 1/3 | In Progress|  | - |
+| 23. Custom Agents | 3/3 | Complete    | 2026-02-24 | - |
 | 24. Agent-Scoped Profiles | v1.2 | 0/TBD | Not started | - |
 | 25. Marketplace Routing | v1.2 | 0/TBD | Not started | - |

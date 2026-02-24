@@ -11,6 +11,14 @@ export interface IToolAdapter {
   readonly supportedToolTypes: ReadonlySet<ToolType>;
 
   /**
+   * Subset of supportedToolTypes that can be toggled (enabled/disabled).
+   * If undefined, ALL supportedToolTypes are assumed toggleable (backward compat
+   * for Claude Code and Codex adapters which do not declare this property).
+   * Adapters where only some types are toggleable MUST declare this property.
+   */
+  readonly toggleableToolTypes?: ReadonlySet<ToolType>;
+
+  /**
    * Read all tools of a given type within a scope.
    */
   readTools(type: ToolType, scope: ConfigScope): Promise<NormalizedTool[]>;
