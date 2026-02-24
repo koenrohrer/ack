@@ -436,6 +436,10 @@ export class ProfileService {
     // Get active adapter's supported tool types for compatibility filtering
     const activeAdapter = this.registry.getActiveAdapter();
     const supportedTypes = activeAdapter?.supportedToolTypes ?? new Set();
+    // toggleableTypes may be a subset of supportedTypes for adapters that can
+    // read/install some types but cannot toggle them (e.g. Copilot: reads McpServer
+    // but cannot toggle it). If undefined, all supportedTypes are toggleable.
+    const toggleableTypes = activeAdapter?.toggleableToolTypes;
 
     // Read current tool states across all types (including CustomPrompt)
     const currentTools: NormalizedTool[] = [];
@@ -469,6 +473,14 @@ export class ProfileService {
         // Extract tool name from key for display (format: "type:name")
         const toolName = entry.key.split(':').slice(1).join(':');
         incompatibleSkipped.push(toolName || entry.key);
+        continue;
+      }
+
+      // Skip types that are readable/installable but NOT toggleable for this adapter.
+      // These are silently skipped — they exist in the profile snapshot but
+      // cannot be applied as toggle operations (e.g. Copilot MCP servers).
+      if (toggleableTypes && toolType && !toggleableTypes.has(toolType)) {
+        skipped++;
         continue;
       }
 

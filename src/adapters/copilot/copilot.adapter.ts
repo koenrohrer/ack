@@ -44,6 +44,11 @@ export class CopilotAdapter implements IPlatformAdapter {
     ToolType.CustomPrompt,
     ToolType.Skill,
   ]);
+  readonly toggleableToolTypes: ReadonlySet<ToolType> = new Set([
+    ToolType.Skill,  // Only Skill supports user-invokable frontmatter toggle.
+    // McpServer: Copilot MCP config has no disabled state (no enable/disable).
+    // CustomPrompt: instructions and prompts have no enable/disable concept.
+  ]);
 
   /**
    * VS Code user directory derived from context.globalStorageUri at construction.
