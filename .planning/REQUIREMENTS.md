@@ -27,18 +27,18 @@ Requirements for v1.2 Copilot Support milestone. Each maps to roadmap phases.
 ### AGNT — Custom Agents
 
 - [x] **AGNT-01**: User can view custom agent files (`.github/agents/*.agent.md`) in the sidebar
-- [ ] **AGNT-02**: User can enable or disable a custom agent (toggles `user-invokable` field in frontmatter)
-- [ ] **AGNT-03**: User can install a custom agent from the marketplace
-- [ ] **AGNT-04**: User can delete a custom agent from the sidebar
-- [ ] **AGNT-05**: User can preview custom agent file content as markdown
+- [x] **AGNT-02**: User can enable or disable a custom agent (toggles `user-invokable` field in frontmatter)
+- [x] **AGNT-03**: User can install a custom agent from the marketplace
+- [x] **AGNT-04**: User can delete a custom agent from the sidebar
+- [x] **AGNT-05**: User can preview custom agent file content as markdown
 
 ### UX — Agent Switcher, Profiles, Marketplace
 
 - [x] **UX-01**: User can select GitHub Copilot in the agent switcher (status bar QuickPick)
 - [x] **UX-02**: Extension detects Copilot installation via VS Code Extension API (not filesystem)
 - [x] **UX-03**: Sidebar, marketplace, and profile panel update to show Copilot tools when Copilot is active
-- [ ] **UX-04**: User can create, switch between, and delete Copilot-specific profiles
-- [ ] **UX-05**: User can export and import Copilot profiles as `.ackprofile` bundles
+- [x] **UX-04**: User can create, switch between, and delete Copilot-specific profiles
+- [x] **UX-05**: User can export and import Copilot profiles as `.ackprofile` bundles
 - [ ] **UX-06**: Marketplace shows only Copilot-compatible tools when Copilot is the active agent
 - [ ] **UX-07**: Marketplace install routes correctly to CopilotAdapter when Copilot is active
 
@@ -87,12 +87,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INST-05 | Phase 22 | Complete |
 | INST-06 | Phase 22 | Complete |
 | AGNT-01 | Phase 23 | Complete |
-| AGNT-02 | Phase 23 | Pending |
-| AGNT-03 | Phase 23 | Pending |
-| AGNT-04 | Phase 23 | Pending |
-| AGNT-05 | Phase 23 | Pending |
-| UX-04 | Phase 24 | Pending |
-| UX-05 | Phase 24 | Pending |
+| AGNT-02 | Phase 23 | Complete |
+| AGNT-03 | Phase 23 | Complete |
+| AGNT-04 | Phase 23 | Complete |
+| AGNT-05 | Phase 23 | Complete |
+| UX-04 | Phase 24 | Complete |
+| UX-05 | Phase 24 | Complete |
 | UX-06 | Phase 25 | Pending |
 | UX-07 | Phase 25 | Pending |
 

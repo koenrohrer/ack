@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Developers can discover, install, configure, and switch between sets of agent tools without leaving VS Code or touching config files manually.
-**Current focus:** v1.2 Copilot Support — Phase 23 (Custom Agents)
+**Current focus:** v1.2 Copilot Support — Phase 24 (Agent-Scoped Profiles)
 
 ## Current Position
 
-Phase: 23 of 25
-Plan: 1 of 3 in current phase (plan 01 complete)
-Status: Phase 23 Plan 01 complete — agents.parser.ts created, CopilotAdapter.readTools(Skill) wired, getWatchPaths includes agents dir, file-watcher.utils.ts updated
-Last activity: 2026-02-23 — Phase 23 Plan 01 executed (agents parser + adapter wiring + file-watcher update)
+Phase: 24 of 25
+Plan: 1 of 2 in current phase
+Status: Phase 24 Plan 01 complete — toggleableToolTypes gating added to IToolAdapter, CopilotAdapter, and switchProfile; Copilot profiles silently skip McpServer/CustomPrompt entries
+Last activity: 2026-02-24 — Phase 24 Plan 01 executed (toggle-compatibility gating for Copilot profile switching)
 
-Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 4 plans complete (phase complete). Phase 22: 4 plans complete (phase complete). Phase 23: 1/3 plans complete.
+Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 4 plans complete (phase complete). Phase 22: 4 plans complete (phase complete). Phase 23: 3/3 plans complete (phase complete). Phase 24: 1/2 plans complete.
 
 ## Milestone History
 
@@ -80,6 +80,21 @@ Phase 22 Plan 03 execution decisions (2026-02-23):
 - package.json when-clause uses viewItem == group:custom_prompt without adapter id check — command handler enforces copilot guard (same pattern as other commands)
 - removeTool CustomPrompt branch uses fs.rm directly — does not need configService (skips ensureWriteServices route through ConfigService)
 
+Phase 24 Plan 01 execution decisions (2026-02-24):
+- toggleableToolTypes is optional on IToolAdapter — undefined means all types are toggleable (Claude Code, Codex unchanged; backward-compatible)
+- Non-toggleable entries in switchProfile increment skipped (not incompatibleSkipped) — tools are supported but adapter has no toggle concept for that type
+- CopilotAdapter.toggleableToolTypes contains only ToolType.Skill — McpServer and CustomPrompt have no enable/disable concept in Copilot
+
+Phase 23 Plan 03 execution decisions (2026-02-23):
+- installSkill() normalizes filenames to .agent.md: registry files arrive as SKILL.md but Copilot requires compound extension for agent discovery
+- No ensureWriteServices() in installSkill — uses fileIO directly (consistent with installInstruction pattern)
+- Human verification identified filename normalization issue during AGNT-03 — fixed inline before checkpoint approval
+
+Phase 23 Plan 02 execution decisions (2026-02-23):
+- Use tool.status === ToolStatus.Enabled for toggle direction in toggleTool(Skill) — isToggleDisable checks .disabled directory suffix for Skill type but agent files are not directories
+- agents.writer.ts targeted string replacement: replace /^user-invokable:.*$/m in frontmatter slice; insert before closing --- if absent; prepend block if no frontmatter
+- TDD test pattern: real fs.mkdtemp + real FileIOService (matches instructions.parser.test.ts)
+
 Phase 23 Plan 01 execution decisions (2026-02-23):
 - String-compare user-invokable frontmatter: `=== 'false'` (string) not boolean — extractFrontmatter returns strings
 - Use .agent.md extension filter in listFiles — not .md — to exclude non-agent markdown files
@@ -118,6 +133,6 @@ Known gaps to validate during implementation:
 
 ## Session Continuity
 
-Last session: 2026-02-23
-Stopped at: Completed 23-custom-agents/23-01-PLAN.md (agents parser + CopilotAdapter wiring + file-watcher update — AGNT-01 complete)
+Last session: 2026-02-24
+Stopped at: Completed 24-agent-scoped-profiles/24-01-PLAN.md (toggleableToolTypes gating — switchProfile no longer throws for Copilot MCP/CustomPrompt entries)
 Resume file: None

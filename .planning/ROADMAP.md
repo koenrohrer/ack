@@ -141,5 +141,5 @@ Plans:
 | 21. MCP Server Support | 4/4 | Complete    | 2026-02-21 | - |
 | 22. Custom Instructions and Prompts | 4/4 | Complete    | 2026-02-23 | - |
 | 23. Custom Agents | 3/3 | Complete    | 2026-02-24 | - |
-| 24. Agent-Scoped Profiles | v1.2 | 0/TBD | Not started | - |
+| 24. Agent-Scoped Profiles | 1/2 | In Progress|  | - |
 | 25. Marketplace Routing | v1.2 | 0/TBD | Not started | - |

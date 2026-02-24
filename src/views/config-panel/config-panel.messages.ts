@@ -73,6 +73,7 @@ export interface SwitchResultInfo {
   skipped: number;
   failed: number;
   errors: string[];
+  nonToggleableSkipped: number;
 }
 
 // ---------------------------------------------------------------------------

@@ -424,13 +424,13 @@ export class ProfileService {
     // Deactivate: clear active profile, no tool changes
     if (profileId === null) {
       await this.setActiveProfileId(null);
-      return { success: true, toggled: 0, skipped: 0, failed: 0, errors: [], incompatibleSkipped: [] };
+      return { success: true, toggled: 0, skipped: 0, failed: 0, errors: [], incompatibleSkipped: [], nonToggleableSkipped: 0 };
     }
 
     // Load target profile
     const profile = this.getProfile(profileId);
     if (!profile) {
-      return { success: false, toggled: 0, skipped: 0, failed: 0, errors: ['Profile not found'], incompatibleSkipped: [] };
+      return { success: false, toggled: 0, skipped: 0, failed: 0, errors: ['Profile not found'], incompatibleSkipped: [], nonToggleableSkipped: 0 };
     }
 
     // Get active adapter's supported tool types for compatibility filtering
@@ -464,6 +464,7 @@ export class ProfileService {
     }
     const ops: ToggleOp[] = [];
     let skipped = 0;
+    let nonToggleableSkipped = 0;
     const incompatibleSkipped: string[] = [];
 
     for (const entry of profile.tools) {
@@ -480,7 +481,7 @@ export class ProfileService {
       // These are silently skipped — they exist in the profile snapshot but
       // cannot be applied as toggle operations (e.g. Copilot MCP servers).
       if (toggleableTypes && toolType && !toggleableTypes.has(toolType)) {
-        skipped++;
+        nonToggleableSkipped++;
         continue;
       }
 
@@ -520,7 +521,7 @@ export class ProfileService {
     // Set the active profile after all toggles complete
     await this.setActiveProfileId(profileId);
 
-    return { success: failed === 0, toggled, skipped, failed, errors, incompatibleSkipped };
+    return { success: failed === 0, toggled, skipped, failed, errors, incompatibleSkipped, nonToggleableSkipped };
   }
 
   // ---------------------------------------------------------------------------

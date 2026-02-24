@@ -171,6 +171,15 @@ export function registerProfileCommands(
         );
       }
 
+      // Inform user about non-toggleable entries (e.g. MCP servers on Copilot)
+      if (result.nonToggleableSkipped > 0) {
+        const activeAgent = registry.getActiveAdapter()?.displayName ?? 'active agent';
+        vscode.window.showInformationMessage(
+          `${result.nonToggleableSkipped} item(s) in this profile were skipped — ` +
+          `${activeAgent} doesn't support toggling them (e.g. MCP servers).`,
+        );
+      }
+
       // Show warning for incompatible tools
       if (result.incompatibleSkipped.length > 0) {
         const activeAgent = registry.getActiveAdapter()?.displayName ?? 'active agent';

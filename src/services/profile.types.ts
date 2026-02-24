@@ -106,6 +106,8 @@ export interface SwitchResult {
   errors: string[];
   /** Tools that were skipped because they're incompatible with the active agent */
   incompatibleSkipped: string[];
+  /** Count of entries skipped because the active adapter cannot toggle that tool type */
+  nonToggleableSkipped: number;
 }
 
 // ---------------------------------------------------------------------------
