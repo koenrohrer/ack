@@ -400,7 +400,14 @@ export class CopilotAdapter implements IPlatformAdapter {
     }
     const agentsDir = CopilotPaths.workspaceAgentsDir(this.workspaceRoot);
     for (const file of files) {
-      const targetPath = path.join(agentsDir, file.name);
+      // Copilot requires the compound `.agent.md` extension for agent files.
+      // Registry files may arrive as `SKILL.md` or similar — normalize here.
+      const baseName = file.name.endsWith('.agent.md')
+        ? file.name
+        : file.name.endsWith('.md')
+          ? file.name.slice(0, -3) + '.agent.md'
+          : file.name + '.agent.md';
+      const targetPath = path.join(agentsDir, baseName);
       await this.fileIO.writeTextFile(targetPath, file.content);
     }
   }
