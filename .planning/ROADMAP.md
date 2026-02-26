@@ -119,10 +119,11 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. When Copilot is the active agent, the marketplace shows only tools tagged as Copilot-compatible (MCP servers, instructions, agents) and hides Claude Code and Codex-only tools
   2. Clicking "Install" on a Copilot-compatible tool in the marketplace routes the install to `CopilotAdapter` and writes the tool to the correct Copilot config location
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 25-01: TBD
+- [ ] 25-01-PLAN.md — Marketplace webview filtering: AgentBadge copilot display name + CSS, custom_prompt in ToolTypeFilter and TypeTabs
+- [ ] 25-02-PLAN.md — Install routing: ToolManifest schema extension, InstallService custom_prompt route, scope bypass in handleRequestInstall
 
 ## Progress
 
@@ -142,4 +143,4 @@ Plans:
 | 22. Custom Instructions and Prompts | 4/4 | Complete    | 2026-02-23 | - |
 | 23. Custom Agents | 3/3 | Complete    | 2026-02-24 | - |
 | 24. Agent-Scoped Profiles | 2/2 | Complete    | 2026-02-24 | - |
-| 25. Marketplace Routing | v1.2 | 0/TBD | Not started | - |
+| 25. Marketplace Routing | 2/2 | Complete   | 2026-02-26 | - |

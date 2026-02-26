@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Developers can discover, install, configure, and switch between sets of agent tools without leaving VS Code or touching config files manually.
-**Current focus:** v1.2 Copilot Support — Phase 24 (Agent-Scoped Profiles)
+**Current focus:** v1.2 Copilot Support — Phase 25 (Marketplace Routing)
 
 ## Current Position
 
-Phase: 24 of 25
+Phase: 25 of 25
 Plan: 2 of 2 in current phase
-Status: Phase 24 complete — UX-04 and UX-05 verified end-to-end in Extension Development Host; Copilot profile create/switch/delete/export/import all confirmed working
-Last activity: 2026-02-24 — Phase 24 Plan 02 executed (human verification of Copilot agent-scoped profiles)
+Status: Phase 25 complete — UX-06 and UX-07 verified; marketplace agent badge, type tabs, custom_prompt install routing all implemented
+Last activity: 2026-02-26 — Phase 25 Plan 02 executed (custom_prompt install route + scope bypass)
 
-Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 4 plans complete (phase complete). Phase 22: 4 plans complete (phase complete). Phase 23: 3/3 plans complete (phase complete). Phase 24: 2/2 plans complete (phase complete).
+Progress: v1.1 complete (53/53 plans). v1.2: Phase 20 complete (2/2 plans). Phase 21: 4 plans complete (phase complete). Phase 22: 4 plans complete (phase complete). Phase 23: 3/3 plans complete (phase complete). Phase 24: 2/2 plans complete (phase complete). Phase 25: 2/2 plans complete (phase complete).
 
 ## Milestone History
 
@@ -113,6 +113,12 @@ Phase 22 Plan 04 execution decisions (2026-02-23):
 - ack.activeAdapterId VS Code context key set in extension.ts on agent switch — command when-clauses filter by adapter ID so install commands don't appear simultaneously
 - getWatchPaths extended with .github/copilot-instructions.md, .github/instructions/, .github/prompts/ so tree refreshes on file changes; 'instructions' added to recursive-dir list in file-watcher.utils.ts
 - ack.toggleTool when-clause excludes tool:custom_prompt:* — custom prompt files have no enable/disable concept; toggle was surfacing "Toggle failed" error for all Copilot tools
+- [Phase 25]: Copilot badge uses var(--vscode-charts-blue) for blue color -- distinct from orange/Claude and green/Codex, matching GitHub branding
+
+Phase 25 Plan 02 execution decisions (2026-02-26):
+- installCustomPrompt uses dynamic import for CopilotAdapter guard — matches existing handleCustomPromptInstall pattern (avoids static import circular dependency risk)
+- custom_prompt scope bypass routes through executeInstall with ConfigScope.Project — reuses existing install pipeline instead of duplicating adapter calls inline
+- MANIFEST_TYPE_TO_TOOL_TYPE extended with custom_prompt: ToolType.CustomPrompt to enable conflict checking for registry custom_prompt tools
 
 ### Roadmap Evolution
 
@@ -139,6 +145,6 @@ Known gaps to validate during implementation:
 
 ## Session Continuity
 
-Last session: 2026-02-24
-Stopped at: Completed 24-agent-scoped-profiles/24-02-PLAN.md (human verification — UX-04 and UX-05 confirmed end-to-end; Phase 24 complete)
+Last session: 2026-02-26
+Stopped at: Completed 25-marketplace-routing/25-02-PLAN.md (custom_prompt install route + scope bypass — Phase 25 complete)
 Resume file: None

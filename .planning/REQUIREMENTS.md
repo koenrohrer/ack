@@ -39,8 +39,8 @@ Requirements for v1.2 Copilot Support milestone. Each maps to roadmap phases.
 - [x] **UX-03**: Sidebar, marketplace, and profile panel update to show Copilot tools when Copilot is active
 - [x] **UX-04**: User can create, switch between, and delete Copilot-specific profiles
 - [x] **UX-05**: User can export and import Copilot profiles as `.ackprofile` bundles
-- [ ] **UX-06**: Marketplace shows only Copilot-compatible tools when Copilot is the active agent
-- [ ] **UX-07**: Marketplace install routes correctly to CopilotAdapter when Copilot is active
+- [x] **UX-06**: Marketplace shows only Copilot-compatible tools when Copilot is the active agent
+- [x] **UX-07**: Marketplace install routes correctly to CopilotAdapter when Copilot is active
 
 ## v1.3+ Requirements
 
@@ -93,8 +93,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AGNT-05 | Phase 23 | Complete |
 | UX-04 | Phase 24 | Complete |
 | UX-05 | Phase 24 | Complete |
-| UX-06 | Phase 25 | Pending |
-| UX-07 | Phase 25 | Pending |
+| UX-06 | Phase 25 | Complete |
+| UX-07 | Phase 25 | Complete |
 
 **Coverage:**
 - v1.2 requirements: 22 total
