@@ -19,7 +19,7 @@
 
 Agent tools are scattered across JSON files in hidden directories. You add an MCP server here, a slash command there, tweak a permission somewhere else -- and none of it is visible until something breaks.
 
-**ACK puts it all in one place.** Browse, install, toggle, and organize every tool your AI agent uses -- without ever opening a config file. Switch between Claude Code and Codex with a single click.
+**ACK puts it all in one place.** Browse, install, toggle, and organize every tool your AI agent uses -- without ever opening a config file. Switch between Claude Code, Codex, and GitHub Copilot with a single click.
 
 <!-- Screenshot: sidebar tool tree showing MCP servers, commands, and hooks -->
 <p align="center">
@@ -34,7 +34,7 @@ Agent tools are scattered across JSON files in hidden directories. You add an MC
 
 ### Switch between agents
 
-ACK detects your installed agents (Claude Code and Codex) and lets you switch between them from the status bar or command palette. The sidebar, marketplace, and config panel all context-switch to show the active agent's tools.
+ACK detects your installed agents (Claude Code, Codex, and GitHub Copilot) and lets you switch between them from the status bar or command palette. The sidebar, marketplace, and config panel all context-switch to show the active agent's tools.
 
 ### See everything at a glance
 
@@ -76,7 +76,7 @@ Different projects need different tool setups. Profiles let you snapshot your cu
   <sub>Edit model, permissions, and custom instructions through a form -- no JSON required.</sub>
 </p>
 
-Open the config panel from the command palette (`ACK: Configure Agent`) to edit Claude Code settings through a proper UI. Model selection, permission levels, custom instructions, and MCP server configuration are all form fields instead of raw JSON.
+Open the config panel from the command palette (`ACK: Configure Agent`) to edit your agent's settings through a proper UI. Model selection, permission levels, custom instructions, and MCP server configuration are all form fields instead of raw JSON.
 
 ### Organize and control inline
 
@@ -109,7 +109,7 @@ All commands are available from the command palette (`Ctrl+Shift+P` / `Cmd+Shift
 |---------|-------------|
 | `ACK: Open Marketplace` | Browse and install tools from the community registry |
 | `ACK: Configure Agent` | Open the visual config panel |
-| `ACK: Switch Agent` | Switch the active agent (Claude Code / Codex) |
+| `ACK: Switch Agent` | Switch the active agent (Claude Code / Codex / Copilot) |
 | `ACK: Initialize Codex for This Project` | Scaffold `.codex/config.toml`, `prompts/`, and `skills/` |
 | `ACK: Re-detect Agents` | Re-run agent detection after installing a new CLI |
 | `ACK: Switch Profile` | Switch to a saved profile |
@@ -122,6 +122,7 @@ All commands are available from the command palette (`Ctrl+Shift+P` / `Cmd+Shift
 | `ACK: Clone Profile to Agent` | Copy a profile to another agent, filtering compatible tools |
 | `ACK: Associate Profile with Workspace` | Bind a profile to auto-activate for this workspace |
 | `ACK: Install Custom Prompt from File` | Copy a `.md` file into Codex's prompts directory |
+| `ACK: Install Instruction or Prompt from File` | Install an instruction or prompt `.md` file for Copilot |
 | `ACK: Refresh Tool Tree` | Force-refresh the sidebar tree |
 
 ---
@@ -163,8 +164,9 @@ Add your own tool registries by configuring `ack.registrySources`:
 |-------|--------------|------------|
 | **Claude Code** | JSON (`~/.claude/`, `.claude/`) | MCP servers, slash commands, hooks, skills |
 | **Codex** | TOML (`~/.codex/`, `.codex/`) | MCP servers, skills, custom prompts |
+| **GitHub Copilot** | JSON + Markdown (`.vscode/`, `.github/`) | MCP servers, custom instructions, custom agents |
 
-ACK auto-detects which agents are installed. If both are present, a status bar item lets you switch between them. Each agent has its own sidebar view, marketplace filter, and profile set.
+ACK auto-detects which agents are installed. If multiple are present, a status bar item lets you switch between them. Each agent has its own sidebar view, marketplace filter, and profile set.
 
 ---
 
@@ -188,6 +190,10 @@ ACK auto-detects which agents are installed. If both are present, a status bar i
 │  │  ┌────────────────────────────┐   │  │
 │  │  │  Codex Adapter             │   │  │
 │  │  │  TOML parsers / writers    │   │  │
+│  │  └────────────────────────────┘   │  │
+│  │  ┌────────────────────────────┐   │  │
+│  │  │  Copilot Adapter           │   │  │
+│  │  │  JSON + MD parsers/writers │   │  │
 │  │  └────────────────────────────┘   │  │
 │  └───────────────────────────────────┘  │
 │                                         │

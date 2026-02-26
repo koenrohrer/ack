@@ -47,7 +47,7 @@ ACK auto-detects which agent CLIs are installed on your machine. The status bar 
 
 A QuickPick lists all detected agents with their detection status. Selecting one instantly switches the sidebar, marketplace, and config panel to that agent's tools.
 
-**If you just installed Codex** and it isn't listed yet, run `ACK: Re-detect Agents` to refresh detection without restarting VS Code.
+**If you just installed Codex or Copilot** and it isn't listed yet, run `ACK: Re-detect Agents` to refresh detection without restarting VS Code.
 
 ### Codex setup
 
@@ -61,6 +61,20 @@ The first time you switch to Codex for a project, run `ACK: Initialize Codex for
 ```
 
 Global Codex config lives in `~/.codex/`.
+
+### Copilot setup
+
+No special initialization is needed. ACK detects Copilot by checking for the `GitHub.copilot` or `GitHub.copilot-chat` VS Code extensions. Copilot config files live in standard locations:
+
+```
+.vscode/mcp.json                              ← workspace MCP servers
+.github/copilot-instructions.md                ← always-on instructions
+.github/instructions/*.instructions.md         ← file-pattern instructions
+.github/prompts/*.prompt.md                    ← reusable prompts
+.github/agents/*.agent.md                      ← custom agents
+```
+
+User-scoped MCP servers are stored in your VS Code user profile `mcp.json`.
 
 ---
 
@@ -79,20 +93,22 @@ The sidebar is the heart of ACK. It automatically discovers your agent's configu
 
 The groups displayed depend on the active agent:
 
-| Group | Claude Code | Codex |
-|-------|-------------|-------|
-| **MCP Servers** | ✓ | ✓ |
-| **Skills** | ✓ | ✓ |
-| **Slash Commands** | ✓ | — |
-| **Hooks** | ✓ | — |
-| **Custom Prompts** | — | ✓ |
+| Group | Claude Code | Codex | Copilot |
+|-------|-------------|-------|---------|
+| **MCP Servers** | ✓ | ✓ | ✓ |
+| **Skills** | ✓ | ✓ | — |
+| **Slash Commands** | ✓ | — | — |
+| **Hooks** | ✓ | — | — |
+| **Custom Prompts** | — | ✓ | — |
+| **Custom Instructions** | — | — | ✓ |
+| **Custom Agents** | — | — | ✓ |
 
 ### Scopes
 
 Every tool has a scope badge:
 
-- **User** (globe icon) -- Configured globally (`~/.claude/` or `~/.codex/`), available in all projects
-- **Project** (folder icon) -- Configured in `.claude/` or `.codex/` within the current workspace
+- **User** (globe icon) -- Configured globally (`~/.claude/`, `~/.codex/`, or VS Code user profile), available in all projects
+- **Project** (folder icon) -- Configured in `.claude/`, `.codex/`, `.vscode/`, or `.github/` within the current workspace
 
 ### Status indicators
 
@@ -156,7 +172,7 @@ Right-click and select **Delete Tool**. By default, ACK asks for confirmation. T
 
 ### Open the source file
 
-Right-click any tool and select **Open Tool Source** to jump directly to the config file where the tool is defined (JSON for Claude Code tools, TOML for Codex tools).
+Right-click any tool and select **Open Tool Source** to jump directly to the config file where the tool is defined (JSON for Claude Code tools, TOML for Codex tools, JSON or Markdown for Copilot tools).
 
 ---
 
@@ -164,7 +180,7 @@ Right-click any tool and select **Open Tool Source** to jump directly to the con
 
 Profiles are named snapshots of your tool configuration. Use them to maintain different setups for different workflows.
 
-Profiles are **scoped per agent** -- each agent maintains its own profile list. A profile you create while Claude Code is active won't appear when you switch to Codex.
+Profiles are **scoped per agent** -- each agent maintains its own profile list. A profile you create while Claude Code is active won't appear when you switch to Codex or Copilot.
 
 ### Create a profile
 
@@ -192,7 +208,7 @@ Click the **profile icon** in the tool tree title bar, or run `ACK: Switch Profi
 
 ### Clone to another agent
 
-Run `ACK: Clone Profile to Agent` to copy a profile from one agent to another. ACK shows how many tools are compatible and which will be skipped (e.g., hooks are skipped when cloning to Codex, which has no hook system).
+Run `ACK: Clone Profile to Agent` to copy a profile from one agent to another. ACK shows how many tools are compatible and which will be skipped (e.g., hooks are skipped when cloning to Codex or Copilot, which have no hook system).
 
 ### Workspace association
 

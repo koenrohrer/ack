@@ -31,10 +31,18 @@ Developers can discover, install, configure, and switch between sets of agent to
 - CodexAdapter for reading/writing Codex config files (TOML) -- v1.1
 - Sidebar, marketplace, install flows, and profiles all work with Codex -- v1.1
 - Agent-specific profiles (each agent has its own profile set) -- v1.1
+- GitHub Copilot as a fully supported third agent with feature parity to Claude Code and Codex -- v1.2
+- CopilotAdapter implementing IPlatformAdapter (MCP servers via .vscode/mcp.json + user profile mcp.json) -- v1.2
+- Custom Instructions management (.github/copilot-instructions.md + .github/instructions/*.instructions.md) -- v1.2
+- Custom Agents management (.github/agents/*.agent.md) -- v1.2
+- Sidebar, marketplace, install flows, and profiles all work with Copilot -- v1.2
+- Agent Switcher: Copilot added as selectable agent -- v1.2
+- Agent-scoped profiles for Copilot -- v1.2
+- Marketplace: Copilot-compatible tool filtering, agent compatibility badges, and correct install routing -- v1.2
 
 ### Active
 
-(None — planning next milestone)
+(None yet -- define in next milestone)
 
 ### Out of Scope
 
@@ -43,25 +51,29 @@ Developers can discover, install, configure, and switch between sets of agent to
 - Auto-detection of project type for tool suggestions -- future enhancement
 - Tool authoring/publishing workflow from within the extension -- contributors use GitHub directly
 - VS Code Settings Sync for profile syncing -- future enhancement
-- Multi-agent support beyond Claude Code and Codex -- future milestones
+- Multi-agent support beyond Claude Code, Codex, and Copilot -- future milestones
 - Codex hook system -- Codex has no programmable hook system equivalent to Claude Code's hooks
+- Copilot hook system -- Copilot has no programmable hook system
+- Copilot slash commands -- Copilot has no slash command system equivalent to Claude Code's
 - TOML comment preservation (surgical editing) -- full parse/stringify sufficient; optimize if users report issues
+- Copilot settings.json integration -- VS Code settings are managed by VS Code itself, not this extension
+- Copilot Extensions (Marketplace extensions) -- different from MCP/agents, out of scope
 
 ## Context
 
-Shipped v1.1 with ~23,400 LOC TypeScript/TSX/CSS across ~150 source files.
+Shipped v1.2 with ~25,700 LOC TypeScript/TSX/CSS across ~200 source files.
 Tech stack: VS Code Extension API, React (webviews), esbuild (dual build), Zod (validation), smol-toml (TOML).
 
-Architecture: Agent-agnostic core with IPlatformAdapter interface composed from 5 sub-interfaces. ClaudeCodeAdapter (JSON config) and CodexAdapter (TOML config) both implement IPlatformAdapter. ESLint boundary guard enforces that services/views never import adapter internals directly. Two React webviews (marketplace, config panel) with shared CSS design system.
+Architecture: Agent-agnostic core with IPlatformAdapter interface composed from 5 sub-interfaces. Three adapters — ClaudeCodeAdapter (JSON config), CodexAdapter (TOML config), and CopilotAdapter (JSON + markdown config) — all implement IPlatformAdapter. ESLint boundary guard enforces that services/views never import adapter internals directly. Two React webviews (marketplace, config panel) with shared CSS design system.
 
 Key integrations: GitHub-based registry (ETag-cached), repo URL scanner, FileWatcher for external config changes (per-adapter watch paths), AgentSwitcherService with globalState persistence.
 
-Known tech debt: custom_prompt absent from marketplace type union; activeAgentName unused in marketplace App.tsx; switchProfile workspace override check not agent-scoped; fileWatcher closure ordering fragility in extension.ts activation.
+Known tech debt: writeTool() stub error message references stale phase; getSkillsDir() stub error message references stale phase; getJsonPath path-string heuristic rather than adapter-metadata lookup (documented design decision); switchProfile workspace override check not agent-scoped.
 
 ## Constraints
 
 - **Platform**: VS Code extension (Extension API) — must work with VS Code's extension model
-- **Agents**: Claude Code + Codex — reads/writes each agent's config files. Claude Code: skills in `~/.claude/skills` and `.claude/skills`, commands in `.claude/commands`, settings in `~/.claude/settings.json` / `.claude/settings.json` / `.claude/settings.local.json`, MCP in `~/.claude.json` and `.mcp.json`. Codex: MCP servers in `~/.codex/config.toml` / `.codex/config.toml`, skills in `~/.codex/skills/` / `.codex/skills/`, prompts in `~/.codex/prompts/` (user scope only).
+- **Agents**: Claude Code + Codex + Copilot — reads/writes each agent's config files. Claude Code: skills in `~/.claude/skills` and `.claude/skills`, commands in `.claude/commands`, settings in `~/.claude/settings.json` / `.claude/settings.json` / `.claude/settings.local.json`, MCP in `~/.claude.json` and `.mcp.json`. Codex: MCP servers in `~/.codex/config.toml` / `.codex/config.toml`, skills in `~/.codex/skills/` / `.codex/skills/`, prompts in `~/.codex/prompts/` (user scope only). Copilot: MCP servers in `.vscode/mcp.json` (workspace) and user profile `mcp.json` (user scope), custom instructions in `.github/copilot-instructions.md` and `.github/instructions/*.instructions.md`, custom agents in `.github/agents/*.agent.md`.
 - **Registry**: GitHub-based — a GitHub repository serves as the tool index/registry
 - **Architecture**: Agent-agnostic internals — tool management layer routes through IPlatformAdapter; ESLint boundary guard prevents direct adapter imports in services/views
 
@@ -85,6 +97,13 @@ Known tech debt: custom_prompt absent from marketplace type union; activeAgentNa
 | Empty agents array means all-agent compatible | v1.1: backward-compatible registry entry default | Good -- existing registry tools work without migration |
 | Agent filtering before type filtering in marketplace | v1.1: ensures type tabs only show types relevant to active agent | Good -- consistent UX across agent switches |
 | Profiles scoped per-agent with migration | v1.1: clean isolation; v1 profiles attributed to claude-code on first run | Good -- no data loss, transparent to user |
+| CopilotAdapter fits IPlatformAdapter exactly | v1.2: no interface changes needed; validates adapter abstraction | Good -- third adapter implemented without core changes |
+| Copilot detection via Extension API | v1.2: checks GitHub.copilot + GitHub.copilot-chat; users may have only chat extension | Good -- reliable detection, no filesystem assumptions |
+| Copilot MCP `servers` key (not `mcpServers`) | v1.2: Copilot uses different key than Claude Code; independent Zod schema required | Good -- inputs array preserved on write |
+| `toggleableToolTypes` on IToolAdapter | v1.2: Copilot has no MCP/CustomPrompt toggle; optional property (undefined = all toggleable) | Good -- backward-compatible, clean Copilot guard |
+| `installInstruction` as Copilot-specific method | v1.2: not on IInstallAdapter; instanceof guard at call site | Good -- avoids interface pollution for agent-specific install |
+| CONFIG_DIR_LABELS lookup map | v1.2: replaces two-way ternary for marketplace scope prompt | Good -- extensible for future adapters |
+| `custom_prompt` in ToolManifest schema | v1.2: enables registry tools to target Copilot instructions/prompts | Good -- marketplace routing works for all tool types |
 
 ---
-*Last updated: 2026-02-18 after v1.1 milestone completion*
+*Last updated: 2026-02-26 after v1.2 milestone*

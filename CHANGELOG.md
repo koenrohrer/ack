@@ -4,6 +4,64 @@ All notable changes to ACK are documented here.
 
 ---
 
+## 1.2.0
+
+Adds GitHub Copilot as a fully supported third agent with feature parity to Claude Code and Codex.
+
+### Copilot Adapter
+
+- `CopilotAdapter` implements `IPlatformAdapter` for reading and writing Copilot config files
+- Detects Copilot via VS Code Extension API (`GitHub.copilot` and `GitHub.copilot-chat`)
+- No filesystem assumptions — detection uses `vscode.extensions.getExtension`
+
+### Copilot MCP Servers
+
+- MCP servers from `.vscode/mcp.json` (workspace) and user profile `mcp.json` (user scope) shown in sidebar
+- Install Copilot MCP servers from the marketplace to `.vscode/mcp.json`
+- Remove MCP servers from the sidebar
+- File watcher auto-refreshes when `.vscode/mcp.json` is edited externally
+- Copilot uses the `servers` key (not `mcpServers`); independent Zod schema preserves `inputs` array on write
+
+### Custom Instructions and Prompts
+
+- Always-on instructions from `.github/copilot-instructions.md` shown in sidebar
+- File-pattern instruction files from `.github/instructions/*.instructions.md` shown in sidebar
+- Prompt files from `.github/prompts/*.prompt.md` shown in sidebar (Copilot-only, project scope)
+- Install instruction and prompt files from the marketplace
+- Delete instruction and prompt files from the sidebar with confirmation
+- Preview instruction and prompt file content via markdown preview
+
+### Custom Agents
+
+- Custom agent files from `.github/agents/*.agent.md` shown in sidebar
+- Enable/disable custom agents by toggling `userInvokable` frontmatter
+- Install custom agents from the marketplace with `.agent.md` filename normalization
+- Delete custom agents from the sidebar
+- Preview custom agent file content via markdown preview
+
+### Agent-Scoped Profiles
+
+- Create, switch, and delete Copilot-specific profiles
+- `toggleableToolTypes` on `IToolAdapter` — Copilot profiles skip MCP/CustomPrompt toggle with a notification
+- Export/import Copilot profiles as `.ackprofile` bundles with `agentId: 'copilot'`
+
+### Marketplace
+
+- Marketplace shows only Copilot-compatible tools when Copilot is active
+- Type filter tabs limited to tool types Copilot supports (MCP Server, Custom Agent, Instruction/Prompt)
+- Agent compatibility badge shows "Copilot" on compatible tool cards
+- Install flow routes through `CopilotAdapter` when Copilot is active
+- `custom_prompt` added to `ToolManifest` schema for registry tools targeting Copilot instructions
+- `CONFIG_DIR_LABELS` lookup map replaces hardcoded scope prompt paths
+
+### Bug Fixes
+
+- `ack.installInstructionFromFile` command added for installing instructions and prompts from local files when Copilot is active
+- Copilot detection checks both `GitHub.copilot` and `GitHub.copilot-chat` extensions
+- Custom Prompts group context menu shows correct install action per active agent
+
+---
+
 ## 1.1.0
 
 Adds OpenAI Codex as a fully supported second agent with feature parity to Claude Code.
