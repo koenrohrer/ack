@@ -8,6 +8,8 @@ import { ClaudeCodeAdapter } from './adapters/claude-code/claude-code.adapter.js
 import { claudeCodeSchemas } from './adapters/claude-code/schemas.js';
 import { CodexAdapter } from './adapters/codex/codex.adapter.js';
 import { codexSchemas } from './adapters/codex/schemas.js';
+import { CopilotAdapter } from './adapters/copilot/copilot.adapter.js';
+import { copilotSchemas } from './adapters/copilot/schemas.js';
 import { CodexPaths } from './adapters/codex/paths.js';
 import { ToolTreeProvider } from './views/tool-tree/tool-tree.provider.js';
 import { registerToolTreeCommands } from './views/tool-tree/tool-tree.commands.js';
@@ -79,6 +81,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // 3. Register schemas
   schemas.registerSchemas(claudeCodeSchemas);
   schemas.registerSchemas(codexSchemas);
+  schemas.registerSchemas(copilotSchemas);
 
   // 4. Workspace root (undefined when no folder is open)
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -89,6 +92,8 @@ export function activate(context: vscode.ExtensionContext): void {
   registry.register(claudeAdapter);
   const codexAdapter = new CodexAdapter(fileIO, schemas, workspaceRoot);
   registry.register(codexAdapter);
+  const copilotAdapter = new CopilotAdapter(fileIO, schemas, workspaceRoot, context);
+  registry.register(copilotAdapter);
 
   // 6. Config service (the main API for reading/writing tool configs)
   const configService = new ConfigService(fileIO, backup, schemas, registry);
@@ -96,6 +101,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // 6b. Inject write services into adapters now that configService exists
   claudeAdapter.setWriteServices(configService, backup);
   codexAdapter.setWriteServices(configService, backup);
+  copilotAdapter.setWriteServices(configService, backup);
 
   // 7. Tool management service
   const toolManager = new ToolManagerService(configService, registry);
@@ -247,6 +253,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // 15e. React to agent switches (status bar, file watchers, tree, panels, workspace profiles)
   context.subscriptions.push(
     agentSwitcher.onDidSwitchAgent(async (adapter) => {
+      await vscode.commands.executeCommand('setContext', 'ack.activeAdapterId', adapter?.id ?? '');
       updateAgentStatusBar(agentStatusBar, adapter);
       treeProvider.setAgentName(adapter?.displayName);
       MarketplacePanel.notifyAgentChanged(adapter?.displayName ?? 'No Agent');
@@ -317,7 +324,7 @@ export function activate(context: vscode.ExtensionContext): void {
       } else {
         outputChannel.appendLine('No agents detected');
         vscode.window.showWarningMessage(
-          'No supported agent platforms detected. Install Claude Code or Codex to get started.',
+          'No supported agent platforms detected. Install Claude Code, Codex, or GitHub Copilot to get started.',
         );
       }
       outputChannel.show();
@@ -386,7 +393,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     if (!activated && detected.length === 0) {
-      const msg = 'No supported agent platforms detected. Install Claude Code or Codex to get started.';
+      const msg = 'No supported agent platforms detected. Install Claude Code, Codex, or GitHub Copilot to get started.';
       outputChannel.appendLine(msg);
       vscode.window.showInformationMessage(msg);
     }

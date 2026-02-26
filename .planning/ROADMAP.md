@@ -56,10 +56,13 @@ Plans:
   3. User can install a Copilot MCP server from the marketplace with one click and have it written to `.vscode/mcp.json` using the correct `servers` key
   4. User can remove a Copilot MCP server from the sidebar and have it deleted from the config file
   5. When `.vscode/mcp.json` is edited externally, the sidebar refreshes automatically without restarting the extension
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 21-01: TBD
+- [ ] 21-01-PLAN.md — Copilot MCP schema, parser (reads `servers` key), and writer (add/remove with inputs preservation)
+- [ ] 21-02-PLAN.md — Wire CopilotAdapter MCP methods + register copilotSchemas in extension.ts + fix getJsonPath for Copilot
+- [ ] 21-03-PLAN.md — TDD: Copilot MCP parser and writer tests (servers key, inputs preservation, missing file, wrong key pitfalls)
+- [ ] 21-04-PLAN.md — Human verification checkpoint: all five MCP requirements end-to-end in running extension
 
 #### Phase 22: Custom Instructions and Prompts
 **Goal**: Users can browse, preview, install, and delete Copilot instruction and prompt files from the sidebar
@@ -71,10 +74,13 @@ Plans:
   3. User can see all `.github/prompts/*.prompt.md` files listed in the sidebar
   4. User can install instruction or prompt files from the marketplace and have them written to the correct `.github/` location
   5. User can delete any instruction or prompt file from the sidebar and preview its markdown content inline
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 22-01: TBD
+- [ ] 22-01-PLAN.md — Instructions + prompts parsers: create instructions.parser.ts and prompts.parser.ts; wire CopilotAdapter.readTools() for CustomPrompt; extend APPLICABLE_SCOPES to include Project
+- [ ] 22-02-PLAN.md — TDD: Copilot instructions and prompts parser tests (no-frontmatter, missing dir, compound extensions, applyTo, mode/agent aliasing)
+- [ ] 22-03-PLAN.md — Delete and file-install: CopilotAdapter.removeTool() for CustomPrompt; extend ack.deletePrompt; add ack.installInstructionFromFile command; package.json menu entries
+- [ ] 22-04-PLAN.md — Marketplace install + human verification: CopilotAdapter.installInstruction(); custom_prompt branch in handleRepoInstall; INST-01 through INST-06 end-to-end checkpoint
 
 #### Phase 23: Custom Agents
 **Goal**: Users can browse, toggle, install, delete, and preview Copilot custom agent files from the sidebar
@@ -85,10 +91,12 @@ Plans:
   2. User can toggle the `user-invokable` field of a custom agent from the sidebar and have the frontmatter updated in the file immediately
   3. User can install a custom agent from the marketplace and have it written to `.github/agents/`
   4. User can delete a custom agent from the sidebar and preview its markdown content inline
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 23-01: TBD
+- [ ] 23-01-PLAN.md — Agents parser + CopilotAdapter readTools(Skill) + file-watcher agents dir (AGNT-01)
+- [ ] 23-02-PLAN.md — Agents writer (toggle frontmatter), CopilotAdapter toggleTool/removeTool(Skill), TDD tests (AGNT-02, AGNT-04, AGNT-05)
+- [ ] 23-03-PLAN.md — CopilotAdapter installSkill() + human verification of all AGNT requirements (AGNT-03)
 
 #### Phase 24: Agent-Scoped Profiles
 **Goal**: Copilot has its own profile set where users can create, switch, delete, export, and import profiles that capture MCP servers and agent states
@@ -98,10 +106,11 @@ Plans:
   1. User can create a named Copilot profile, switch between Copilot profiles, and delete a Copilot profile without affecting Claude Code or Codex profiles
   2. Switching Copilot profiles applies the correct MCP server configuration and agent `user-invokable` state to the workspace
   3. User can export a Copilot profile as an `.ackprofile` bundle and import it on another machine or workspace, restoring the full tool set
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 24-01: TBD
+- [x] 24-01-PLAN.md — Add toggleableToolTypes to IToolAdapter + CopilotAdapter + switchProfile compatibility guard
+- [x] 24-02-PLAN.md — Human verification of UX-04 and UX-05 end-to-end with Copilot active
 
 #### Phase 25: Marketplace Routing
 **Goal**: The marketplace surfaces only Copilot-compatible tools when Copilot is active and routes installs correctly to the CopilotAdapter
@@ -110,10 +119,11 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. When Copilot is the active agent, the marketplace shows only tools tagged as Copilot-compatible (MCP servers, instructions, agents) and hides Claude Code and Codex-only tools
   2. Clicking "Install" on a Copilot-compatible tool in the marketplace routes the install to `CopilotAdapter` and writes the tool to the correct Copilot config location
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 25-01: TBD
+- [ ] 25-01-PLAN.md — Marketplace webview filtering: AgentBadge copilot display name + CSS, custom_prompt in ToolTypeFilter and TypeTabs
+- [ ] 25-02-PLAN.md — Install routing: ToolManifest schema extension, InstallService custom_prompt route, scope bypass in handleRequestInstall
 
 ## Progress
 
@@ -128,9 +138,9 @@ Plans:
 | 18. Agent-Scoped Profiles | v1.1 | 5/5 | Complete | 2026-02-05 |
 | 19. Marketplace Adaptation | v1.1 | 2/2 | Complete | 2026-02-05 |
 | v1.1-full-uat. UAT Gap Closure | v1.1 | 1/1 | Complete | 2026-02-17 |
-| 20. CopilotAdapter Scaffold | v1.2 | 0/2 | Not started | - |
-| 21. MCP Server Support | v1.2 | 0/TBD | Not started | - |
-| 22. Custom Instructions and Prompts | v1.2 | 0/TBD | Not started | - |
-| 23. Custom Agents | v1.2 | 0/TBD | Not started | - |
-| 24. Agent-Scoped Profiles | v1.2 | 0/TBD | Not started | - |
-| 25. Marketplace Routing | v1.2 | 0/TBD | Not started | - |
+| 20. CopilotAdapter Scaffold | 2/2 | Complete    | 2026-02-21 | - |
+| 21. MCP Server Support | 4/4 | Complete    | 2026-02-21 | - |
+| 22. Custom Instructions and Prompts | 4/4 | Complete    | 2026-02-23 | - |
+| 23. Custom Agents | 3/3 | Complete    | 2026-02-24 | - |
+| 24. Agent-Scoped Profiles | 2/2 | Complete    | 2026-02-24 | - |
+| 25. Marketplace Routing | 2/2 | Complete   | 2026-02-26 | - |

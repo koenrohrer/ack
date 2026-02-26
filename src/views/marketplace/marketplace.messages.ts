@@ -82,7 +82,7 @@ export interface SavedRepoInfo {
 export interface RegistryEntryWithSource {
   id: string;
   name: string;
-  toolType: 'skill' | 'mcp_server' | 'hook' | 'command';
+  toolType: 'skill' | 'mcp_server' | 'hook' | 'command' | 'custom_prompt';
   description: string;
   author: string;
   version: string;

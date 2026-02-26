@@ -75,6 +75,8 @@ export class InstallService {
           return await this.installCommand(normalizedRequest);
         case 'hook':
           return await this.installHook(normalizedRequest);
+        case 'custom_prompt':
+          return await this.installCustomPrompt(normalizedRequest);
         default:
           return {
             success: false,
@@ -320,6 +322,44 @@ export class InstallService {
     };
 
     await adapter.installHook(scope, eventName, matcherGroup);
+
+    return {
+      success: true,
+      toolName: manifest.name,
+      scope,
+    };
+  }
+
+  /**
+   * Install a custom_prompt (instruction/prompt file) via the Copilot adapter.
+   *
+   * Fetches the file content from the registry and delegates to
+   * CopilotAdapter.installInstruction(). Always project-scoped.
+   * Returns an error if the active adapter is not CopilotAdapter.
+   */
+  private async installCustomPrompt(
+    request: InstallRequest,
+  ): Promise<InstallResult> {
+    const { manifest, source, contentPath } = request;
+    const scope = ConfigScope.Project;
+
+    const adapter = this.getAdapter();
+    const { CopilotAdapter } = await import('../adapters/copilot/copilot.adapter.js');
+    if (!(adapter instanceof CopilotAdapter)) {
+      return {
+        success: false,
+        error: 'custom_prompt install is only supported for Copilot',
+        toolName: manifest.name,
+        scope,
+      };
+    }
+
+    const files = manifest.files ?? [`${manifest.name}.md`];
+    const fileName = files[0];
+    const filePath = `${contentPath}/${fileName}`;
+    const content = await this.registryService.fetchToolFile(source, filePath);
+
+    await adapter.installInstruction(scope, fileName, content);
 
     return {
       success: true,

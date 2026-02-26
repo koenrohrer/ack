@@ -42,7 +42,7 @@ export interface ConfigField {
  * configuration schema needed for installation.
  */
 export interface ToolManifest {
-  type: 'skill' | 'mcp_server' | 'hook' | 'command';
+  type: 'skill' | 'mcp_server' | 'hook' | 'command' | 'custom_prompt';
   name: string;
   version: string;
   description?: string;
@@ -179,7 +179,7 @@ const ManifestConfigSchema = z.object({
  * following project convention (01-02 decision).
  */
 export const ToolManifestSchema = z.object({
-  type: z.enum(['skill', 'mcp_server', 'hook', 'command']),
+  type: z.enum(['skill', 'mcp_server', 'hook', 'command', 'custom_prompt']),
   name: safeNameSchema,
   version: z.string(),
   description: z.string().optional(),

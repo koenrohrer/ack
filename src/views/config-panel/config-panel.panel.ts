@@ -297,13 +297,23 @@ export class ConfigPanel {
           skipped: result.skipped,
           failed: result.failed,
           errors: result.errors,
+          nonToggleableSkipped: result.nonToggleableSkipped,
         },
       });
 
       this.outputChannel.appendLine(
         `[ConfigPanel] Profile switch ${id ?? 'deactivate'}: ` +
-        `toggled=${result.toggled} skipped=${result.skipped} failed=${result.failed}`,
+        `toggled=${result.toggled} skipped=${result.skipped} failed=${result.failed} ` +
+        `nonToggleableSkipped=${result.nonToggleableSkipped}`,
       );
+
+      if (result.nonToggleableSkipped > 0) {
+        const activeAgent = this.registry.getActiveAdapter()?.displayName ?? 'active agent';
+        vscode.window.showInformationMessage(
+          `${result.nonToggleableSkipped} item(s) in this profile were skipped — ` +
+          `${activeAgent} doesn't support toggling them (e.g. MCP servers).`,
+        );
+      }
 
       // Refresh both profiles (active changed) and tools (states changed)
       await this.sendProfilesData();
@@ -319,7 +329,7 @@ export class ConfigPanel {
       this.outputChannel.appendLine(`[ConfigPanel] switchProfile error: ${errorMsg}`);
       this.postMessage({
         type: 'profileSwitchComplete',
-        result: { success: false, toggled: 0, skipped: 0, failed: 0, errors: [errorMsg] },
+        result: { success: false, toggled: 0, skipped: 0, failed: 0, errors: [errorMsg], nonToggleableSkipped: 0 },
       });
       this.postMessage({ type: 'operationError', op: 'switchProfile', error: errorMsg });
     }

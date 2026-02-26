@@ -802,6 +802,11 @@
   color: var(--vscode-editor-background);
 }
 
+.agent-badge--copilot {
+  background-color: var(--vscode-charts-blue);
+  color: var(--vscode-editor-background);
+}
+
 .agent-badges {
   display: inline-flex;
   gap: 4px;

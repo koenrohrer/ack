@@ -2,6 +2,7 @@
 const AGENT_DISPLAY_NAMES: Record<string, string> = {
   'claude-code': 'Claude',
   'codex': 'Codex',
+  'copilot': 'Copilot',
   'all': 'All Agents',
 };
 

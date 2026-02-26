@@ -2,7 +2,7 @@
   "name": "ack",
   "displayName": "ACK - Agent Config Keeper",
   "description": "Discover, install, configure, and switch between agent tool sets",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "publisher": "koenrohrer",
   "license": "MIT",
   "repository": {
@@ -188,6 +188,11 @@
         "icon": "$(file-add)"
       },
       {
+        "command": "ack.installInstructionFromFile",
+        "title": "ACK: Install Instruction or Prompt from File",
+        "icon": "$(file-add)"
+      },
+      {
         "command": "ack.cloneProfileToAgent",
         "title": "ACK: Clone Profile to Agent"
       },
@@ -223,7 +228,7 @@
       "view/item/context": [
         {
           "command": "ack.toggleTool",
-          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project|local)$/",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem !~ /^tool:custom_prompt:/ && viewItem =~ /:(?:user|project|local)$/",
           "group": "inline"
         },
         {
@@ -233,7 +238,7 @@
         },
         {
           "command": "ack.toggleTool",
-          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project|local)$/",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem !~ /^tool:custom_prompt:/ && viewItem =~ /:(?:user|project|local)$/",
           "group": "1_toggle"
         },
         {
@@ -243,7 +248,7 @@
         },
         {
           "command": "ack.deleteTool",
-          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project|local)$/",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem !~ /^tool:custom_prompt:/ && viewItem =~ /:(?:user|project|local)$/",
           "group": "3_danger"
         },
         {
@@ -288,12 +293,22 @@
         },
         {
           "command": "ack.installPromptFromFile",
-          "when": "view == ack.toolTree && viewItem == group:custom_prompt",
+          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.activeAdapterId == codex",
           "group": "inline"
         },
         {
           "command": "ack.installPromptFromFile",
-          "when": "view == ack.toolTree && viewItem == group:custom_prompt",
+          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.activeAdapterId == codex",
+          "group": "1_install"
+        },
+        {
+          "command": "ack.installInstructionFromFile",
+          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.activeAdapterId == copilot",
+          "group": "inline"
+        },
+        {
+          "command": "ack.installInstructionFromFile",
+          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.activeAdapterId == copilot",
           "group": "1_install"
         },
         {
