@@ -9,7 +9,7 @@ import type {
   SavedRepoInfo,
 } from '../../marketplace.messages';
 
-export type ToolTypeFilter = 'all' | 'skill' | 'mcp_server' | 'hook' | 'command';
+export type ToolTypeFilter = 'all' | 'skill' | 'mcp_server' | 'hook' | 'command' | 'custom_prompt';
 export type SortOption = 'popular' | 'recent' | 'alphabetical';
 
 /** Per-tool install state tracked independently for parallel install support. */

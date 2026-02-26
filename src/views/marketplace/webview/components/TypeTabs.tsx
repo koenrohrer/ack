@@ -12,6 +12,7 @@ const TABS: { value: ToolTypeFilter; label: string }[] = [
   { value: 'mcp_server', label: 'MCP Servers' },
   { value: 'hook', label: 'Hooks' },
   { value: 'command', label: 'Commands' },
+  { value: 'custom_prompt', label: 'Instructions' },
 ];
 
 /**
