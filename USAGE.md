@@ -192,7 +192,7 @@ Or use `ACK: Save Current State as Profile` to snapshot everything as-is.
 
 ### Switch profiles
 
-Click the **profile icon** in the tool tree title bar, or run `ACK: Switch Profile`. Select a profile and your tools update immediately.
+Click the **profile icon** in the tool tree title bar, or run `ACK: Switch Profile`. Select a profile and your tools update immediately. If no profiles exist yet, you'll be prompted to create one with a single click.
 
 <!-- Screenshot: profile switcher quick pick -->
 <p align="center">

@@ -4,6 +4,47 @@ All notable changes to ACK are documented here.
 
 ---
 
+## 1.2.5
+
+UX improvement for the profile switcher empty state.
+
+### Improved
+
+- Switch Profile now prompts to create a profile when none exist, with a "Create Profile" action button that launches the creation flow directly
+- Previously showed a passive notification with no actionable next step
+
+---
+
+## 1.2.4
+
+Updated activity bar icon.
+
+### Changed
+
+- Refreshed the ACK activity bar icon
+
+---
+
+## 1.2.3
+
+Added a dedicated icon for the tool tree view.
+
+### Added
+
+- Tool tree view now has its own icon in the sidebar
+
+---
+
+## 1.2.2
+
+Minor cleanup release.
+
+### Changed
+
+- Removed redundant activation event from extension manifest
+
+---
+
 ## 1.2.1
 
 Bug fix for Claude Code skills not appearing in the sidebar tree.

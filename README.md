@@ -53,7 +53,7 @@ The built-in marketplace connects to a community tool registry. Search, filter b
 
 ### Switch contexts with profiles
 
-Different projects need different tool setups. Profiles let you snapshot your current configuration and restore it later with a single command. Profiles are scoped per agent -- each agent maintains its own profile set.
+Different projects need different tool setups. Profiles let you snapshot your current configuration and restore it later with a single command. Profiles are scoped per agent -- each agent maintains its own profile set. If no profiles exist yet, switching profiles prompts you to create one right away.
 
 - **Save as profile** -- Freeze your current tools, servers, and settings into a named snapshot
 - **Import / Export** -- Share configurations as portable JSON files with agent compatibility metadata
