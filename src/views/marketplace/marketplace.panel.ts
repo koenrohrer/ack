@@ -28,6 +28,7 @@ const MANIFEST_TYPE_TO_TOOL_TYPE: Record<string, ToolType> = {
   mcp_server: ToolType.McpServer,
   hook: ToolType.Hook,
   command: ToolType.Command,
+  custom_prompt: ToolType.CustomPrompt,
 };
 
 /** Settings key for persisted user repositories. */
@@ -307,6 +308,18 @@ export class MarketplacePanel {
             return;
           }
         }
+      }
+
+      // Custom prompts bypass scope picker — always project-scoped for Copilot
+      if (manifest.type === 'custom_prompt') {
+        await this.executeInstall(
+          toolId,
+          manifest,
+          ConfigScope.Project,
+          source,
+          contentPath,
+        );
+        return;
       }
 
       const scope = await this.promptForScope(manifest.name);
