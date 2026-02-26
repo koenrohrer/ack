@@ -177,4 +177,57 @@ describe('FileIOService', () => {
 
     expect(dirs).toEqual([]);
   });
+
+  it('includes symlinks to directories in listDirectories', async () => {
+    const dir = await makeTmpDir();
+    const realDir = path.join(dir, 'real-dir');
+    await fs.mkdir(realDir);
+    await fs.writeFile(path.join(realDir, 'SKILL.md'), '# test');
+    const skillsDir = path.join(dir, 'skills');
+    await fs.mkdir(skillsDir);
+    await fs.symlink(realDir, path.join(skillsDir, 'linked-skill'), 'dir');
+
+    const dirs = await svc.listDirectories(skillsDir);
+
+    expect(dirs).toEqual(['linked-skill']);
+  });
+
+  it('excludes broken symlinks from listDirectories', async () => {
+    const dir = await makeTmpDir();
+    const skillsDir = path.join(dir, 'skills');
+    await fs.mkdir(skillsDir);
+    await fs.symlink('/nonexistent/path', path.join(skillsDir, 'broken-link'));
+
+    const dirs = await svc.listDirectories(skillsDir);
+
+    expect(dirs).toEqual([]);
+  });
+
+  it('excludes symlinks to files from listDirectories', async () => {
+    const dir = await makeTmpDir();
+    const skillsDir = path.join(dir, 'skills');
+    await fs.mkdir(skillsDir);
+    const realFile = path.join(dir, 'afile.txt');
+    await fs.writeFile(realFile, 'content');
+    await fs.symlink(realFile, path.join(skillsDir, 'file-link'));
+
+    const dirs = await svc.listDirectories(skillsDir);
+
+    expect(dirs).toEqual([]);
+  });
+
+  // -- listFiles with symlinks --
+
+  it('includes symlinks to files in listFiles', async () => {
+    const dir = await makeTmpDir();
+    const filesDir = path.join(dir, 'commands');
+    await fs.mkdir(filesDir);
+    const realFile = path.join(dir, 'real-cmd.md');
+    await fs.writeFile(realFile, '# command');
+    await fs.symlink(realFile, path.join(filesDir, 'linked-cmd.md'));
+
+    const files = await svc.listFiles(filesDir, '.md');
+
+    expect(files).toEqual(['linked-cmd.md']);
+  });
 });

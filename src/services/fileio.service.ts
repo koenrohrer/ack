@@ -118,6 +118,7 @@ export class FileIOService {
   /**
    * List subdirectory names within a directory.
    *
+   * Follows symlinks: a symlink whose target is a directory is included.
    * Returns an empty array if the directory does not exist.
    */
   async listDirectories(dirPath: string): Promise<string[]> {
@@ -131,14 +132,29 @@ export class FileIOService {
       throw err;
     }
 
-    return entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name);
+    const results: string[] = [];
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        results.push(entry.name);
+      } else if (entry.isSymbolicLink()) {
+        // Resolve symlink to check if target is a directory
+        try {
+          const resolved = await fs.stat(path.join(dirPath, entry.name));
+          if (resolved.isDirectory()) {
+            results.push(entry.name);
+          }
+        } catch {
+          // Broken symlink -- skip silently
+        }
+      }
+    }
+    return results;
   }
 
   /**
    * List file names within a directory, optionally filtering by extension.
    *
+   * Follows symlinks: a symlink whose target is a file is included.
    * Returns an empty array if the directory does not exist.
    */
   async listFiles(dirPath: string, extension?: string): Promise<string[]> {
@@ -152,10 +168,26 @@ export class FileIOService {
       throw err;
     }
 
-    return entries
-      .filter((entry) => entry.isFile())
-      .filter((entry) => !extension || entry.name.endsWith(extension))
-      .map((entry) => entry.name);
+    const results: string[] = [];
+    for (const entry of entries) {
+      const isFile = entry.isFile() || (entry.isSymbolicLink() && await this.isSymlinkToFile(dirPath, entry.name));
+      if (isFile && (!extension || entry.name.endsWith(extension))) {
+        results.push(entry.name);
+      }
+    }
+    return results;
+  }
+
+  /**
+   * Check whether a symlink resolves to a regular file.
+   */
+  private async isSymlinkToFile(dirPath: string, name: string): Promise<boolean> {
+    try {
+      const resolved = await fs.stat(path.join(dirPath, name));
+      return resolved.isFile();
+    } catch {
+      return false;
+    }
   }
 
   /**

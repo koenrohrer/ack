@@ -110,6 +110,9 @@ export async function parseCommandsDir(
 
 /**
  * Recursively find all .md files under a directory.
+ *
+ * Follows symlinks: symlinks to directories are traversed,
+ * and symlinks to .md files are included.
  */
 async function findMdFiles(dir: string): Promise<string[]> {
   const results: string[] = [];
@@ -126,6 +129,19 @@ async function findMdFiles(dir: string): Promise<string[]> {
     if (entry.isDirectory()) {
       const nested = await findMdFiles(fullPath);
       results.push(...nested);
+    } else if (entry.isSymbolicLink()) {
+      // Resolve symlink to determine if it's a directory or file
+      try {
+        const stat = await fs.stat(fullPath);
+        if (stat.isDirectory()) {
+          const nested = await findMdFiles(fullPath);
+          results.push(...nested);
+        } else if (stat.isFile() && entry.name.endsWith('.md')) {
+          results.push(fullPath);
+        }
+      } catch {
+        // Broken symlink -- skip silently
+      }
     } else if (entry.isFile() && entry.name.endsWith('.md')) {
       results.push(fullPath);
     }
