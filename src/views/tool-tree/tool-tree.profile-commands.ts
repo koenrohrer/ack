@@ -108,7 +108,13 @@ export function registerProfileCommands(
     async () => {
       const profiles = profileService.getProfiles();
       if (profiles.length === 0) {
-        vscode.window.showInformationMessage('No profiles saved. Create one first.');
+        const action = await vscode.window.showInformationMessage(
+          'No profiles saved yet. Create one to get started.',
+          'Create Profile',
+        );
+        if (action === 'Create Profile') {
+          await vscode.commands.executeCommand('ack.createProfile');
+        }
         return;
       }
 
