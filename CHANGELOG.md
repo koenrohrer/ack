@@ -4,6 +4,18 @@ All notable changes to ACK are documented here.
 
 ---
 
+## 1.2.1
+
+Bug fix for Claude Code skills not appearing in the sidebar tree.
+
+### Fixed
+
+- Symlinked skill directories (e.g., `~/.claude/skills/`) are now followed when discovering skills and commands
+- `listDirectories()` and `listFiles()` in `FileIOService` resolve symlinks before filtering
+- `findMdFiles()` in the command parser traverses symlinked directories and includes symlinked `.md` files
+
+---
+
 ## 1.2.0
 
 Adds GitHub Copilot as a fully supported third agent with feature parity to Claude Code and Codex.
