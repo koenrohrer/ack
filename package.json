@@ -2,7 +2,7 @@
   "name": "ack",
   "displayName": "ACK - Agent Config Keeper",
   "description": "Discover, install, configure, and switch between agent tool sets",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "publisher": "koenrohrer",
   "license": "MIT",
   "repository": {
@@ -31,8 +31,7 @@
     "vscode": "^1.105.0"
   },
   "activationEvents": [
-    "onStartupFinished",
-    "onView:ack.toolTree"
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "contributes": {
