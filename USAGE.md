@@ -125,7 +125,7 @@ Click the **extensions icon** in the tool tree title bar (or run `ACK: Open Mark
 
 <!-- Screenshot: marketplace panel with search and tool cards -->
 <p align="center">
-  <img src="https://raw.githubusercontent.com/koenrohrer/ack/master/media/screenshots/marketplace-browse.png" alt="Marketplace panel with search bar, type tabs, and tool cards" width="800" />
+  <img src="https://raw.githubusercontent.com/koenrohrer/ack/master/media/screenshots/marketplace.png" alt="Marketplace panel with search bar, type tabs, and tool cards" width="800" />
   <br/>
   <sub>Search by name, filter by type, sort by relevance or recency.</sub>
 </p>
@@ -196,7 +196,7 @@ Click the **profile icon** in the tool tree title bar, or run `ACK: Switch Profi
 
 <!-- Screenshot: profile switcher quick pick -->
 <p align="center">
-  <img src="https://raw.githubusercontent.com/koenrohrer/ack/master/media/screenshots/profile-switcher.png" alt="Profile switcher showing saved configurations" width="600" />
+  <img src="https://raw.githubusercontent.com/koenrohrer/ack/master/media/screenshots/profiles.png" alt="Profile switcher showing saved configurations" width="600" />
   <br/>
   <sub>Switching profiles updates your tools instantly -- no restart, no reload.</sub>
 </p>
@@ -224,7 +224,7 @@ Run `ACK: Configure Agent` to open a visual editor for your agent's settings.
 
 <!-- Screenshot: config panel showing model, permissions, and instructions -->
 <p align="center">
-  <img src="https://raw.githubusercontent.com/koenrohrer/ack/master/media/screenshots/config-panel-full.png" alt="Config panel with model selection, permission toggles, and instruction editor" width="800" />
+  <img src="https://raw.githubusercontent.com/koenrohrer/ack/master/media/screenshots/config-panel.png" alt="Config panel with model selection, permission toggles, and instruction editor" width="800" />
   <br/>
   <sub>Every setting is a form field. Edit, save, and your agent picks up the change.</sub>
 </p>
