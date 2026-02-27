@@ -2,7 +2,7 @@
   "name": "ack",
   "displayName": "ACK - Agent Config Keeper",
   "description": "Discover, install, configure, and switch between agent tool sets",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "publisher": "koenrohrer",
   "license": "MIT",
   "repository": {
@@ -444,7 +444,7 @@
     "test:integration": "vscode-test",
     "dev": "npm-run-all --parallel watch check-types",
     "package": "npm run compile:ext -- --minify && node esbuild.webview.mjs --minify",
-    "vsce:prepublish": "npm run package"
+    "vscode:prepublish": "npm run package"
   },
   "dependencies": {
     "@vscode-elements/elements": "^2.4.0",
