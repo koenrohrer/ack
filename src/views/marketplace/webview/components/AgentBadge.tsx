@@ -1,9 +1,9 @@
-/** Display names for known agents. */
-const AGENT_DISPLAY_NAMES: Record<string, string> = {
-  'claude-code': 'Claude',
-  'codex': 'Codex',
-  'copilot': 'Copilot',
-  'all': 'All Agents',
+/** Known agents with display names and CSS modifier classes. */
+const KNOWN_AGENTS: Record<string, { label: string; className: string }> = {
+  'claude-code': { label: 'Claude', className: 'agent-badge--claude-code' },
+  'codex': { label: 'Codex', className: 'agent-badge--codex' },
+  'copilot': { label: 'Copilot', className: 'agent-badge--copilot' },
+  'all': { label: 'All Agents', className: 'agent-badge--all' },
 };
 
 interface AgentBadgeProps {
@@ -23,9 +23,10 @@ export function AgentBadge({ agents }: AgentBadgeProps) {
   // Single agent - show that agent's badge
   if (agents.length === 1) {
     const agent = agents[0];
+    const known = KNOWN_AGENTS[agent];
     return (
-      <span className={`agent-badge agent-badge--${agent}`}>
-        {AGENT_DISPLAY_NAMES[agent] ?? agent}
+      <span className={`agent-badge ${known?.className ?? 'agent-badge--unknown'}`}>
+        {known?.label ?? agent}
       </span>
     );
   }
@@ -33,11 +34,14 @@ export function AgentBadge({ agents }: AgentBadgeProps) {
   // Multiple specific agents - show each
   return (
     <div className="agent-badges">
-      {agents.map((agent) => (
-        <span key={agent} className={`agent-badge agent-badge--${agent}`}>
-          {AGENT_DISPLAY_NAMES[agent] ?? agent}
-        </span>
-      ))}
+      {agents.map((agent) => {
+        const known = KNOWN_AGENTS[agent];
+        return (
+          <span key={agent} className={`agent-badge ${known?.className ?? 'agent-badge--unknown'}`}>
+            {known?.label ?? agent}
+          </span>
+        );
+      })}
     </div>
   );
 }
