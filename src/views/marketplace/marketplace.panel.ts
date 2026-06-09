@@ -7,7 +7,7 @@ import type { ToolManagerService } from '../../services/tool-manager.service.js'
 import type { RepoScannerService } from '../../services/repo-scanner.service.js';
 import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import type { RegistrySource } from '../../services/registry.types.js';
-import type { ToolManifest } from '../../services/install.types.js';
+import type { InstallResult, ToolManifest } from '../../services/install.types.js';
 import { ToolType, ConfigScope } from '../../types/enums.js';
 import type {
   WebviewMessage,
@@ -310,14 +310,24 @@ export class MarketplacePanel {
         }
       }
 
-      // Custom prompts bypass scope picker — always project-scoped for Copilot
+      // Custom prompts bypass scope picker; InstallService returns the actual adapter scope.
       if (manifest.type === 'custom_prompt') {
+        const installOptions = await this.confirmCustomPromptOverwrite(
+          toolId,
+          manifest,
+        );
+        if (!installOptions) {
+          return;
+        }
         await this.executeInstall(
           toolId,
           manifest,
-          ConfigScope.Project,
+          installOptions.scope,
           source,
           contentPath,
+          undefined,
+          undefined,
+          installOptions.allowOverwrite,
         );
         return;
       }
@@ -429,9 +439,9 @@ export class MarketplacePanel {
       return;
     }
 
-    // Custom prompts bypass the scope QuickPick — always project-scoped for Copilot
+    // Custom prompts bypass the scope QuickPick; InstallService chooses the adapter scope.
     if (toolEntry.toolType === 'custom_prompt') {
-      await this.handleCustomPromptInstall(toolId, toolEntry);
+      await this.handleRepoCustomPromptInstall(toolId, toolEntry);
       return;
     }
 
@@ -518,41 +528,59 @@ export class MarketplacePanel {
   }
 
   /**
-   * Handle install for custom_prompt repo-sourced tools.
-   *
-   * Custom prompts are always project-scoped for Copilot — no scope QuickPick.
-   * Fetches the file content from the repo, casts to CopilotAdapter, and
-   * calls installInstruction() which routes to the correct .github/ subdirectory.
+   * Handle install for custom_prompt repo-sourced tools through InstallService.
    */
-  private async handleCustomPromptInstall(
+  private async handleRepoCustomPromptInstall(
     toolId: string,
     toolEntry: RegistryEntryWithSource,
   ): Promise<void> {
-    const adapter = this.getAdapter();
-    const { CopilotAdapter } = await import('../../adapters/copilot/copilot.adapter.js');
-    if (!(adapter instanceof CopilotAdapter)) {
-      this.postMessage({ type: 'installError', toolId, error: 'custom_prompt install requires Copilot.' });
+    if (!toolEntry.repoFullName || !toolEntry.defaultBranch || !toolEntry.repoPath) {
+      this.postMessage({
+        type: 'installError',
+        toolId,
+        error: 'Repo custom prompt metadata missing',
+      });
+      return;
+    }
+
+    const fileName = toolEntry.repoPath.split('/').pop()!;
+    const manifest: ToolManifest = {
+      type: 'custom_prompt',
+      name: toolEntry.name,
+      version: toolEntry.version || '0.0.0',
+      description: toolEntry.description,
+      files: [fileName],
+      config: {},
+    };
+
+    const installOptions = await this.confirmCustomPromptOverwrite(
+      toolId,
+      manifest,
+    );
+    if (!installOptions) {
       return;
     }
 
     this.postMessage({ type: 'installProgress', toolId, status: 'downloading' });
     try {
       const content = await this.repoScanner.fetchRepoFile(
-        toolEntry.repoFullName!,
-        toolEntry.defaultBranch!,
-        toolEntry.repoPath!,
+        toolEntry.repoFullName,
+        toolEntry.defaultBranch,
+        toolEntry.repoPath,
       );
-      const fileName = toolEntry.repoPath!.split('/').pop()!;
-      await adapter.installInstruction(ConfigScope.Project, fileName, content);
-
-      this.postMessage({ type: 'installComplete', toolId, scope: ConfigScope.Project as string });
-      void vscode.window.showInformationMessage(`Installed "${toolEntry.name}"`);
-
-      const installedTools = await this.getInstalledTools();
-      this.postMessage({ type: 'installedTools', tools: installedTools });
-      void vscode.commands.executeCommand('ack.refreshToolTree');
+      this.postMessage({ type: 'installProgress', toolId, status: 'writing' });
+      const result = await this.installService.installCustomPromptContent(
+        manifest,
+        content,
+        installOptions.scope,
+        installOptions.allowOverwrite,
+      );
+      await this.handleInstallResult(toolId, manifest.name, result);
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'Install failed';
+      this.outputChannel.appendLine(
+        `Repo install error for ${toolId}: ${errorMsg}`,
+      );
       this.postMessage({ type: 'installError', toolId, error: errorMsg });
     }
   }
@@ -677,6 +705,7 @@ export class MarketplacePanel {
     contentPath: string,
     configValues?: Record<string, string>,
     existingEnvValues?: Record<string, string>,
+    allowOverwrite?: boolean,
   ): Promise<void> {
     this.postMessage({ type: 'installProgress', toolId, status: 'writing' });
 
@@ -687,16 +716,73 @@ export class MarketplacePanel {
       contentPath,
       configValues,
       existingEnvValues,
+      allowOverwrite,
     });
 
+    await this.handleInstallResult(toolId, manifest.name, result);
+  }
+
+  /**
+   * Check the resolved custom-prompt destination and confirm replacement.
+   */
+  private async confirmCustomPromptOverwrite(
+    toolId: string,
+    manifest: ToolManifest,
+  ): Promise<{ scope: ConfigScope; allowOverwrite: boolean } | undefined> {
+    const validationError = this.installService.getCustomPromptValidationError(
+      manifest,
+      ConfigScope.Project,
+    );
+    if (validationError) {
+      this.postMessage({
+        type: 'installError',
+        toolId,
+        error: validationError,
+      });
+      return undefined;
+    }
+
+    const target = this.installService.getCustomPromptInstallTarget(
+      manifest,
+      ConfigScope.Project,
+    );
+    const hasConflict = await this.installService.checkConflict(
+      target.name,
+      'custom_prompt',
+      target.scope,
+    );
+    if (!hasConflict) {
+      return { scope: target.scope, allowOverwrite: false };
+    }
+
+    const choice = await vscode.window.showWarningMessage(
+      `"${target.name}" already exists at ${target.scope} scope. Overwrite?`,
+      { modal: true },
+      'Overwrite',
+    );
+    if (choice !== 'Overwrite') {
+      this.postMessage({ type: 'installCancelled', toolId });
+      return undefined;
+    }
+    return { scope: target.scope, allowOverwrite: true };
+  }
+
+  /**
+   * Report an install outcome and refresh installed-tool state.
+   */
+  private async handleInstallResult(
+    toolId: string,
+    toolName: string,
+    result: InstallResult,
+  ): Promise<void> {
     if (result.success) {
       this.postMessage({
         type: 'installComplete',
         toolId,
-        scope: scope as string,
+        scope: result.scope as string,
       });
       void vscode.window.showInformationMessage(
-        `Installed "${manifest.name}" at ${scope} scope`,
+        `Installed "${toolName}" at ${result.scope} scope`,
       );
 
       const installedTools = await this.getInstalledTools();
@@ -715,7 +801,7 @@ export class MarketplacePanel {
         error: result.error ?? 'Unknown error',
       });
       const action = await vscode.window.showErrorMessage(
-        `Failed to install "${manifest.name}": ${result.error}`,
+        `Failed to install "${toolName}": ${result.error}`,
         'Show Output',
       );
       if (action === 'Show Output') {

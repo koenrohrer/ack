@@ -49,6 +49,7 @@ export class CopilotAdapter implements IPlatformAdapter {
     // McpServer: Copilot MCP config has no disabled state (no enable/disable).
     // CustomPrompt: instructions and prompts have no enable/disable concept.
   ]);
+  readonly movableToolTypes: ReadonlySet<ToolType> = new Set();
 
   /**
    * VS Code user directory derived from context.globalStorageUri at construction.

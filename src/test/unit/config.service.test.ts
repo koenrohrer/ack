@@ -95,6 +95,49 @@ describe('ConfigService - scope resolution', () => {
     expect(tools[0].scopeEntries![0].scope).toBe(ConfigScope.User);
   });
 
+  it('reads project-scoped Copilot custom prompts', async () => {
+    const projectPrompt = makeTool({
+      name: 'review.prompt.md',
+      scope: ConfigScope.Project,
+      type: ToolType.CustomPrompt,
+      source: { filePath: '/workspace/.github/prompts/review.prompt.md' },
+    });
+    const readScopes: ConfigScope[] = [];
+    const adapter: IPlatformAdapter = {
+      id: 'copilot',
+      displayName: 'GitHub Copilot',
+      supportedToolTypes: new Set([ToolType.CustomPrompt]),
+      async readTools(type: ToolType, scope: ConfigScope): Promise<NormalizedTool[]> {
+        expect(type).toBe(ToolType.CustomPrompt);
+        readScopes.push(scope);
+        return scope === ConfigScope.Project ? [projectPrompt] : [];
+      },
+      async writeTool() {},
+      async removeTool() {},
+      getWatchPaths() { return []; },
+      async detect() { return true; },
+    };
+    const registry = new AdapterRegistry();
+    registry.register(adapter);
+    registry.setActiveAdapter('copilot');
+
+    const svc = new ConfigService(fileIO, backup, schemas, registry);
+    const tools = await svc.readAllTools(ToolType.CustomPrompt);
+
+    expect(readScopes).toContain(ConfigScope.Project);
+    expect(tools).toHaveLength(1);
+    expect(tools[0].name).toBe('review.prompt.md');
+    expect(tools[0].type).toBe(ToolType.CustomPrompt);
+    expect(tools[0].scope).toBe(ConfigScope.Project);
+    expect(tools[0].scopeEntries).toEqual([
+      {
+        scope: ConfigScope.Project,
+        status: ToolStatus.Enabled,
+        filePath: '/workspace/.github/prompts/review.prompt.md',
+      },
+    ]);
+  });
+
   it('tool in User AND Project -> Project version wins, scopeEntries has both', async () => {
     const userTool = makeTool({ name: 'shared-server', scope: ConfigScope.User, status: ToolStatus.Enabled });
     const projectTool = makeTool({ name: 'shared-server', scope: ConfigScope.Project, status: ToolStatus.Enabled });

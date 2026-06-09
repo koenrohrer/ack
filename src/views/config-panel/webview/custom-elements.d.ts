@@ -11,6 +11,7 @@ declare module 'react' {
     interface IntrinsicElements {
       'vscode-button': React.DetailedHTMLProps<
         React.HTMLAttributes<HTMLElement> & {
+          appearance?: 'primary' | 'secondary' | 'icon';
           secondary?: boolean;
           disabled?: boolean;
           icon?: string;

@@ -2,6 +2,10 @@ import * as vscode from 'vscode';
 import type { ConfigService } from '../../services/config.service.js';
 import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import { ToolStatus } from '../../types/enums.js';
+import {
+  buildToolContextValue,
+  type ToolActionCapabilities,
+} from '../../services/tool-manager.utils.js';
 import { ToolTreeModel } from './tool-tree.model.js';
 import { getGroupIcon, getToolIcon } from './tool-tree.icons.js';
 import type {
@@ -231,7 +235,10 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     item.tooltip = tooltip;
 
     // Context value for menu contributions
-    item.contextValue = `tool:${tool.type}:${tool.status}:${tool.scope}`;
+    item.contextValue = buildToolContextValue(
+      tool,
+      this.getActionCapabilities(),
+    );
 
     // Command: only for leaf nodes (not collapsible MCP servers)
     // Plan 02 will register the handler for this command
@@ -244,6 +251,14 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     }
 
     return item;
+  }
+
+  private getActionCapabilities(): ToolActionCapabilities {
+    const adapter = this.registry.getActiveAdapter();
+    return {
+      toggleableToolTypes: adapter?.toggleableToolTypes,
+      movableToolTypes: adapter?.movableToolTypes,
+    };
   }
 
   private createSubToolItem(node: SubToolNode): vscode.TreeItem {

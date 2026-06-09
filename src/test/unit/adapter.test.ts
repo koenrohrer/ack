@@ -6,6 +6,7 @@ import { FileIOService } from '../../services/fileio.service.js';
 import { SchemaService } from '../../services/schema.service.js';
 import { claudeCodeSchemas } from '../../adapters/claude-code/schemas.js';
 import { ClaudeCodeAdapter } from '../../adapters/claude-code/claude-code.adapter.js';
+import { CodexAdapter } from '../../adapters/codex/codex.adapter.js';
 import { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { AdapterScopeError } from '../../types/adapter-errors.js';
@@ -758,5 +759,18 @@ Deploy everything.`);
     expect(err.message).toContain('managed');
     expect(err.message).toContain('getSkillsDir');
     expect(err).toBeInstanceOf(Error);
+  });
+});
+
+describe('CodexAdapter capabilities', () => {
+  it('excludes custom prompts from toggle and move capabilities', () => {
+    const adapter = new CodexAdapter(fileIO, schemaService);
+
+    expect(adapter.toggleableToolTypes?.has(ToolType.Skill)).toBe(true);
+    expect(adapter.toggleableToolTypes?.has(ToolType.McpServer)).toBe(true);
+    expect(adapter.toggleableToolTypes?.has(ToolType.CustomPrompt)).toBe(false);
+    expect(adapter.movableToolTypes?.has(ToolType.Skill)).toBe(true);
+    expect(adapter.movableToolTypes?.has(ToolType.McpServer)).toBe(true);
+    expect(adapter.movableToolTypes?.has(ToolType.CustomPrompt)).toBe(false);
   });
 });

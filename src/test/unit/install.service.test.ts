@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import * as os from 'os';
+import * as path from 'path';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import type { NormalizedTool } from '../../types/config.js';
 import type { RegistrySource } from '../../services/registry.types.js';
@@ -92,6 +94,18 @@ function makeHookManifest(overrides: Partial<ToolManifest> = {}): ToolManifest {
   };
 }
 
+function makeCustomPromptManifest(overrides: Partial<ToolManifest> = {}): ToolManifest {
+  return {
+    type: 'custom_prompt',
+    name: 'summarize',
+    version: '1.0.0',
+    description: 'Summarize selected text',
+    files: ['summarize.md'],
+    config: {},
+    ...overrides,
+  };
+}
+
 function createMockRegistryService(): RegistryService {
   return {
     fetchToolManifest: vi.fn().mockResolvedValue(makeMcpManifest()),
@@ -125,7 +139,15 @@ function createMockFileIOService(): FileIOService {
   } as unknown as FileIOService;
 }
 
-function createMockAdapter(): IPlatformAdapter {
+type MockAdapterOverrides = Partial<IPlatformAdapter> & {
+  installInstruction?: (
+    scope: ConfigScope,
+    filename: string,
+    content: string,
+  ) => Promise<void>;
+};
+
+function createMockAdapter(overrides: MockAdapterOverrides = {}): IPlatformAdapter {
   return {
     id: 'claude-code',
     displayName: 'Claude Code',
@@ -145,6 +167,7 @@ function createMockAdapter(): IPlatformAdapter {
     getMcpSchemaKey: vi.fn().mockReturnValue('claude-json'),
     getWatchPaths: vi.fn().mockReturnValue([]),
     detect: vi.fn().mockResolvedValue(true),
+    ...overrides,
   } as unknown as IPlatformAdapter;
 }
 
@@ -192,6 +215,20 @@ describe('InstallService', () => {
       '/workspace',
     );
   });
+
+  function activateAdapter(adapter: IPlatformAdapter): void {
+    registry = new AdapterRegistry();
+    registry.register(adapter);
+    registry.setActiveAdapter(adapter.id);
+
+    service = new InstallService(
+      mockRegistryService,
+      mockConfigService,
+      registry,
+      mockFileIOService,
+      '/workspace',
+    );
+  }
 
   // -------------------------------------------------------------------------
   // install() routing
@@ -510,6 +547,308 @@ describe('InstallService', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('config.event');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // installCustomPrompt
+  // -------------------------------------------------------------------------
+
+  describe('installCustomPrompt', () => {
+    it('installs already-fetched Copilot-named prompt content using the Codex tool name', async () => {
+      const codexAdapter = createMockAdapter({
+        id: 'codex',
+        displayName: 'Codex',
+        supportedToolTypes: new Set([ToolType.CustomPrompt]),
+      });
+      activateAdapter(codexAdapter);
+
+      const result = await service.installCustomPromptContent(
+        makeCustomPromptManifest({ name: 'review', files: ['review.prompt.md'] }),
+        '# From repo\n',
+        ConfigScope.Project,
+      );
+
+      expect(result).toEqual({
+        success: true,
+        toolName: 'review',
+        scope: ConfigScope.User,
+      });
+      expect(mockFileIOService.writeTextFile).toHaveBeenCalledWith(
+        path.join(os.homedir(), '.codex', 'prompts', 'review.md'),
+        '# From repo\n',
+      );
+      expect(mockRegistryService.fetchToolFile).not.toHaveBeenCalled();
+    });
+
+    it('refuses to overwrite an existing Codex prompt without confirmation', async () => {
+      const codexAdapter = createMockAdapter({
+        id: 'codex',
+        displayName: 'Codex',
+        supportedToolTypes: new Set([ToolType.CustomPrompt]),
+      });
+      activateAdapter(codexAdapter);
+      (mockConfigService.readToolsByScope as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        {
+          id: 'prompt:codex:user:summarize',
+          name: 'summarize',
+          type: ToolType.CustomPrompt,
+          scope: ConfigScope.User,
+          status: ToolStatus.Enabled,
+          source: { filePath: '/home/user/.codex/prompts/summarize.md' },
+          metadata: {},
+        },
+      ]);
+
+      const result = await service.installCustomPromptContent(
+        makeCustomPromptManifest(),
+        '# Replacement\n',
+        ConfigScope.Project,
+      );
+
+      expect(result).toEqual({
+        success: false,
+        error: '"summarize" already exists at user scope',
+        toolName: 'summarize',
+        scope: ConfigScope.User,
+      });
+      expect(mockFileIOService.writeTextFile).not.toHaveBeenCalled();
+    });
+
+    it('overwrites an existing Codex prompt after confirmation', async () => {
+      const codexAdapter = createMockAdapter({
+        id: 'codex',
+        displayName: 'Codex',
+        supportedToolTypes: new Set([ToolType.CustomPrompt]),
+      });
+      activateAdapter(codexAdapter);
+
+      const result = await service.installCustomPromptContent(
+        makeCustomPromptManifest(),
+        '# Replacement\n',
+        ConfigScope.Project,
+        true,
+      );
+
+      expect(result).toEqual({
+        success: true,
+        toolName: 'summarize',
+        scope: ConfigScope.User,
+      });
+      expect(mockFileIOService.writeTextFile).toHaveBeenCalledWith(
+        path.join(os.homedir(), '.codex', 'prompts', 'summarize.md'),
+        '# Replacement\n',
+      );
+    });
+
+    it('installs already-fetched Copilot prompt content at project scope', async () => {
+      const installInstruction = vi.fn().mockResolvedValue(undefined);
+      const copilotAdapter = createMockAdapter({
+        id: 'copilot',
+        displayName: 'GitHub Copilot',
+        supportedToolTypes: new Set([ToolType.CustomPrompt]),
+        installInstruction,
+      });
+      activateAdapter(copilotAdapter);
+
+      const result = await service.installCustomPromptContent(
+        makeCustomPromptManifest({ files: ['review.prompt.md'], name: 'review' }),
+        '# From repo\n',
+        ConfigScope.Project,
+      );
+
+      expect(result).toEqual({
+        success: true,
+        toolName: 'review',
+        scope: ConfigScope.Project,
+      });
+      expect(installInstruction).toHaveBeenCalledWith(
+        ConfigScope.Project,
+        'review.prompt.md',
+        '# From repo\n',
+      );
+      expect(mockRegistryService.fetchToolFile).not.toHaveBeenCalled();
+    });
+
+    it('rejects Copilot prompt content whose manifest name differs from its installed identity', async () => {
+      const installInstruction = vi.fn().mockResolvedValue(undefined);
+      const copilotAdapter = createMockAdapter({
+        id: 'copilot',
+        displayName: 'GitHub Copilot',
+        supportedToolTypes: new Set([ToolType.CustomPrompt]),
+        installInstruction,
+      });
+      activateAdapter(copilotAdapter);
+      (mockConfigService.readToolsByScope as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        {
+          id: 'instruction:project:copilot-instructions',
+          name: 'copilot-instructions',
+          type: ToolType.CustomPrompt,
+          scope: ConfigScope.Project,
+          status: ToolStatus.Enabled,
+          source: { filePath: '/workspace/.github/copilot-instructions.md' },
+          metadata: {},
+        },
+      ]);
+
+      const result = await service.installCustomPromptContent(
+        makeCustomPromptManifest({
+          name: 'new-helper',
+          files: ['copilot-instructions.md'],
+        }),
+        '# Replacement\n',
+        ConfigScope.Project,
+      );
+
+      expect(result).toEqual({
+        success: false,
+        error: 'custom_prompt name "new-helper" does not match installed name "copilot-instructions" for GitHub Copilot',
+        toolName: 'new-helper',
+        scope: ConfigScope.Project,
+      });
+      expect(installInstruction).not.toHaveBeenCalled();
+    });
+
+    it('exposes Copilot prompt identity validation before installation', () => {
+      const copilotAdapter = createMockAdapter({
+        id: 'copilot',
+        displayName: 'GitHub Copilot',
+        supportedToolTypes: new Set([ToolType.CustomPrompt]),
+        installInstruction: vi.fn().mockResolvedValue(undefined),
+      });
+      activateAdapter(copilotAdapter);
+
+      const error = service.getCustomPromptValidationError(
+        makeCustomPromptManifest({
+          name: 'new-helper',
+          files: ['copilot-instructions.md'],
+        }),
+        ConfigScope.Project,
+      );
+
+      expect(error).toBe(
+        'custom_prompt name "new-helper" does not match installed name "copilot-instructions" for GitHub Copilot',
+      );
+    });
+
+    it('rejects Codex prompt names with an extension that differs from its installed identity', async () => {
+      const codexAdapter = createMockAdapter({
+        id: 'codex',
+        displayName: 'Codex',
+        supportedToolTypes: new Set([ToolType.CustomPrompt]),
+      });
+      activateAdapter(codexAdapter);
+      (mockConfigService.readToolsByScope as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        {
+          id: 'prompt:codex:user:review',
+          name: 'review',
+          type: ToolType.CustomPrompt,
+          scope: ConfigScope.User,
+          status: ToolStatus.Enabled,
+          source: { filePath: '/home/user/.codex/prompts/review.md' },
+          metadata: {},
+        },
+      ]);
+
+      const result = await service.installCustomPromptContent(
+        makeCustomPromptManifest({
+          name: 'review.md',
+          files: ['review.md'],
+        }),
+        '# Replacement\n',
+        ConfigScope.Project,
+      );
+
+      expect(result).toEqual({
+        success: false,
+        error: 'custom_prompt name "review.md" does not match installed name "review" for Codex',
+        toolName: 'review.md',
+        scope: ConfigScope.User,
+      });
+      expect(mockFileIOService.writeTextFile).not.toHaveBeenCalled();
+    });
+
+    it('installs Codex custom prompts into the user prompts directory', async () => {
+      const codexAdapter = createMockAdapter({
+        id: 'codex',
+        displayName: 'Codex',
+        supportedToolTypes: new Set([ToolType.CustomPrompt]),
+      });
+      activateAdapter(codexAdapter);
+      (mockRegistryService.fetchToolFile as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce('# Summarize\n');
+
+      const manifest = makeCustomPromptManifest();
+      const request = makeInstallRequest(manifest, {
+        contentPath: 'prompts/summarize',
+      });
+
+      const result = await service.install(request);
+
+      expect(result).toEqual({
+        success: true,
+        toolName: 'summarize',
+        scope: ConfigScope.User,
+      });
+      expect(mockRegistryService.fetchToolFile).toHaveBeenCalledWith(
+        TEST_SOURCE,
+        'prompts/summarize/summarize.md',
+      );
+      expect(mockFileIOService.writeTextFile).toHaveBeenCalledWith(
+        path.join(os.homedir(), '.codex', 'prompts', 'summarize.md'),
+        '# Summarize\n',
+      );
+    });
+
+    it('preserves Copilot custom prompt installs through installInstruction', async () => {
+      const installInstruction = vi.fn().mockResolvedValue(undefined);
+      const copilotAdapter = createMockAdapter({
+        id: 'copilot',
+        displayName: 'GitHub Copilot',
+        supportedToolTypes: new Set([ToolType.CustomPrompt]),
+        installInstruction,
+      });
+      activateAdapter(copilotAdapter);
+      (mockRegistryService.fetchToolFile as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce('# Review\n');
+
+      const manifest = makeCustomPromptManifest({
+        name: 'review',
+        files: ['review.prompt.md'],
+      });
+      const request = makeInstallRequest(manifest, {
+        contentPath: 'prompts/review',
+      });
+
+      const result = await service.install(request);
+
+      expect(result).toEqual({
+        success: true,
+        toolName: 'review',
+        scope: ConfigScope.Project,
+      });
+      expect(mockRegistryService.fetchToolFile).toHaveBeenCalledWith(
+        TEST_SOURCE,
+        'prompts/review/review.prompt.md',
+      );
+      expect(installInstruction).toHaveBeenCalledWith(
+        ConfigScope.Project,
+        'review.prompt.md',
+        '# Review\n',
+      );
+      expect(mockFileIOService.writeTextFile).not.toHaveBeenCalled();
+    });
+
+    it('returns a clear failure for adapters without custom prompt install support', async () => {
+      const manifest = makeCustomPromptManifest();
+      const request = makeInstallRequest(manifest);
+
+      const result = await service.install(request);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('custom_prompt install is not supported');
+      expect(result.toolName).toBe('summarize');
+      expect(mockRegistryService.fetchToolFile).not.toHaveBeenCalled();
     });
   });
 

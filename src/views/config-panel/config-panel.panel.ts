@@ -8,6 +8,10 @@ import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { canonicalKey } from '../../utils/tool-key.utils.js';
 import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import type { WorkspaceProfileService } from '../../services/workspace-profile.service.js';
+import {
+  applyMcpEnvUpdate,
+  canToggleMcpStatus,
+} from './config-panel.mcp-utils.js';
 import type {
   ConfigPanelWebMessage,
   ConfigPanelExtMessage,
@@ -543,6 +547,7 @@ export class ConfigPanel {
         transport: (tool.metadata.transport as string) ?? undefined,
         url: (tool.metadata.url as string) ?? undefined,
         disabled: tool.status === ToolStatus.Disabled,
+        canToggle: canToggleMcpStatus(this.getAdapter()?.id),
       };
 
       this.outputChannel.appendLine(`[ConfigPanel] Loaded MCP settings for "${serverName}" (${scope})`);
@@ -573,27 +578,20 @@ export class ConfigPanel {
       }
 
       const { schemaKey } = this.getMcpSchemaKey(scope);
+      const adapterId = this.getAdapter()?.id;
 
-      await this.configService.writeConfigFile(filePath, schemaKey, (current: Record<string, unknown>) => {
-        const updated = { ...current };
-        const servers = { ...((updated.mcpServers as Record<string, Record<string, unknown>>) ?? {}) };
-
-        if (servers[serverName]) {
-          servers[serverName] = { ...servers[serverName], env };
-
-          // Set or remove disabled field
-          if (disabled !== undefined) {
-            if (disabled) {
-              servers[serverName].disabled = true;
-            } else {
-              delete servers[serverName].disabled;
-            }
-          }
-        }
-
-        updated.mcpServers = servers;
-        return updated;
-      });
+      if (adapterId === 'codex') {
+        await this.configService.writeTomlConfigFile(
+          filePath,
+          schemaKey,
+          (current: Record<string, unknown>) =>
+            applyMcpEnvUpdate(current, adapterId, serverName, env, disabled),
+        );
+      } else {
+        await this.configService.writeConfigFile(filePath, schemaKey, (current: Record<string, unknown>) =>
+          applyMcpEnvUpdate(current, adapterId, serverName, env, disabled),
+        );
+      }
 
       this.outputChannel.appendLine(`[ConfigPanel] Updated MCP env for "${serverName}" (${scope})`);
       this.postMessage({ type: 'operationSuccess', op: 'updateMcpEnv', message: 'Settings saved' });

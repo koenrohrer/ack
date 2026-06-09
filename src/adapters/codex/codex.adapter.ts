@@ -43,6 +43,14 @@ export class CodexAdapter implements IPlatformAdapter {
     ToolType.McpServer,
     ToolType.CustomPrompt,
   ]);
+  readonly toggleableToolTypes: ReadonlySet<ToolType> = new Set([
+    ToolType.Skill,
+    ToolType.McpServer,
+  ]);
+  readonly movableToolTypes: ReadonlySet<ToolType> = new Set([
+    ToolType.Skill,
+    ToolType.McpServer,
+  ]);
 
   constructor(
     private readonly fileIO: FileIOService,

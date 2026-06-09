@@ -6,6 +6,11 @@ import { ToolType, ConfigScope, ToolStatus } from '../types/enums.js';
  */
 export type ToolAction = 'toggle' | 'delete' | 'move';
 
+export interface ToolActionCapabilities {
+  readonly toggleableToolTypes?: ReadonlySet<ToolType>;
+  readonly movableToolTypes?: ReadonlySet<ToolType>;
+}
+
 /**
  * Get the available actions for a given tool.
  *
@@ -17,7 +22,10 @@ export type ToolAction = 'toggle' | 'delete' | 'move';
  * - MCP servers: toggle (disabled field), delete, move
  * - Hooks: toggle (disabled field on matcher), delete, move
  */
-export function getAvailableActions(tool: NormalizedTool): ToolAction[] {
+export function getAvailableActions(
+  tool: NormalizedTool,
+  capabilities: ToolActionCapabilities = {},
+): ToolAction[] {
   if (isManaged(tool)) {
     return [];
   }
@@ -26,7 +34,19 @@ export function getAvailableActions(tool: NormalizedTool): ToolAction[] {
     return ['delete'];
   }
 
-  return ['toggle', 'delete', 'move'];
+  if (tool.type === ToolType.CustomPrompt) {
+    return ['delete'];
+  }
+
+  const actions: ToolAction[] = [];
+  if (canToggle(tool, capabilities)) {
+    actions.push('toggle');
+  }
+  actions.push('delete');
+  if (canMove(tool, capabilities)) {
+    actions.push('move');
+  }
+  return actions;
 }
 
 /**
@@ -41,8 +61,11 @@ export function getAvailableActions(tool: NormalizedTool): ToolAction[] {
  * - MCP servers: User <-> Project
  * - Hooks: User <-> Project (skip Local as target)
  */
-export function getMoveTargets(tool: NormalizedTool): ConfigScope[] {
-  if (isManaged(tool)) {
+export function getMoveTargets(
+  tool: NormalizedTool,
+  capabilities: Pick<ToolActionCapabilities, 'movableToolTypes'> = {},
+): ConfigScope[] {
+  if (isManaged(tool) || !canMove(tool, capabilities)) {
     return [];
   }
 
@@ -51,10 +74,61 @@ export function getMoveTargets(tool: NormalizedTool): ConfigScope[] {
 }
 
 /**
+ * Build a VS Code TreeItem contextValue with action markers before the
+ * final scope segment so existing scope suffix when-clauses keep working.
+ */
+export function buildToolContextValue(
+  tool: NormalizedTool,
+  capabilities: ToolActionCapabilities = {},
+): string {
+  const markers = getAvailableActions(tool, capabilities).map(actionMarker);
+  return ['tool', tool.type, tool.status, ...markers, tool.scope].join(':');
+}
+
+/**
  * Check if a tool is in the managed (read-only) scope.
  */
 export function isManaged(tool: NormalizedTool): boolean {
   return tool.scope === ConfigScope.Managed;
+}
+
+function canToggle(
+  tool: NormalizedTool,
+  capabilities: Pick<ToolActionCapabilities, 'toggleableToolTypes'>,
+): boolean {
+  if (tool.type === ToolType.CustomPrompt) {
+    return false;
+  }
+
+  return (
+    capabilities.toggleableToolTypes === undefined ||
+    capabilities.toggleableToolTypes.has(tool.type)
+  );
+}
+
+function canMove(
+  tool: NormalizedTool,
+  capabilities: Pick<ToolActionCapabilities, 'movableToolTypes'>,
+): boolean {
+  if (tool.type === ToolType.CustomPrompt) {
+    return false;
+  }
+
+  return (
+    capabilities.movableToolTypes === undefined ||
+    capabilities.movableToolTypes.has(tool.type)
+  );
+}
+
+function actionMarker(action: ToolAction): string {
+  switch (action) {
+    case 'toggle':
+      return 'toggleable';
+    case 'delete':
+      return 'deletable';
+    case 'move':
+      return 'movable';
+  }
 }
 
 /**

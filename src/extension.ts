@@ -219,11 +219,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
       const codexDir = CodexPaths.projectCodexDir(workspaceRoot);
       const configPath = CodexPaths.projectConfigToml(workspaceRoot);
-      const promptsDir = CodexPaths.projectPromptsDir(workspaceRoot);
       const skillsDir = CodexPaths.projectSkillsDir(workspaceRoot);
 
       const { mkdir } = await import('fs/promises');
-      await mkdir(promptsDir, { recursive: true });
       await mkdir(skillsDir, { recursive: true });
 
       // Create config.toml only if it doesn't exist

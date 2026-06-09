@@ -36,7 +36,7 @@ function makeEnvEntries(env: Record<string, string>): EnvEntry[] {
  * Editable form for MCP server environment variables.
  *
  * Displays read-only server info (command, args, transport) at the top,
- * an enabled/disabled toggle, and an editable env var section with
+ * an enabled/disabled toggle when supported, and an editable env var section with
  * add/remove capability. Uses ref-based native event binding for
  * web component textfields (same pattern as ConfigForm in marketplace).
  */
@@ -100,8 +100,11 @@ export function McpSettingsForm({ tool, settings, postMessage, onBack }: McpSett
     };
   }, [envEntries.length]);
 
-  // Attach native change event to enabled checkbox
+  // Attach native change event to enabled checkbox when status is editable.
   useEffect(() => {
+    if (!settings.canToggle) {
+      return;
+    }
     const el = enabledCheckboxRef.current;
     if (!el) {
       return;
@@ -111,7 +114,7 @@ export function McpSettingsForm({ tool, settings, postMessage, onBack }: McpSett
     };
     el.addEventListener('change', handler);
     return () => el.removeEventListener('change', handler);
-  }, []);
+  }, [settings.canToggle]);
 
   const handleAddEnvVar = useCallback(() => {
     setEnvEntries((prev) => [
@@ -140,9 +143,9 @@ export function McpSettingsForm({ tool, settings, postMessage, onBack }: McpSett
       serverName,
       scope: tool.scope,
       env,
-      disabled: !enabled,
+      disabled: settings.canToggle ? !enabled : undefined,
     });
-  }, [envEntries, enabled, serverName, tool.key, tool.scope, postMessage]);
+  }, [envEntries, enabled, serverName, settings.canToggle, tool.key, tool.scope, postMessage]);
 
   return (
     <div className="mcp-form">
@@ -181,18 +184,21 @@ export function McpSettingsForm({ tool, settings, postMessage, onBack }: McpSett
 
       <vscode-divider />
 
-      {/* Enabled/Disabled toggle */}
-      <div className="mcp-form__toggle">
-        <vscode-checkbox
-          ref={enabledCheckboxRef}
-          checked={enabled || undefined}
-          disabled={isManaged || undefined}
-        >
-          Enabled
-        </vscode-checkbox>
-      </div>
+      {settings.canToggle && (
+        <>
+          <div className="mcp-form__toggle">
+            <vscode-checkbox
+              ref={enabledCheckboxRef}
+              checked={enabled || undefined}
+              disabled={isManaged || undefined}
+            >
+              Enabled
+            </vscode-checkbox>
+          </div>
 
-      <vscode-divider />
+          <vscode-divider />
+        </>
+      )}
 
       {/* Environment Variables section */}
       <div className="mcp-form__env">

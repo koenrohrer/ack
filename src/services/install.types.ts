@@ -88,6 +88,8 @@ export interface InstallRequest {
   configValues?: Record<string, string>;
   /** Preserved user customizations on update (existing env values). */
   existingEnvValues?: Record<string, string>;
+  /** User confirmed replacement of an existing custom prompt. */
+  allowOverwrite?: boolean;
 }
 
 /**

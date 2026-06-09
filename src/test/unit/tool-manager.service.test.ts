@@ -6,6 +6,7 @@ import type { ConfigService } from '../../services/config.service.js';
 import { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import { ToolManagerService } from '../../services/tool-manager.service.js';
 import {
+  buildToolContextValue,
   getAvailableActions,
   getMoveTargets,
   isManaged,
@@ -75,6 +76,20 @@ function makeCommandTool(overrides: Partial<NormalizedTool> = {}): NormalizedToo
   });
 }
 
+function makeCustomPromptTool(overrides: Partial<NormalizedTool> = {}): NormalizedTool {
+  return makeTool({
+    id: 'custom_prompt:summarize',
+    type: ToolType.CustomPrompt,
+    name: 'summarize',
+    source: {
+      filePath: '/home/user/.codex/prompts/summarize.md',
+      isDirectory: false,
+    },
+    metadata: {},
+    ...overrides,
+  });
+}
+
 function createMockAdapter(): IPlatformAdapter {
   return {
     id: 'claude-code',
@@ -139,6 +154,26 @@ describe('tool-manager.utils', () => {
       const tool = makeTool({ status: ToolStatus.Disabled });
       expect(getAvailableActions(tool)).toEqual(['toggle', 'delete', 'move']);
     });
+
+    it('omits toggle and move when adapter capabilities exclude the tool type', () => {
+      const tool = makeMcpTool({ status: ToolStatus.Enabled });
+      expect(
+        getAvailableActions(tool, {
+          toggleableToolTypes: new Set([ToolType.Skill]),
+          movableToolTypes: new Set([ToolType.Skill]),
+        }),
+      ).toEqual(['delete']);
+    });
+
+    it('keeps Claude/Codex default action availability when no capability subset is provided', () => {
+      const tool = makeMcpTool({ status: ToolStatus.Enabled });
+      expect(getAvailableActions(tool, {})).toEqual(['toggle', 'delete', 'move']);
+    });
+
+    it('does not expose toggle or move for custom prompts', () => {
+      const tool = makeCustomPromptTool({ status: ToolStatus.Enabled });
+      expect(getAvailableActions(tool)).toEqual(['delete']);
+    });
   });
 
   describe('getMoveTargets', () => {
@@ -165,6 +200,46 @@ describe('tool-manager.utils', () => {
     it('returns [User, Project] for local-scope hook (neither user nor project)', () => {
       const tool = makeHookTool({ scope: ConfigScope.Local });
       expect(getMoveTargets(tool)).toEqual([ConfigScope.User, ConfigScope.Project]);
+    });
+
+    it('returns empty array when adapter capabilities exclude moves for the tool type', () => {
+      const tool = makeMcpTool({ scope: ConfigScope.Project });
+      expect(
+        getMoveTargets(tool, {
+          movableToolTypes: new Set([ToolType.Skill]),
+        }),
+      ).toEqual([]);
+    });
+
+    it('returns empty array for custom prompts', () => {
+      const tool = makeCustomPromptTool({ scope: ConfigScope.User });
+      expect(getMoveTargets(tool)).toEqual([]);
+    });
+  });
+
+  describe('buildToolContextValue', () => {
+    it('includes action markers before the final scope segment by default', () => {
+      const tool = makeMcpTool({ scope: ConfigScope.User });
+      expect(buildToolContextValue(tool)).toBe(
+        'tool:mcp_server:enabled:toggleable:deletable:movable:user',
+      );
+    });
+
+    it('omits unavailable action markers while preserving the final scope segment', () => {
+      const tool = makeMcpTool({ scope: ConfigScope.Project });
+      expect(
+        buildToolContextValue(tool, {
+          toggleableToolTypes: new Set([ToolType.Skill]),
+          movableToolTypes: new Set([ToolType.Skill]),
+        }),
+      ).toBe('tool:mcp_server:enabled:deletable:project');
+    });
+
+    it('omits toggleable and movable markers for custom prompts', () => {
+      const tool = makeCustomPromptTool({ scope: ConfigScope.User });
+      expect(buildToolContextValue(tool)).toBe(
+        'tool:custom_prompt:enabled:deletable:user',
+      );
     });
   });
 
@@ -333,6 +408,26 @@ describe('ToolManagerService', () => {
       expect(mockAdapter.toggleTool).toHaveBeenCalledWith(tool);
     });
 
+    it('rejects toggle when the active adapter excludes the tool type', async () => {
+      const restrictedAdapter = {
+        ...createMockAdapter(),
+        id: 'restricted',
+        displayName: 'Restricted',
+        toggleableToolTypes: new Set([ToolType.Skill]),
+      } as unknown as IPlatformAdapter;
+      registry.register(restrictedAdapter);
+      registry.setActiveAdapter('restricted');
+      service = new ToolManagerService(mockConfigService, registry);
+
+      const result = await service.toggleTool(makeMcpTool());
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Restricted cannot toggle mcp_server tools',
+      });
+      expect(restrictedAdapter.toggleTool).not.toHaveBeenCalled();
+    });
+
     it('catches adapter error and returns failure result', async () => {
       (mockAdapter.toggleTool as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
         new Error('File write failed'),
@@ -419,6 +514,36 @@ describe('ToolManagerService', () => {
       const removeCall = (mockAdapter.removeTool as ReturnType<typeof vi.fn>).mock
         .invocationCallOrder[0];
       expect(writeCall).toBeLessThan(removeCall);
+    });
+
+    it('rejects move when the active adapter excludes the tool type', async () => {
+      const restrictedAdapter = {
+        ...createMockAdapter(),
+        id: 'restricted',
+        displayName: 'Restricted',
+        movableToolTypes: new Set([ToolType.Skill]),
+      } as unknown as IPlatformAdapter;
+      registry.register(restrictedAdapter);
+      registry.setActiveAdapter('restricted');
+      service = new ToolManagerService(mockConfigService, registry);
+
+      const result = await service.moveTool(makeMcpTool(), ConfigScope.Project);
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Restricted cannot move mcp_server tools',
+      });
+      expect(restrictedAdapter.writeTool).not.toHaveBeenCalled();
+      expect(restrictedAdapter.removeTool).not.toHaveBeenCalled();
+    });
+
+    it('permits moves when the active adapter does not declare move capabilities', async () => {
+      const tool = makeMcpTool({ scope: ConfigScope.User });
+
+      const result = await service.moveTool(tool, ConfigScope.Project);
+
+      expect(result).toEqual({ success: true });
+      expect(mockAdapter.writeTool).toHaveBeenCalledWith(tool, ConfigScope.Project);
     });
 
     it('does NOT call removeTool if writeTool fails', async () => {

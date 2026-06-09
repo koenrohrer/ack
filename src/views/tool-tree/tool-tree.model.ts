@@ -2,6 +2,7 @@ import type { ConfigService } from '../../services/config.service.js';
 import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import type { NormalizedTool } from '../../types/config.js';
 import { ToolType, ConfigScope } from '../../types/enums.js';
+import { APPLICABLE_SCOPES } from '../../services/tool-scope.utils.js';
 import type {
   TreeNode,
   GroupNode,
@@ -30,29 +31,6 @@ const HOOK_EVENT_DISPLAY_NAMES: Record<string, string> = {
   Notification: 'Notification',
   Stop: 'Stop',
   SubagentStop: 'Subagent Stop',
-};
-
-/**
- * Which scopes apply to each tool type.
- *
- * Mirrors the constant in ConfigService -- duplicated here because
- * the model reads per-scope and needs to know which scopes to query.
- */
-const APPLICABLE_SCOPES: Record<ToolType, readonly ConfigScope[]> = {
-  [ToolType.Skill]: [ConfigScope.User, ConfigScope.Project],
-  [ToolType.Command]: [ConfigScope.User, ConfigScope.Project],
-  [ToolType.Hook]: [
-    ConfigScope.User,
-    ConfigScope.Project,
-    ConfigScope.Local,
-    ConfigScope.Managed,
-  ],
-  [ToolType.McpServer]: [
-    ConfigScope.User,
-    ConfigScope.Project,
-    ConfigScope.Managed,
-  ],
-  [ToolType.CustomPrompt]: [ConfigScope.User, ConfigScope.Project],
 };
 
 /**
