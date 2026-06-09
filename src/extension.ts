@@ -75,7 +75,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // 2. Core services
   const fileIO = new FileIOService();
-  const backup = new BackupService();
+  const backup = new BackupService(fileIO);
   const schemas = new SchemaService();
 
   // 3. Register schemas
@@ -118,7 +118,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const repoScannerService = new RepoScannerService(context.globalState);
 
   // 9c. Profile service for named tool presets
-  const profileService = new ProfileService(context.globalState, configService, toolManager, registry, outputChannel);
+  const profileService = new ProfileService(context.globalState, configService, toolManager, registry, fileIO, outputChannel);
 
   // 9c.1. Run profile migration before any profile operations
   // Migration is fire-and-forget at activation - errors logged but don't block

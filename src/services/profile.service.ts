@@ -1,9 +1,9 @@
 import * as crypto from 'crypto';
-import * as fs from 'fs/promises';
 import * as path from 'path';
 import type * as vscode from 'vscode';
 import type { ConfigService } from './config.service.js';
 import type { ToolManagerService } from './tool-manager.service.js';
+import type { FileIOService } from './fileio.service.js';
 import type { NormalizedTool } from '../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../types/enums.js';
 import { canonicalKey, extractToolTypeFromKey } from '../utils/tool-key.utils.js';
@@ -45,6 +45,7 @@ export class ProfileService {
     private readonly configService: ConfigService,
     private readonly toolManager: ToolManagerService,
     private readonly registry: AdapterRegistry,
+    private readonly fileIO: FileIOService,
     private readonly outputChannel?: vscode.OutputChannel,
   ) {}
 
@@ -814,12 +815,12 @@ export class ProfileService {
     const dirPath = tool.source.directoryPath;
     if (dirPath) {
       try {
-        const entries = await fs.readdir(dirPath, { withFileTypes: true });
+        const names = await this.fileIO.listFiles(dirPath);
         const files: { name: string; content: string }[] = [];
-        for (const entry of entries) {
-          if (entry.isFile()) {
-            const content = await fs.readFile(path.join(dirPath, entry.name), 'utf-8');
-            files.push({ name: entry.name, content });
+        for (const name of names) {
+          const content = await this.fileIO.readTextFile(path.join(dirPath, name));
+          if (content !== null) {
+            files.push({ name, content });
           }
         }
         return files;
@@ -831,9 +832,11 @@ export class ProfileService {
     // Single-file fallback
     if (tool.source.filePath) {
       try {
-        const content = await fs.readFile(tool.source.filePath, 'utf-8');
-        const name = path.basename(tool.source.filePath);
-        return [{ name, content }];
+        const content = await this.fileIO.readTextFile(tool.source.filePath);
+        if (content !== null) {
+          const name = path.basename(tool.source.filePath);
+          return [{ name, content }];
+        }
       } catch {
         // File unreadable
       }

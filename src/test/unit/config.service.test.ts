@@ -71,7 +71,7 @@ describe('ConfigService - scope resolution', () => {
 
   beforeEach(() => {
     fileIO = new FileIOService();
-    backup = new BackupService();
+    backup = new BackupService(fileIO);
     schemas = new SchemaService();
     schemas.registerSchemas(claudeCodeSchemas);
   });
@@ -339,7 +339,7 @@ describe('ConfigService - write pipeline', () => {
 
   beforeEach(() => {
     fileIO = new FileIOService();
-    backup = new BackupService();
+    backup = new BackupService(fileIO);
     schemas = new SchemaService();
     schemas.registerSchemas(claudeCodeSchemas);
     registry = new AdapterRegistry();

@@ -28,7 +28,7 @@ beforeEach(async () => {
   fileIO = new FileIOService();
   schemaService = new SchemaService();
   schemaService.registerSchemas(copilotSchemas);
-  backup = new BackupService();
+  backup = new BackupService(fileIO);
   registry = new AdapterRegistry();
   configService = new ConfigService(fileIO, backup, schemaService, registry);
 });
