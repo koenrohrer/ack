@@ -14,6 +14,7 @@ import type { NormalizedTool } from '../../types/config.js';
 import { ConfigService } from '../../services/config.service.js';
 import { BackupService } from '../../services/backup.service.js';
 import { createMockAdapter } from './helpers/mock-adapter.js';
+import { createMockFileIO } from './helpers/mock-fileio.js';
 
 /**
  * Build real, fully-typed write services for adapters whose toggle paths
@@ -344,10 +345,9 @@ Deploy everything.`);
   });
 
   it('detect returns false when neither exists', async () => {
-    const mockFileIO = {
-      ...fileIO,
+    const mockFileIO = createMockFileIO({
       async fileExists(): Promise<boolean> { return false; },
-    } as FileIOService;
+    });
 
     const adapter = new ClaudeCodeAdapter(mockFileIO, schemaService);
     const detected = await adapter.detect();

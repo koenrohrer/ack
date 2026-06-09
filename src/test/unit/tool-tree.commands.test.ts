@@ -1,24 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { getJsonPath, getRouteForTool } from '../../views/tool-tree/tool-tree.command-utils.js';
-import { ToolType } from '../../types/enums.js';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function makeTool(overrides: {
-  type: ToolType;
-  name?: string;
-  metadata?: Record<string, unknown>;
-  source?: { filePath: string };
-}) {
-  return {
-    type: overrides.type,
-    name: overrides.name ?? 'test-tool',
-    metadata: overrides.metadata ?? {},
-    source: overrides.source ?? { filePath: '' },
-  };
-}
+import { ToolType, ConfigScope } from '../../types/enums.js';
+import { makeTool } from './helpers/make-tool.js';
 
 // ---------------------------------------------------------------------------
 // getRouteForTool
@@ -26,19 +9,19 @@ function makeTool(overrides: {
 
 describe('getRouteForTool', () => {
   it('routes Skill to markdown', () => {
-    expect(getRouteForTool({ type: ToolType.Skill })).toBe('markdown');
+    expect(getRouteForTool(makeTool({ type: ToolType.Skill, name: 'test-tool', scope: ConfigScope.User }))).toBe('markdown');
   });
 
   it('routes Command to markdown', () => {
-    expect(getRouteForTool({ type: ToolType.Command })).toBe('markdown');
+    expect(getRouteForTool(makeTool({ type: ToolType.Command, name: 'test-tool', scope: ConfigScope.User }))).toBe('markdown');
   });
 
   it('routes McpServer to json', () => {
-    expect(getRouteForTool({ type: ToolType.McpServer })).toBe('json');
+    expect(getRouteForTool(makeTool({ type: ToolType.McpServer, name: 'test-tool', scope: ConfigScope.User }))).toBe('json');
   });
 
   it('routes Hook to json', () => {
-    expect(getRouteForTool({ type: ToolType.Hook })).toBe('json');
+    expect(getRouteForTool(makeTool({ type: ToolType.Hook, name: 'test-tool', scope: ConfigScope.User }))).toBe('json');
   });
 });
 
@@ -51,6 +34,7 @@ describe('getJsonPath', () => {
     const tool = makeTool({
       type: ToolType.McpServer,
       name: 'my-server',
+      scope: ConfigScope.User,
     });
     expect(getJsonPath(tool)).toEqual(['mcpServers', 'my-server']);
   });
@@ -59,6 +43,7 @@ describe('getJsonPath', () => {
     const tool = makeTool({
       type: ToolType.McpServer,
       name: 'my-server',
+      scope: ConfigScope.User,
       source: { filePath: '/home/user/.mcp.json' },
     });
     expect(getJsonPath(tool)).toEqual(['mcpServers', 'my-server']);
@@ -68,6 +53,7 @@ describe('getJsonPath', () => {
     const tool = makeTool({
       type: ToolType.McpServer,
       name: 'copilot-server',
+      scope: ConfigScope.Project,
       source: { filePath: '/workspace/my-project/.vscode/mcp.json' },
     });
     expect(getJsonPath(tool)).toEqual(['servers', 'copilot-server']);
@@ -77,6 +63,7 @@ describe('getJsonPath', () => {
     const tool = makeTool({
       type: ToolType.McpServer,
       name: 'copilot-user-server',
+      scope: ConfigScope.User,
       source: { filePath: '/Users/someone/Library/Application Support/Code/User/mcp.json' },
     });
     expect(getJsonPath(tool)).toEqual(['servers', 'copilot-user-server']);
@@ -86,6 +73,7 @@ describe('getJsonPath', () => {
     const tool = makeTool({
       type: ToolType.McpServer,
       name: 'win-copilot-server',
+      scope: ConfigScope.User,
       source: { filePath: 'C:\\Users\\user\\AppData\\Roaming\\Code\\User\\mcp.json' },
     });
     expect(getJsonPath(tool)).toEqual(['servers', 'win-copilot-server']);
@@ -95,18 +83,19 @@ describe('getJsonPath', () => {
     const tool = makeTool({
       type: ToolType.Hook,
       name: 'lint-check',
+      scope: ConfigScope.User,
       metadata: { eventName: 'PreToolUse' },
     });
     expect(getJsonPath(tool)).toEqual(['hooks', 'PreToolUse']);
   });
 
   it('returns empty array for Skill', () => {
-    const tool = makeTool({ type: ToolType.Skill });
+    const tool = makeTool({ type: ToolType.Skill, name: 'test-tool', scope: ConfigScope.User });
     expect(getJsonPath(tool)).toEqual([]);
   });
 
   it('returns empty array for Command', () => {
-    const tool = makeTool({ type: ToolType.Command });
+    const tool = makeTool({ type: ToolType.Command, name: 'test-tool', scope: ConfigScope.User });
     expect(getJsonPath(tool)).toEqual([]);
   });
 
@@ -114,6 +103,7 @@ describe('getJsonPath', () => {
     const tool = makeTool({
       type: ToolType.McpServer,
       name: '@scope/my-mcp-server',
+      scope: ConfigScope.User,
     });
     expect(getJsonPath(tool)).toEqual(['mcpServers', '@scope/my-mcp-server']);
   });
@@ -128,6 +118,8 @@ describe('getJsonPath', () => {
     for (const { eventName, expected } of cases) {
       const tool = makeTool({
         type: ToolType.Hook,
+        name: 'test-tool',
+        scope: ConfigScope.User,
         metadata: { eventName },
       });
       expect(getJsonPath(tool)).toEqual(expected);

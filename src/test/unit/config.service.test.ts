@@ -12,27 +12,13 @@ import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import type { IPlatformAdapter } from '../../types/adapter.js';
 import type { NormalizedTool } from '../../types/config.js';
 import { createMockAdapter as createBaseMockAdapter } from './helpers/mock-adapter.js';
+import { makeTool } from './helpers/make-tool.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 let tmpDir: string;
-
-function makeTool(overrides: Partial<NormalizedTool> & { name: string; scope: ConfigScope }): NormalizedTool {
-  return {
-    id: `${overrides.type ?? ToolType.McpServer}:${overrides.name}:${overrides.scope}`,
-    type: overrides.type ?? ToolType.McpServer,
-    name: overrides.name,
-    description: overrides.description,
-    scope: overrides.scope,
-    status: overrides.status ?? ToolStatus.Enabled,
-    statusDetail: overrides.statusDetail,
-    source: overrides.source ?? { filePath: `/fake/${overrides.scope}/${overrides.name}` },
-    metadata: overrides.metadata ?? {},
-    scopeEntries: overrides.scopeEntries,
-  };
-}
 
 function createMockAdapter(toolsByScope: Record<string, NormalizedTool[]> = {}): IPlatformAdapter {
   return createBaseMockAdapter({ toolsByScope });
