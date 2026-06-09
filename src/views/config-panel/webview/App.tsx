@@ -23,6 +23,10 @@ export function App() {
     tools,
     loading,
     error,
+    successMessage,
+    clearSuccess,
+    saving,
+    beginSave,
     activeTab,
     setActiveTab,
     selectedProfileId,
@@ -124,6 +128,33 @@ export function App() {
     </div>
   ) : null;
 
+  // --- Transient success confirmation (shared across all views) ---
+  const successBanner = successMessage !== null ? (
+    <div
+      className="config-panel__success"
+      style={{
+        padding: '8px 12px',
+        marginBottom: '8px',
+        background: 'var(--vscode-editorWidget-background)',
+        border: '1px solid var(--vscode-editorWidget-border)',
+        borderRadius: '4px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '8px',
+      }}
+    >
+      <span>{successMessage}</span>
+      <button
+        className="marketplace-filters__tab"
+        onClick={clearSuccess}
+        style={{ whiteSpace: 'nowrap' }}
+      >
+        Dismiss
+      </button>
+    </div>
+  ) : null;
+
   // --- Loading state ---
   if (loading) {
     return (
@@ -181,6 +212,8 @@ export function App() {
           <McpSettingsForm
             tool={selectedTool}
             settings={mcpSettings}
+            saving={saving}
+            onBeginSave={beginSave}
             postMessage={postMessage}
             onBack={() => setSelectedToolKey(null)}
           />
@@ -213,6 +246,7 @@ export function App() {
   return (
     <div className="config-panel">
       {agentBanner}
+      {successBanner}
       <h1 className="config-panel__title">Configure Agent</h1>
       <vscode-tabs
         ref={tabsRef}
@@ -227,6 +261,8 @@ export function App() {
               <ProfileEditor
                 profile={selectedProfile}
                 profileTools={profileTools}
+                saving={saving}
+                onBeginSave={beginSave}
                 postMessage={postMessage}
                 onBack={() => setSelectedProfileId(null)}
               />

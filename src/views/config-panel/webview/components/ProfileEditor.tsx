@@ -20,6 +20,8 @@ const TYPE_ORDER = ['skill', 'mcp_server', 'hook', 'command'];
 interface ProfileEditorProps {
   profile: ProfileInfo;
   profileTools: ProfileToolInfo[];
+  saving: boolean;
+  onBeginSave: () => void;
   postMessage: (msg: ConfigPanelWebMessage) => void;
   onBack: () => void;
 }
@@ -33,6 +35,8 @@ interface ProfileEditorProps {
 export function ProfileEditor({
   profile,
   profileTools,
+  saving,
+  onBeginSave,
   postMessage,
   onBack,
 }: ProfileEditorProps) {
@@ -124,8 +128,9 @@ export function ProfileEditor({
         enabled: toolStates.get(tool.key) ?? tool.enabled,
       });
     }
+    onBeginSave();
     postMessage({ type: 'updateProfileTools', id: profile.id, tools });
-  }, [profileTools, toolStates, postMessage, profile.id]);
+  }, [profileTools, toolStates, onBeginSave, postMessage, profile.id]);
 
   const setCheckboxRef = useCallback((key: string) => {
     return (el: HTMLElement | null) => {
@@ -173,7 +178,7 @@ export function ProfileEditor({
                       <vscode-checkbox
                         ref={setCheckboxRef(tool.key)}
                         checked={checked || undefined}
-                        disabled={isStale || undefined}
+                        disabled={isStale || saving || undefined}
                         label={tool.name}
                       >
                         {tool.name}
@@ -192,13 +197,14 @@ export function ProfileEditor({
       <div className="profile-editor__actions">
         <vscode-button
           appearance="primary"
-          disabled={!hasChanges || undefined}
+          disabled={!hasChanges || saving || undefined}
           onClick={handleSave}
         >
-          Save Changes
+          {saving ? 'Saving…' : 'Save Changes'}
         </vscode-button>
         <vscode-button
           appearance="secondary"
+          disabled={saving || undefined}
           onClick={onBack}
         >
           Cancel

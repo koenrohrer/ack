@@ -33,6 +33,8 @@ export function useConfigPanel() {
   const [tools, setTools] = useState<ToolInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // --- Profile editor state ---
   const [selectedProfileId, setSelectedProfileIdState] = useState<string | null>(null);
@@ -98,9 +100,13 @@ export function useConfigPanel() {
           break;
         case 'operationSuccess':
           setError(null);
+          setSuccessMessage(message.message);
+          setSaving(false);
           break;
         case 'operationError':
           setError(message.error);
+          setSuccessMessage(null);
+          setSaving(false);
           break;
       }
     };
@@ -174,6 +180,17 @@ export function useConfigPanel() {
     [postMessage],
   );
 
+  // --- Mark a save as in-flight (cleared by operationSuccess/operationError) ---
+  const beginSave = useCallback(() => {
+    setSuccessMessage(null);
+    setSaving(true);
+  }, []);
+
+  // --- Dismiss the transient success message ---
+  const clearSuccess = useCallback(() => {
+    setSuccessMessage(null);
+  }, []);
+
   return {
     // Data
     profiles,
@@ -181,6 +198,10 @@ export function useConfigPanel() {
     tools,
     loading,
     error,
+    successMessage,
+    clearSuccess,
+    saving,
+    beginSave,
 
     // Profile editor
     selectedProfileId,
