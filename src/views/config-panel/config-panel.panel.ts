@@ -585,7 +585,7 @@ export class ConfigPanel {
       const disableField = adapter?.getMcpDisableField();
 
       // Codex stores MCP servers in config.toml; all other adapters use JSON.
-      if (adapter?.id === 'codex') {
+      if (adapter?.getMcpConfigFormat() === 'toml') {
         await this.configService.writeTomlConfigFile(
           filePath,
           schemaKey,

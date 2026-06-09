@@ -1,10 +1,8 @@
 import { execFile } from 'child_process';
-import * as path from 'path';
 import { promisify } from 'util';
 import type { RegistryService } from './registry.service.js';
 import type { ConfigService } from './config.service.js';
 import type { AdapterRegistry } from '../adapters/adapter.registry.js';
-import type { FileIOService } from './fileio.service.js';
 import type { RegistrySource } from './registry.types.js';
 import type {
   ToolManifest,
@@ -43,6 +41,16 @@ function hasInstructionInstaller(adapter: unknown): adapter is InstructionInstal
   return typeof (adapter as { installInstruction?: unknown }).installInstruction === 'function';
 }
 
+type CustomPromptInstallAdapter = {
+  getCustomPromptInstallScope(): ConfigScope;
+  getCustomPromptInstallName(manifestName: string): string;
+  installCustomPrompt(manifestName: string, content: string): Promise<void>;
+};
+
+function hasCustomPromptInstaller(adapter: unknown): adapter is CustomPromptInstallAdapter {
+  return typeof (adapter as { installCustomPrompt?: unknown }).installCustomPrompt === 'function';
+}
+
 /**
  * Pure orchestrator service for one-click tool installation.
  *
@@ -58,7 +66,6 @@ export class InstallService {
     private readonly registryService: RegistryService,
     private readonly configService: ConfigService,
     private readonly registry: AdapterRegistry,
-    private readonly fileIOService: FileIOService,
     private readonly workspaceRoot?: string,
   ) {}
 
@@ -154,8 +161,8 @@ export class InstallService {
     if (hasInstructionInstaller(adapter)) {
       return ConfigScope.Project;
     }
-    if (adapter.id === 'codex') {
-      return ConfigScope.User;
+    if (hasCustomPromptInstaller(adapter)) {
+      return adapter.getCustomPromptInstallScope();
     }
     return requestedScope;
   }
@@ -184,9 +191,9 @@ export class InstallService {
       }
     }
 
-    if (adapter.id === 'codex' && manifest.name.endsWith('.md')) {
+    if (hasCustomPromptInstaller(adapter)) {
       return {
-        name: manifest.name.slice(0, -'.md'.length),
+        name: adapter.getCustomPromptInstallName(manifest.name),
         scope,
       };
     }
@@ -270,15 +277,8 @@ export class InstallService {
       };
     }
 
-    if (adapter.id === 'codex') {
-      const codexFileName = manifest.name.endsWith('.md')
-        ? manifest.name
-        : `${manifest.name}.md`;
-      const { CodexPaths } = await import('../adapters/codex/paths.js');
-      await this.fileIOService.writeTextFile(
-        path.join(CodexPaths.userPromptsDir, codexFileName),
-        content,
-      );
+    if (hasCustomPromptInstaller(adapter)) {
+      await adapter.installCustomPrompt(manifest.name, content);
 
       return {
         success: true,

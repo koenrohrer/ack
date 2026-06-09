@@ -353,6 +353,10 @@ export class CopilotAdapter implements IPlatformAdapter {
     return undefined;
   }
 
+  getMcpConfigFormat(): 'toml' | 'json' {
+    return 'json';
+  }
+
   // ---------------------------------------------------------------------------
   // IPathAdapter -- getSkillsDir
   // ---------------------------------------------------------------------------

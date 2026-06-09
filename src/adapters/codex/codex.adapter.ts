@@ -326,6 +326,10 @@ export class CodexAdapter implements IPlatformAdapter {
     return { field: 'enabled', disabledValue: false };
   }
 
+  getMcpConfigFormat(): 'toml' | 'json' {
+    return 'toml';
+  }
+
   // ---------------------------------------------------------------------------
   // IPathAdapter -- getSkillsDir
   // ---------------------------------------------------------------------------
@@ -435,6 +439,45 @@ export class CodexAdapter implements IPlatformAdapter {
     _matcherGroup: { matcher: string; hooks: unknown[] },
   ): Promise<void> {
     throw new AdapterScopeError('Codex', scope, 'installHook (Codex does not support hooks)');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Codex-specific -- custom prompt install
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Scope where Codex custom prompts are installed.
+   *
+   * Codex prompts are user-scoped markdown files under ~/.codex/prompts,
+   * regardless of the requested scope.
+   */
+  getCustomPromptInstallScope(): ConfigScope {
+    return ConfigScope.User;
+  }
+
+  /**
+   * Derive the installed identity of a custom prompt from its manifest name.
+   *
+   * Codex prompt files are `<name>.md`; the displayed name strips the
+   * trailing `.md` so it matches the parsed prompt name.
+   */
+  getCustomPromptInstallName(manifestName: string): string {
+    return manifestName.endsWith('.md')
+      ? manifestName.slice(0, -'.md'.length)
+      : manifestName;
+  }
+
+  /**
+   * Write custom prompt content to ~/.codex/prompts/<name>.md.
+   */
+  async installCustomPrompt(manifestName: string, content: string): Promise<void> {
+    const fileName = manifestName.endsWith('.md')
+      ? manifestName
+      : `${manifestName}.md`;
+    await this.fileIO.writeTextFile(
+      path.join(CodexPaths.userPromptsDir, fileName),
+      content,
+    );
   }
 
   // ---------------------------------------------------------------------------

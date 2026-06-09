@@ -119,7 +119,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // 9. Install service for one-click marketplace installs
   const installService = new InstallService(
-    registryService, configService, registry, fileIO, workspaceRoot,
+    registryService, configService, registry, workspaceRoot,
   );
 
   // 9b. Repo scanner service for marketplace discovery

@@ -47,4 +47,13 @@ export interface IMcpAdapter {
    * Codex uses `{ field: 'enabled', disabledValue: false }`.
    */
   getMcpDisableField(): { field: string; disabledValue: unknown } | undefined;
+
+  /**
+   * The on-disk format of the MCP config file.
+   *
+   * Codex stores MCP servers in `config.toml` -> `'toml'`; Claude Code and
+   * Copilot use JSON files -> `'json'`. Lets callers pick the right reader/
+   * writer without branching on adapter id.
+   */
+  getMcpConfigFormat(): 'toml' | 'json';
 }

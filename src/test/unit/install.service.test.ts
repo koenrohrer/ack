@@ -145,7 +145,31 @@ type MockAdapterOverrides = Partial<IPlatformAdapter> & {
     filename: string,
     content: string,
   ) => Promise<void>;
+  getCustomPromptInstallScope?: () => ConfigScope;
+  getCustomPromptInstallName?: (manifestName: string) => string;
+  installCustomPrompt?: (manifestName: string, content: string) => Promise<void>;
 };
+
+/**
+ * Codex custom-prompt install capability for mock adapters.
+ *
+ * Mirrors CodexAdapter: user-scoped, strips trailing `.md` from the name, and
+ * writes content to ~/.codex/prompts/<name>.md via the provided FileIOService.
+ */
+function codexCustomPromptCapability(fileIO: FileIOService): MockAdapterOverrides {
+  return {
+    getCustomPromptInstallScope: () => ConfigScope.User,
+    getCustomPromptInstallName: (manifestName: string) =>
+      manifestName.endsWith('.md') ? manifestName.slice(0, -'.md'.length) : manifestName,
+    installCustomPrompt: async (manifestName: string, content: string) => {
+      const fileName = manifestName.endsWith('.md') ? manifestName : `${manifestName}.md`;
+      await fileIO.writeTextFile(
+        path.join(os.homedir(), '.codex', 'prompts', fileName),
+        content,
+      );
+    },
+  };
+}
 
 function createMockAdapter(overrides: MockAdapterOverrides = {}): IPlatformAdapter {
   return {
@@ -211,7 +235,6 @@ describe('InstallService', () => {
       mockRegistryService,
       mockConfigService,
       registry,
-      mockFileIOService,
       '/workspace',
     );
   });
@@ -225,7 +248,6 @@ describe('InstallService', () => {
       mockRegistryService,
       mockConfigService,
       registry,
-      mockFileIOService,
       '/workspace',
     );
   }
@@ -560,6 +582,7 @@ describe('InstallService', () => {
         id: 'codex',
         displayName: 'Codex',
         supportedToolTypes: new Set([ToolType.CustomPrompt]),
+        ...codexCustomPromptCapability(mockFileIOService),
       });
       activateAdapter(codexAdapter);
 
@@ -586,6 +609,7 @@ describe('InstallService', () => {
         id: 'codex',
         displayName: 'Codex',
         supportedToolTypes: new Set([ToolType.CustomPrompt]),
+        ...codexCustomPromptCapability(mockFileIOService),
       });
       activateAdapter(codexAdapter);
       (mockConfigService.readToolsByScope as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
@@ -620,6 +644,7 @@ describe('InstallService', () => {
         id: 'codex',
         displayName: 'Codex',
         supportedToolTypes: new Set([ToolType.CustomPrompt]),
+        ...codexCustomPromptCapability(mockFileIOService),
       });
       activateAdapter(codexAdapter);
 
@@ -736,6 +761,7 @@ describe('InstallService', () => {
         id: 'codex',
         displayName: 'Codex',
         supportedToolTypes: new Set([ToolType.CustomPrompt]),
+        ...codexCustomPromptCapability(mockFileIOService),
       });
       activateAdapter(codexAdapter);
       (mockConfigService.readToolsByScope as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
@@ -773,6 +799,7 @@ describe('InstallService', () => {
         id: 'codex',
         displayName: 'Codex',
         supportedToolTypes: new Set([ToolType.CustomPrompt]),
+        ...codexCustomPromptCapability(mockFileIOService),
       });
       activateAdapter(codexAdapter);
       (mockRegistryService.fetchToolFile as ReturnType<typeof vi.fn>)

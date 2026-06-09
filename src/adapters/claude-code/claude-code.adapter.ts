@@ -288,6 +288,10 @@ export class ClaudeCodeAdapter implements IPlatformAdapter {
     return { field: 'disabled', disabledValue: true };
   }
 
+  getMcpConfigFormat(): 'toml' | 'json' {
+    return 'json';
+  }
+
   // ---------------------------------------------------------------------------
   // IPathAdapter
   // ---------------------------------------------------------------------------
