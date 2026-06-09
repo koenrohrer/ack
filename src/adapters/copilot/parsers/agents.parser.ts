@@ -10,11 +10,10 @@
  *
  * Results are sorted alphabetically by name.
  */
-import * as path from 'path';
 import type { FileIOService } from '../../../services/fileio.service.js';
 import type { NormalizedTool } from '../../../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../../types/enums.js';
-import { extractFrontmatter } from '../../../utils/markdown.js';
+import { parseMarkdownToolDir } from '../../shared/markdown-tool-dir.js';
 import { CopilotPaths } from '../paths.js';
 
 /**
@@ -33,27 +32,15 @@ export async function parseCopilotAgents(
   workspaceRoot: string,
 ): Promise<NormalizedTool[]> {
   const agentsDir = CopilotPaths.workspaceAgentsDir(workspaceRoot);
-  const filenames = await fileIO.listFiles(agentsDir, '.agent.md');
 
-  const tools: NormalizedTool[] = [];
-
-  for (const filename of filenames) {
-    const filePath = path.join(agentsDir, filename);
-    const content = await fileIO.readTextFile(filePath);
-    if (content === null) {
-      continue;
-    }
-
-    const baseName = path.basename(filename, '.agent.md');
-    const fm = extractFrontmatter(content);
-
+  return parseMarkdownToolDir(fileIO, agentsDir, '.agent.md', ({ baseName, fm, filePath, content }) => {
     // String comparison — extractFrontmatter returns strings, NOT booleans
     const status =
       fm?.frontmatter['user-invokable'] === 'false'
         ? ToolStatus.Disabled
         : ToolStatus.Enabled;
 
-    tools.push({
+    return {
       id: `skill:project:${baseName}`,
       type: ToolType.Skill,
       scope: ConfigScope.Project,
@@ -66,11 +53,6 @@ export async function parseCopilotAgents(
         userInvokable: status === ToolStatus.Enabled,
         body: fm?.body ?? content,
       },
-    });
-  }
-
-  // Sort alphabetically by name
-  tools.sort((a, b) => a.name.localeCompare(b.name));
-
-  return tools;
+    };
+  });
 }

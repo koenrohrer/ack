@@ -8,11 +8,10 @@
  * parseable by extractFrontmatter() which handles flat key:value pairs only.
  * This is acceptable for Phase 22 — do not attempt to parse it.
  */
-import * as path from 'path';
 import type { FileIOService } from '../../../services/fileio.service.js';
 import type { NormalizedTool } from '../../../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../../types/enums.js';
-import { extractFrontmatter } from '../../../utils/markdown.js';
+import { parseMarkdownToolDir } from '../../shared/markdown-tool-dir.js';
 import { CopilotPaths } from '../paths.js';
 
 /**
@@ -26,41 +25,20 @@ export async function parseCopilotPrompts(
   workspaceRoot: string,
 ): Promise<NormalizedTool[]> {
   const promptsDir = CopilotPaths.workspacePromptsDir(workspaceRoot);
-  const filenames = await fileIO.listFiles(promptsDir, '.prompt.md');
 
-  const tools: NormalizedTool[] = [];
-
-  for (const filename of filenames) {
-    const filePath = path.join(promptsDir, filename);
-    const content = await fileIO.readTextFile(filePath);
-    if (content === null) {
-      continue;
-    }
-
-    const baseName = path.basename(filename, '.prompt.md');
-    const fm = extractFrontmatter(content);
-    const description = fm?.frontmatter['description'];
-    // Copilot uses both 'mode' and 'agent' field names; prefer 'mode'
-    const mode = fm?.frontmatter['mode'] ?? fm?.frontmatter['agent'];
-
-    tools.push({
-      id: `prompt:project:${baseName}`,
-      type: ToolType.CustomPrompt,
-      scope: ConfigScope.Project,
-      status: ToolStatus.Enabled,
-      name: baseName,
-      description,
-      source: { filePath, isDirectory: false },
-      metadata: {
-        instructionKind: 'prompt',
-        mode,
-        body: fm?.body ?? content,
-      },
-    });
-  }
-
-  // Sort alphabetically by name
-  tools.sort((a, b) => a.name.localeCompare(b.name));
-
-  return tools;
+  return parseMarkdownToolDir(fileIO, promptsDir, '.prompt.md', ({ baseName, fm, filePath, content }) => ({
+    id: `prompt:project:${baseName}`,
+    type: ToolType.CustomPrompt,
+    scope: ConfigScope.Project,
+    status: ToolStatus.Enabled,
+    name: baseName,
+    description: fm?.frontmatter['description'],
+    source: { filePath, isDirectory: false },
+    metadata: {
+      instructionKind: 'prompt',
+      // Copilot uses both 'mode' and 'agent' field names; prefer 'mode'
+      mode: fm?.frontmatter['mode'] ?? fm?.frontmatter['agent'],
+      body: fm?.body ?? content,
+    },
+  }));
 }
