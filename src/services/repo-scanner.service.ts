@@ -450,11 +450,11 @@ export class RepoScannerService {
   /**
    * Walk file paths and detect tools by pattern matching.
    *
- * Patterns:
- * - any-path/SKILL.md -> skill (name from parent directory)
- * - Root .mcp.json -> MCP server(s)
- * - .claude/commands/name.md or commands/name.md -> commands
- * - .github/prompts/name.prompt.md -> custom prompt
+   * Patterns:
+   * - any-path/SKILL.md -> skill (name from parent directory)
+   * - Root .mcp.json -> MCP server(s)
+   * - .claude/commands/name.md or commands/name.md -> commands
+   * - .github/prompts/name.prompt.md -> custom prompt
    */
   private detectTools(
     filePaths: string[],
