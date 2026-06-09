@@ -8,6 +8,7 @@ import type { ConfigService } from '../../services/config.service.js';
 import type { RegistryService } from '../../services/registry.service.js';
 import type { FileIOService } from '../../services/fileio.service.js';
 import type { IPlatformAdapter } from '../../types/adapter.js';
+import { createMockAdapter as createBaseMockAdapter } from './helpers/mock-adapter.js';
 import { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import { InstallService } from '../../services/install.service.js';
 import type {
@@ -172,7 +173,7 @@ function codexCustomPromptCapability(fileIO: FileIOService): MockAdapterOverride
 }
 
 function createMockAdapter(overrides: MockAdapterOverrides = {}): IPlatformAdapter {
-  return {
+  return createBaseMockAdapter({
     id: 'claude-code',
     displayName: 'Claude Code',
     supportedToolTypes: new Set([ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command]),
@@ -192,7 +193,7 @@ function createMockAdapter(overrides: MockAdapterOverrides = {}): IPlatformAdapt
     getWatchPaths: vi.fn().mockReturnValue([]),
     detect: vi.fn().mockResolvedValue(true),
     ...overrides,
-  } as unknown as IPlatformAdapter;
+  });
 }
 
 function makeInstallRequest(

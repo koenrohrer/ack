@@ -3,6 +3,7 @@ import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import type { NormalizedTool } from '../../types/config.js';
 import type { IPlatformAdapter } from '../../types/adapter.js';
 import type { ConfigService } from '../../services/config.service.js';
+import { createMockAdapter as createBaseMockAdapter } from './helpers/mock-adapter.js';
 import { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import { ToolManagerService } from '../../services/tool-manager.service.js';
 import {
@@ -91,7 +92,7 @@ function makeCustomPromptTool(overrides: Partial<NormalizedTool> = {}): Normaliz
 }
 
 function createMockAdapter(): IPlatformAdapter {
-  return {
+  return createBaseMockAdapter({
     id: 'claude-code',
     displayName: 'Claude Code',
     supportedToolTypes: new Set([ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command]),
@@ -101,7 +102,7 @@ function createMockAdapter(): IPlatformAdapter {
     toggleTool: vi.fn().mockResolvedValue(undefined),
     getWatchPaths: vi.fn().mockReturnValue([]),
     detect: vi.fn().mockResolvedValue(true),
-  } as unknown as IPlatformAdapter;
+  });
 }
 
 function createMockConfigService(): ConfigService {
@@ -409,12 +410,12 @@ describe('ToolManagerService', () => {
     });
 
     it('rejects toggle when the active adapter excludes the tool type', async () => {
-      const restrictedAdapter = {
+      const restrictedAdapter: IPlatformAdapter = {
         ...createMockAdapter(),
         id: 'restricted',
         displayName: 'Restricted',
         toggleableToolTypes: new Set([ToolType.Skill]),
-      } as unknown as IPlatformAdapter;
+      };
       registry.register(restrictedAdapter);
       registry.setActiveAdapter('restricted');
       service = new ToolManagerService(mockConfigService, registry);
@@ -517,12 +518,12 @@ describe('ToolManagerService', () => {
     });
 
     it('rejects move when the active adapter excludes the tool type', async () => {
-      const restrictedAdapter = {
+      const restrictedAdapter: IPlatformAdapter = {
         ...createMockAdapter(),
         id: 'restricted',
         displayName: 'Restricted',
         movableToolTypes: new Set([ToolType.Skill]),
-      } as unknown as IPlatformAdapter;
+      };
       registry.register(restrictedAdapter);
       registry.setActiveAdapter('restricted');
       service = new ToolManagerService(mockConfigService, registry);

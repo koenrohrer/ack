@@ -11,6 +11,7 @@ import { claudeCodeSchemas } from '../../adapters/claude-code/schemas.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import type { IPlatformAdapter } from '../../types/adapter.js';
 import type { NormalizedTool } from '../../types/config.js';
+import { createMockAdapter as createBaseMockAdapter } from './helpers/mock-adapter.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -34,19 +35,7 @@ function makeTool(overrides: Partial<NormalizedTool> & { name: string; scope: Co
 }
 
 function createMockAdapter(toolsByScope: Record<string, NormalizedTool[]> = {}): IPlatformAdapter {
-  return {
-    id: 'mock',
-    displayName: 'Mock Platform',
-    supportedToolTypes: new Set([ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command]),
-    async readTools(type: ToolType, scope: ConfigScope): Promise<NormalizedTool[]> {
-      const key = `${type}:${scope}`;
-      return toolsByScope[key] ?? [];
-    },
-    async writeTool() {},
-    async removeTool() {},
-    getWatchPaths() { return []; },
-    async detect() { return true; },
-  };
+  return createBaseMockAdapter({ toolsByScope });
 }
 
 beforeEach(async () => {
@@ -103,7 +92,7 @@ describe('ConfigService - scope resolution', () => {
       source: { filePath: '/workspace/.github/prompts/review.prompt.md' },
     });
     const readScopes: ConfigScope[] = [];
-    const adapter: IPlatformAdapter = {
+    const adapter = createBaseMockAdapter({
       id: 'copilot',
       displayName: 'GitHub Copilot',
       supportedToolTypes: new Set([ToolType.CustomPrompt]),
@@ -112,11 +101,7 @@ describe('ConfigService - scope resolution', () => {
         readScopes.push(scope);
         return scope === ConfigScope.Project ? [projectPrompt] : [];
       },
-      async writeTool() {},
-      async removeTool() {},
-      getWatchPaths() { return []; },
-      async detect() { return true; },
-    };
+    });
     const registry = new AdapterRegistry();
     registry.register(adapter);
     registry.setActiveAdapter('copilot');
@@ -296,7 +281,7 @@ describe('ConfigService - scope resolution', () => {
   });
 
   it('catches read errors and returns error-status tools', async () => {
-    const errorAdapter: IPlatformAdapter = {
+    const errorAdapter = createBaseMockAdapter({
       id: 'error-mock',
       displayName: 'Error Mock',
       supportedToolTypes: new Set([ToolType.McpServer]),
@@ -306,11 +291,7 @@ describe('ConfigService - scope resolution', () => {
         }
         return [];
       },
-      async writeTool() {},
-      async removeTool() {},
-      getWatchPaths() { return []; },
-      async detect() { return true; },
-    };
+    });
 
     const registry = new AdapterRegistry();
     registry.register(errorAdapter);
