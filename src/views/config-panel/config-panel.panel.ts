@@ -438,6 +438,7 @@ export class ConfigPanel {
       this.outputChannel.appendLine(
         `[ConfigPanel] Updated profile ${profileId} tools (${profileToolEntries.length} entries)`,
       );
+      this.postMessage({ type: 'operationSuccess', op: 'updateProfileTools', message: 'Profile saved' });
 
       // If this is the active profile, re-apply so tool states reflect the changes
       const activeId = this.profileService.getActiveProfileId();
