@@ -11,6 +11,14 @@ export interface ILifecycleAdapter {
   readonly displayName: string;
 
   /**
+   * When true, the agent is omitted entirely from agent-selection UI while
+   * undetected (rather than shown as "not detected"). Copilot sets this
+   * because it must not appear unless its VS Code extension is installed.
+   * Absent/false for adapters that are always listed.
+   */
+  readonly hideWhenUndetected?: boolean;
+
+  /**
    * Detect whether this platform is available on the current system.
    */
   detect(): Promise<boolean>;

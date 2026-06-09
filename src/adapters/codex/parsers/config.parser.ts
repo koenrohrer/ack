@@ -1,7 +1,9 @@
 import type { FileIOService } from '../../../services/fileio.service.js';
 import type { SchemaService } from '../../../services/schema.service.js';
-import { ToolType, ConfigScope, ToolStatus } from '../../../types/enums.js';
+import { ConfigScope, ToolStatus } from '../../../types/enums.js';
 import type { NormalizedTool } from '../../../types/config.js';
+import { makeMcpErrorTool } from '../../shared/mcp-error-tool.js';
+import { extractMcpServers } from '../../shared/mcp-extract.js';
 
 /**
  * Data shape for a single MCP server entry after validation.
@@ -48,7 +50,7 @@ export async function parseCodexConfigMcpServers(
 
   // 3. Read error (permissions, malformed TOML) -- return error tool
   if (!readResult.success) {
-    return [makeErrorTool(filePath, scope, readResult.error)];
+    return [makeMcpErrorTool(filePath, scope, readResult.error, { idSegment: 'codex:', name: 'Codex Config Error' })];
   }
 
   // 4. Validate against the codex-config schema
@@ -83,19 +85,13 @@ function extractServers(
   scope: ConfigScope,
   filePath: string,
 ): NormalizedTool[] {
-  const tools: NormalizedTool[] = [];
-
-  for (const [serverName, config] of Object.entries(servers)) {
-    // Codex: enabled defaults to true; enabled:false means disabled
-    const isDisabled = config.enabled === false;
-
-    tools.push({
-      id: `mcp:codex:${scope}:${serverName}`,
-      type: ToolType.McpServer,
-      name: serverName,
-      scope,
-      status: isDisabled ? ToolStatus.Disabled : ToolStatus.Enabled,
-      source: { filePath },
+  return extractMcpServers(
+    servers,
+    scope,
+    filePath,
+    (config) => ({
+      // Codex: enabled defaults to true; enabled:false means disabled
+      status: config.enabled === false ? ToolStatus.Disabled : ToolStatus.Enabled,
       metadata: {
         command: config.command,
         args: config.args ?? [],
@@ -105,27 +101,8 @@ function extractServers(
         enabled_tools: config.enabled_tools,
         disabled_tools: config.disabled_tools,
       },
-    });
-  }
-
-  return tools;
+    }),
+    'codex:',
+  );
 }
 
-/**
- * Create an error-status NormalizedTool for read failures.
- *
- * Mirrors the pattern used by Claude Code's MCP parser for consistency
- * in how errors surface to the UI.
- */
-function makeErrorTool(filePath: string, scope: ConfigScope, detail: string): NormalizedTool {
-  return {
-    id: `mcp-error:codex:${scope}:${filePath}`,
-    type: ToolType.McpServer,
-    name: 'Codex Config Error',
-    scope,
-    status: ToolStatus.Error,
-    statusDetail: detail,
-    source: { filePath },
-    metadata: {},
-  };
-}

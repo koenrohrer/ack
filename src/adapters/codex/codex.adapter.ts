@@ -318,6 +318,14 @@ export class CodexAdapter implements IPlatformAdapter {
     return 'codex-config';
   }
 
+  getMcpContainerKey(): string {
+    return 'mcp_servers';
+  }
+
+  getMcpDisableField(): { field: string; disabledValue: unknown } {
+    return { field: 'enabled', disabledValue: false };
+  }
+
   // ---------------------------------------------------------------------------
   // IPathAdapter -- getSkillsDir
   // ---------------------------------------------------------------------------

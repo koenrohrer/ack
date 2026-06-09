@@ -87,21 +87,29 @@ export function activate(context: vscode.ExtensionContext): void {
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
   // 5. Adapter setup
+  // Register all adapters by iterating a single list. Adding a new adapter
+  // is one array entry — construction, registration, and write-service
+  // injection are all driven from here.
   const registry = new AdapterRegistry();
-  const claudeAdapter = new ClaudeCodeAdapter(fileIO, schemas, workspaceRoot);
-  registry.register(claudeAdapter);
-  const codexAdapter = new CodexAdapter(fileIO, schemas, workspaceRoot);
-  registry.register(codexAdapter);
-  const copilotAdapter = new CopilotAdapter(fileIO, schemas, workspaceRoot, context);
-  registry.register(copilotAdapter);
+  const adapters = [
+    new ClaudeCodeAdapter(fileIO, schemas, workspaceRoot),
+    new CodexAdapter(fileIO, schemas, workspaceRoot),
+    new CopilotAdapter(fileIO, schemas, workspaceRoot, context),
+  ];
+  for (const adapter of adapters) {
+    registry.register(adapter);
+  }
+
+  // Codex needs an individual reference later for Codex-specific notifications.
+  const codexAdapter = adapters.find((a): a is CodexAdapter => a instanceof CodexAdapter)!;
 
   // 6. Config service (the main API for reading/writing tool configs)
   const configService = new ConfigService(fileIO, backup, schemas, registry);
 
   // 6b. Inject write services into adapters now that configService exists
-  claudeAdapter.setWriteServices(configService, backup);
-  codexAdapter.setWriteServices(configService, backup);
-  copilotAdapter.setWriteServices(configService, backup);
+  for (const adapter of adapters) {
+    adapter.setWriteServices(configService, backup);
+  }
 
   // 7. Tool management service
   const toolManager = new ToolManagerService(configService, registry);

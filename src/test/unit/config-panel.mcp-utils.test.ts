@@ -4,11 +4,16 @@ import {
   canToggleMcpStatus,
 } from '../../views/config-panel/config-panel.mcp-utils.js';
 
+// Capability shapes as returned by each adapter's getMcpContainerKey()/getMcpDisableField().
+const CLAUDE = { key: 'mcpServers', disable: { field: 'disabled', disabledValue: true } };
+const CODEX = { key: 'mcp_servers', disable: { field: 'enabled', disabledValue: false } };
+const COPILOT = { key: 'servers', disable: undefined };
+
 describe('config panel MCP update helpers', () => {
   it('exposes status toggle only for adapters that persist MCP status', () => {
-    expect(canToggleMcpStatus('claude-code')).toBe(true);
-    expect(canToggleMcpStatus('codex')).toBe(true);
-    expect(canToggleMcpStatus('copilot')).toBe(false);
+    expect(canToggleMcpStatus(CLAUDE.disable)).toBe(true);
+    expect(canToggleMcpStatus(CODEX.disable)).toBe(true);
+    expect(canToggleMcpStatus(COPILOT.disable)).toBe(false);
   });
 
   it('updates Claude-style mcpServers env and disabled flag', () => {
@@ -24,7 +29,8 @@ describe('config panel MCP update helpers', () => {
 
     const updated = applyMcpEnvUpdate(
       current,
-      'claude-code',
+      CLAUDE.key,
+      CLAUDE.disable,
       'github',
       { TOKEN: 'secret' },
       true,
@@ -56,7 +62,8 @@ describe('config panel MCP update helpers', () => {
 
     const updated = applyMcpEnvUpdate(
       current,
-      'copilot',
+      COPILOT.key,
+      COPILOT.disable,
       'github',
       { TOKEN: 'secret' },
       true,
@@ -88,7 +95,8 @@ describe('config panel MCP update helpers', () => {
 
     const disabled = applyMcpEnvUpdate(
       current,
-      'codex',
+      CODEX.key,
+      CODEX.disable,
       'github',
       { TOKEN: 'secret' },
       true,
@@ -107,7 +115,8 @@ describe('config panel MCP update helpers', () => {
 
     const enabled = applyMcpEnvUpdate(
       disabled,
-      'codex',
+      CODEX.key,
+      CODEX.disable,
       'github',
       { TOKEN: 'secret' },
       false,

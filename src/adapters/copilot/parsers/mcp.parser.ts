@@ -1,7 +1,9 @@
 import type { FileIOService } from '../../../services/fileio.service.js';
 import type { SchemaService } from '../../../services/schema.service.js';
-import { ToolType, ConfigScope, ToolStatus } from '../../../types/enums.js';
+import { ConfigScope, ToolStatus } from '../../../types/enums.js';
 import type { NormalizedTool } from '../../../types/config.js';
+import { makeMcpErrorTool } from '../../shared/mcp-error-tool.js';
+import { extractMcpServers } from '../../shared/mcp-extract.js';
 
 /**
  * Parse a Copilot MCP configuration file (mcp.json) and extract MCP server
@@ -26,7 +28,7 @@ export async function parseCopilotMcpFile(
   const readResult = await fileIO.readJsonFile(filePath);
 
   if (!readResult.success) {
-    return [makeErrorTool(filePath, scope, readResult.error)];
+    return [makeMcpErrorTool(filePath, scope, readResult.error)];
   }
 
   if (readResult.data === null) {
@@ -38,7 +40,7 @@ export async function parseCopilotMcpFile(
     const message = validation.error.issues
       .map((i) => i.message)
       .join('; ');
-    return [makeErrorTool(filePath, scope, message)];
+    return [makeMcpErrorTool(filePath, scope, message)];
   }
 
   const data = validation.data as {
@@ -64,39 +66,15 @@ function extractServers(
   scope: ConfigScope,
   filePath: string,
 ): NormalizedTool[] {
-  const tools: NormalizedTool[] = [];
-
-  for (const [serverName, config] of Object.entries(servers)) {
-    tools.push({
-      id: `mcp:${scope}:${serverName}`,
-      type: ToolType.McpServer,
-      name: serverName,
-      scope,
-      status: ToolStatus.Enabled, // Always — Copilot has no disabled state
-      source: { filePath },
-      metadata: {
-        command: config.command,
-        args: config.args ?? [],
-        env: config.env ?? {},
-        transport: config.type, // Copilot uses `type` for transport
-        url: config.url,
-        headers: config.headers ?? {},
-      },
-    });
-  }
-
-  return tools;
-}
-
-function makeErrorTool(filePath: string, scope: ConfigScope, detail: string): NormalizedTool {
-  return {
-    id: `mcp-error:${scope}:${filePath}`,
-    type: ToolType.McpServer,
-    name: 'MCP Config Error',
-    scope,
-    status: ToolStatus.Error,
-    statusDetail: detail,
-    source: { filePath },
-    metadata: {},
-  };
+  return extractMcpServers(servers, scope, filePath, (config) => ({
+    status: ToolStatus.Enabled, // Always — Copilot has no disabled state
+    metadata: {
+      command: config.command,
+      args: config.args ?? [],
+      env: config.env ?? {},
+      transport: config.type, // Copilot uses `type` for transport
+      url: config.url,
+      headers: config.headers ?? {},
+    },
+  }));
 }

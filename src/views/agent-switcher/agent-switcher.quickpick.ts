@@ -22,9 +22,9 @@ export async function showAgentQuickPick(
   for (const adapter of registry.getAllAdapters()) {
     const detected = await adapter.detect();
 
-    // Copilot is hidden completely when not detected (not shown as "not detected")
-    // This is per user decision: Copilot must not appear in QuickPick if extension is absent
-    if (!detected && adapter.id === 'copilot') {
+    // Adapters that opt into hideWhenUndetected are omitted entirely while
+    // undetected (e.g. Copilot must not appear unless its extension is present).
+    if (!detected && adapter.hideWhenUndetected) {
       continue;
     }
 

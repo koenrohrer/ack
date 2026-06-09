@@ -547,7 +547,9 @@ export class ConfigPanel {
         transport: (tool.metadata.transport as string) ?? undefined,
         url: (tool.metadata.url as string) ?? undefined,
         disabled: tool.status === ToolStatus.Disabled,
-        canToggle: canToggleMcpStatus(this.getAdapter()?.id),
+        canToggle: this.getAdapter()
+          ? canToggleMcpStatus(this.getAdapter()!.getMcpDisableField())
+          : true,
       };
 
       this.outputChannel.appendLine(`[ConfigPanel] Loaded MCP settings for "${serverName}" (${scope})`);
@@ -578,18 +580,21 @@ export class ConfigPanel {
       }
 
       const { schemaKey } = this.getMcpSchemaKey(scope);
-      const adapterId = this.getAdapter()?.id;
+      const adapter = this.getAdapter();
+      const containerKey = adapter?.getMcpContainerKey() ?? 'mcpServers';
+      const disableField = adapter?.getMcpDisableField();
 
-      if (adapterId === 'codex') {
+      // Codex stores MCP servers in config.toml; all other adapters use JSON.
+      if (adapter?.id === 'codex') {
         await this.configService.writeTomlConfigFile(
           filePath,
           schemaKey,
           (current: Record<string, unknown>) =>
-            applyMcpEnvUpdate(current, adapterId, serverName, env, disabled),
+            applyMcpEnvUpdate(current, containerKey, disableField, serverName, env, disabled),
         );
       } else {
         await this.configService.writeConfigFile(filePath, schemaKey, (current: Record<string, unknown>) =>
-          applyMcpEnvUpdate(current, adapterId, serverName, env, disabled),
+          applyMcpEnvUpdate(current, containerKey, disableField, serverName, env, disabled),
         );
       }
 
