@@ -773,7 +773,7 @@ export class ConfigPanel {
       vscode.Uri.joinPath(this.extensionUri, 'dist', 'config-panel.css'),
     );
     const codiconUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css'),
+      vscode.Uri.joinPath(this.extensionUri, 'dist', 'codicons', 'codicon.css'),
     );
 
     return /* html */ `<!DOCTYPE html>
