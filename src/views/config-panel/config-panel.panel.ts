@@ -8,6 +8,10 @@ import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { canonicalKey } from '../../utils/tool-key.utils.js';
 import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import type { WorkspaceProfileService } from '../../services/workspace-profile.service.js';
+import {
+  applyMcpEnvUpdate,
+  canToggleMcpStatus,
+} from './config-panel.mcp-utils.js';
 import type {
   ConfigPanelWebMessage,
   ConfigPanelExtMessage,
@@ -434,6 +438,7 @@ export class ConfigPanel {
       this.outputChannel.appendLine(
         `[ConfigPanel] Updated profile ${profileId} tools (${profileToolEntries.length} entries)`,
       );
+      this.postMessage({ type: 'operationSuccess', op: 'updateProfileTools', message: 'Profile saved' });
 
       // If this is the active profile, re-apply so tool states reflect the changes
       const activeId = this.profileService.getActiveProfileId();
@@ -543,6 +548,9 @@ export class ConfigPanel {
         transport: (tool.metadata.transport as string) ?? undefined,
         url: (tool.metadata.url as string) ?? undefined,
         disabled: tool.status === ToolStatus.Disabled,
+        canToggle: this.getAdapter()
+          ? canToggleMcpStatus(this.getAdapter()!.getMcpDisableField())
+          : true,
       };
 
       this.outputChannel.appendLine(`[ConfigPanel] Loaded MCP settings for "${serverName}" (${scope})`);
@@ -573,27 +581,23 @@ export class ConfigPanel {
       }
 
       const { schemaKey } = this.getMcpSchemaKey(scope);
+      const adapter = this.getAdapter();
+      const containerKey = adapter?.getMcpContainerKey() ?? 'mcpServers';
+      const disableField = adapter?.getMcpDisableField();
 
-      await this.configService.writeConfigFile(filePath, schemaKey, (current: Record<string, unknown>) => {
-        const updated = { ...current };
-        const servers = { ...((updated.mcpServers as Record<string, Record<string, unknown>>) ?? {}) };
-
-        if (servers[serverName]) {
-          servers[serverName] = { ...servers[serverName], env };
-
-          // Set or remove disabled field
-          if (disabled !== undefined) {
-            if (disabled) {
-              servers[serverName].disabled = true;
-            } else {
-              delete servers[serverName].disabled;
-            }
-          }
-        }
-
-        updated.mcpServers = servers;
-        return updated;
-      });
+      // Codex stores MCP servers in config.toml; all other adapters use JSON.
+      if (adapter?.getMcpConfigFormat() === 'toml') {
+        await this.configService.writeTomlConfigFile(
+          filePath,
+          schemaKey,
+          (current: Record<string, unknown>) =>
+            applyMcpEnvUpdate(current, containerKey, disableField, serverName, env, disabled),
+        );
+      } else {
+        await this.configService.writeConfigFile(filePath, schemaKey, (current: Record<string, unknown>) =>
+          applyMcpEnvUpdate(current, containerKey, disableField, serverName, env, disabled),
+        );
+      }
 
       this.outputChannel.appendLine(`[ConfigPanel] Updated MCP env for "${serverName}" (${scope})`);
       this.postMessage({ type: 'operationSuccess', op: 'updateMcpEnv', message: 'Settings saved' });

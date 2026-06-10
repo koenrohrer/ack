@@ -35,7 +35,7 @@ let configService: ConfigService;
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'writers-test-'));
   fileIO = new FileIOService();
-  backup = new BackupService();
+  backup = new BackupService(fileIO);
   schemas = new SchemaService();
   schemas.registerSchemas(claudeCodeSchemas);
   registry = new AdapterRegistry();

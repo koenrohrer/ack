@@ -5,6 +5,7 @@ import type { AdapterRegistry } from '../adapters/adapter.registry.js';
 import type { NormalizedTool, ScopeEntry } from '../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../types/enums.js';
 import { canonicalKey } from '../utils/tool-key.utils.js';
+import { APPLICABLE_SCOPES } from './tool-scope.utils.js';
 
 /**
  * Scope precedence order (highest first).
@@ -18,21 +19,6 @@ const SCOPE_PRECEDENCE: readonly ConfigScope[] = [
   ConfigScope.Local,
   ConfigScope.User,
 ];
-
-/**
- * Which scopes apply to each tool type.
- *
- * - Skills and commands exist only at user and project level.
- * - Hooks exist in all four scopes.
- * - MCP servers exist in user, project, and managed (not local).
- */
-const APPLICABLE_SCOPES: Record<ToolType, readonly ConfigScope[]> = {
-  [ToolType.Skill]: [ConfigScope.User, ConfigScope.Project],
-  [ToolType.Command]: [ConfigScope.User, ConfigScope.Project],
-  [ToolType.Hook]: [ConfigScope.User, ConfigScope.Project, ConfigScope.Local, ConfigScope.Managed],
-  [ToolType.McpServer]: [ConfigScope.User, ConfigScope.Project, ConfigScope.Managed],
-  [ToolType.CustomPrompt]: [ConfigScope.User],
-};
 
 /**
  * Service for reading and writing tool configurations with scope resolution.

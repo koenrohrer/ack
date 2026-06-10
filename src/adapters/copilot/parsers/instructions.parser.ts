@@ -8,11 +8,11 @@
  * Returns NormalizedTool[] with type CustomPrompt and scope Project.
  * Results are sorted alphabetically by name.
  */
-import * as path from 'path';
 import type { FileIOService } from '../../../services/fileio.service.js';
 import type { NormalizedTool } from '../../../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../../types/enums.js';
 import { extractFrontmatter } from '../../../utils/markdown.js';
+import { parseMarkdownToolDir } from '../../shared/markdown-tool-dir.js';
 import { CopilotPaths } from '../paths.js';
 
 /**
@@ -53,35 +53,31 @@ export async function parseCopilotInstructions(
   // --- Per-file instruction overrides (.instructions.md) ---
 
   const instructionsDir = CopilotPaths.workspaceInstructionsDir(workspaceRoot);
-  const filenames = await fileIO.listFiles(instructionsDir, '.instructions.md');
+  const fileTools = await parseMarkdownToolDir(
+    fileIO,
+    instructionsDir,
+    '.instructions.md',
+    ({ baseName, fm, filePath, content }) => {
+      const applyTo = fm?.frontmatter['applyTo'];
+      const description = fm?.frontmatter['description'];
+      return {
+        id: `instruction:project:${baseName}`,
+        type: ToolType.CustomPrompt,
+        scope: ConfigScope.Project,
+        status: ToolStatus.Enabled,
+        name: baseName,
+        description: description ?? (applyTo ? `Applies to: ${applyTo}` : undefined),
+        source: { filePath, isDirectory: false },
+        metadata: {
+          instructionKind: 'file-pattern',
+          applyTo,
+          body: fm?.body ?? content,
+        },
+      };
+    },
+  );
 
-  for (const filename of filenames) {
-    const filePath = path.join(instructionsDir, filename);
-    const content = await fileIO.readTextFile(filePath);
-    if (content === null) {
-      continue;
-    }
-
-    const baseName = path.basename(filename, '.instructions.md');
-    const fm = extractFrontmatter(content);
-    const applyTo = fm?.frontmatter['applyTo'];
-    const description = fm?.frontmatter['description'];
-
-    tools.push({
-      id: `instruction:project:${baseName}`,
-      type: ToolType.CustomPrompt,
-      scope: ConfigScope.Project,
-      status: ToolStatus.Enabled,
-      name: baseName,
-      description: description ?? (applyTo ? `Applies to: ${applyTo}` : undefined),
-      source: { filePath: path.join(instructionsDir, filename), isDirectory: false },
-      metadata: {
-        instructionKind: 'file-pattern',
-        applyTo,
-        body: fm?.body ?? content,
-      },
-    });
-  }
+  tools.push(...fileTools);
 
   // Sort alphabetically by name
   tools.sort((a, b) => a.name.localeCompare(b.name));

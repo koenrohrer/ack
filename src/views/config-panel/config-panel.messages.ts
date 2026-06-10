@@ -46,6 +46,7 @@ export interface McpSettingsInfo {
   transport?: string;
   url?: string;
   disabled?: boolean;
+  canToggle: boolean;
 }
 
 // ---------------------------------------------------------------------------

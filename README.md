@@ -110,7 +110,7 @@ All commands are available from the command palette (`Ctrl+Shift+P` / `Cmd+Shift
 | `ACK: Open Marketplace` | Browse and install tools from the community registry |
 | `ACK: Configure Agent` | Open the visual config panel |
 | `ACK: Switch Agent` | Switch the active agent (Claude Code / Codex / Copilot) |
-| `ACK: Initialize Codex for This Project` | Scaffold `.codex/config.toml`, `prompts/`, and `skills/` |
+| `ACK: Initialize Codex for This Project` | Scaffold `.codex/config.toml` and `skills/` |
 | `ACK: Re-detect Agents` | Re-run agent detection after installing a new CLI |
 | `ACK: Switch Profile` | Switch to a saved profile |
 | `ACK: Create Profile` | Create a new empty profile |
@@ -121,7 +121,7 @@ All commands are available from the command palette (`Ctrl+Shift+P` / `Cmd+Shift
 | `ACK: Import Profile` | Import a profile from a `.ackprofile` file |
 | `ACK: Clone Profile to Agent` | Copy a profile to another agent, filtering compatible tools |
 | `ACK: Associate Profile with Workspace` | Bind a profile to auto-activate for this workspace |
-| `ACK: Install Custom Prompt from File` | Copy a `.md` file into Codex's prompts directory |
+| `ACK: Install Custom Prompt from File` | Copy a `.md` file into Codex's user prompts directory |
 | `ACK: Install Instruction or Prompt from File` | Install an instruction or prompt `.md` file for Copilot |
 | `ACK: Refresh Tool Tree` | Force-refresh the sidebar tree |
 

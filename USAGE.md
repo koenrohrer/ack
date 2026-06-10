@@ -57,7 +57,6 @@ The first time you switch to Codex for a project, run `ACK: Initialize Codex for
 .codex/
   config.toml     ← MCP server configuration
   skills/         ← project-scoped skills
-  prompts/        ← custom prompts
 ```
 
 Global Codex config lives in `~/.codex/`.

@@ -3,10 +3,11 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import { BackupService, MAX_BACKUPS } from '../../services/backup.service.js';
+import { FileIOService } from '../../services/fileio.service.js';
 
 describe('BackupService', () => {
   let tmpDir: string;
-  const svc = new BackupService();
+  const svc = new BackupService(new FileIOService());
 
   async function makeTmpDir(): Promise<string> {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'backup-test-'));

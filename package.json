@@ -228,7 +228,7 @@
       "view/item/context": [
         {
           "command": "ack.toggleTool",
-          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem !~ /^tool:custom_prompt:/ && viewItem =~ /:(?:user|project|local)$/",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:toggleable:/ && viewItem !~ /^tool:custom_prompt:/ && viewItem =~ /:(?:user|project|local)$/",
           "group": "inline"
         },
         {
@@ -238,12 +238,12 @@
         },
         {
           "command": "ack.toggleTool",
-          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem !~ /^tool:custom_prompt:/ && viewItem =~ /:(?:user|project|local)$/",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:toggleable:/ && viewItem !~ /^tool:custom_prompt:/ && viewItem =~ /:(?:user|project|local)$/",
           "group": "1_toggle"
         },
         {
           "submenu": "ack.moveTo",
-          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:(?:user|project)$/",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:/ && viewItem =~ /:movable:/ && viewItem =~ /:(?:user|project)$/",
           "group": "2_scope"
         },
         {
@@ -258,27 +258,27 @@
         },
         {
           "command": "ack.addMcpServer",
-          "when": "view == ack.toolTree && viewItem == group:mcp_server",
+          "when": "view == ack.toolTree && viewItem == group:mcp_server && ack.activeAdapterId == codex",
           "group": "inline"
         },
         {
           "command": "ack.addMcpServer",
-          "when": "view == ack.toolTree && viewItem == group:mcp_server",
+          "when": "view == ack.toolTree && viewItem == group:mcp_server && ack.activeAdapterId == codex",
           "group": "2_codex"
         },
         {
           "command": "ack.toggleMcpTool",
-          "when": "view == ack.toolTree && viewItem =~ /^subtool:mcp-tool:/",
+          "when": "view == ack.toolTree && viewItem =~ /^subtool:mcp-tool:/ && ack.activeAdapterId == codex",
           "group": "inline"
         },
         {
           "command": "ack.addEnvVar",
-          "when": "view == ack.toolTree && viewItem =~ /^tool:mcp_server:/ && viewItem =~ /:(?:user|project)$/",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:mcp_server:/ && viewItem =~ /:(?:user|project)$/ && ack.activeAdapterId == codex",
           "group": "2_envvar"
         },
         {
           "command": "ack.editEnvVar",
-          "when": "view == ack.toolTree && viewItem == subtool:env-var",
+          "when": "view == ack.toolTree && viewItem == subtool:env-var && ack.activeAdapterId == codex",
           "group": "inline"
         },
         {
@@ -288,7 +288,7 @@
         },
         {
           "command": "ack.removeEnvVar",
-          "when": "view == ack.toolTree && viewItem == subtool:env-var",
+          "when": "view == ack.toolTree && viewItem == subtool:env-var && ack.activeAdapterId == codex",
           "group": "3_envvar"
         },
         {
@@ -320,11 +320,11 @@
       "ack.moveTo": [
         {
           "command": "ack.moveToolToUser",
-          "when": "viewItem =~ /:project$/"
+          "when": "viewItem =~ /:movable:/ && viewItem =~ /:project$/"
         },
         {
           "command": "ack.moveToolToProject",
-          "when": "viewItem =~ /:user$/"
+          "when": "viewItem =~ /:movable:/ && viewItem =~ /:user$/"
         }
       ]
     },
@@ -438,7 +438,9 @@
     "watch:ext": "npm run compile:ext -- --watch",
     "watch:webview": "node esbuild.webview.mjs --watch",
     "watch": "npm-run-all --parallel watch:ext watch:webview check-types",
-    "check-types": "tsc --noEmit",
+    "check-types": "npm-run-all --continue-on-error check-types:ext check-types:webview",
+    "check-types:ext": "tsc --noEmit",
+    "check-types:webview": "tsc -p tsconfig.webview.json --noEmit",
     "lint": "eslint src/",
     "test:unit": "vitest run",
     "test:integration": "vscode-test",

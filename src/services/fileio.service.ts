@@ -104,6 +104,34 @@ export class FileIOService {
   }
 
   /**
+   * Delete a file.
+   *
+   * Swallows ENOENT -- deleting a missing file is a no-op success.
+   * Rethrows other errors.
+   */
+  async deleteFile(filePath: string): Promise<void> {
+    try {
+      await fs.unlink(filePath);
+    } catch (err: unknown) {
+      if (isNodeError(err) && err.code === 'ENOENT') {
+        return;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Move (rename) a file.
+   *
+   * Creates the destination parent directory if it does not exist.
+   */
+  async moveFile(src: string, dest: string): Promise<void> {
+    const dir = path.dirname(dest);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.rename(src, dest);
+  }
+
+  /**
    * Check whether a file exists and is accessible.
    */
   async fileExists(filePath: string): Promise<boolean> {

@@ -45,6 +45,15 @@ export class ToolManagerService {
 
     try {
       const adapter = this.getAdapter();
+      if (
+        adapter.toggleableToolTypes !== undefined &&
+        !adapter.toggleableToolTypes.has(tool.type)
+      ) {
+        return {
+          success: false,
+          error: `${adapter.displayName} cannot toggle ${tool.type} tools`,
+        };
+      }
       await adapter.toggleTool(tool);
       return { success: true };
     } catch (err: unknown) {
@@ -99,6 +108,15 @@ export class ToolManagerService {
 
     try {
       const adapter = this.getAdapter();
+      if (
+        adapter.movableToolTypes !== undefined &&
+        !adapter.movableToolTypes.has(tool.type)
+      ) {
+        return {
+          success: false,
+          error: `${adapter.displayName} cannot move ${tool.type} tools`,
+        };
+      }
 
       // Step 1: Write to target scope (copy)
       await adapter.writeTool(tool, targetScope);

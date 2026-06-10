@@ -1,4 +1,4 @@
-import * as fs from 'fs/promises';
+import type { FileIOService } from './fileio.service.js';
 
 /**
  * Maximum number of rolling backups kept per file.
@@ -15,6 +15,8 @@ export const MAX_BACKUPS = 5;
  * Older backups are automatically deleted when they exceed MAX_BACKUPS.
  */
 export class BackupService {
+  constructor(private readonly fileIO: FileIOService) {}
+
   /**
    * Create a rolling backup of the given file.
    *
@@ -26,24 +28,29 @@ export class BackupService {
    */
   async createBackup(filePath: string): Promise<void> {
     // If source file does not exist, nothing to back up
-    const exists = await fileExists(filePath);
+    const exists = await this.fileIO.fileExists(filePath);
     if (!exists) {
       return;
     }
 
-    // Delete oldest backup if it exists
-    await silentUnlink(`${filePath}.bak.${MAX_BACKUPS}`);
+    // Delete oldest backup if it exists (deleteFile is a no-op on ENOENT)
+    await this.fileIO.deleteFile(`${filePath}.bak.${MAX_BACKUPS}`);
 
     // Shift existing backups: .bak.4 -> .bak.5, .bak.3 -> .bak.4, etc.
+    // Source backups may not exist; skip ENOENT silently.
     for (let i = MAX_BACKUPS - 1; i >= 1; i--) {
-      await silentRename(
+      await silentMove(
+        this.fileIO,
         `${filePath}.bak.${i}`,
         `${filePath}.bak.${i + 1}`,
       );
     }
 
     // Copy current file to .bak.1
-    await fs.copyFile(filePath, `${filePath}.bak.1`);
+    const content = await this.fileIO.readTextFile(filePath);
+    if (content !== null) {
+      await this.fileIO.writeTextFile(`${filePath}.bak.1`, content);
+    }
   }
 
   /**
@@ -56,7 +63,7 @@ export class BackupService {
 
     for (let i = 1; i <= MAX_BACKUPS; i++) {
       const backupPath = `${filePath}.bak.${i}`;
-      const exists = await fileExists(backupPath);
+      const exists = await this.fileIO.fileExists(backupPath);
       if (exists) {
         backups.push(backupPath);
       }
@@ -67,37 +74,11 @@ export class BackupService {
 }
 
 /**
- * Check whether a file exists without throwing.
+ * Move a file, silently ignoring ENOENT (source may not exist yet).
  */
-async function fileExists(filePath: string): Promise<boolean> {
+async function silentMove(fileIO: FileIOService, oldPath: string, newPath: string): Promise<void> {
   try {
-    await fs.access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Delete a file, silently ignoring ENOENT.
- */
-async function silentUnlink(filePath: string): Promise<void> {
-  try {
-    await fs.unlink(filePath);
-  } catch (err: unknown) {
-    if (isNodeError(err) && err.code === 'ENOENT') {
-      return;
-    }
-    throw err;
-  }
-}
-
-/**
- * Rename a file, silently ignoring ENOENT (source may not exist yet).
- */
-async function silentRename(oldPath: string, newPath: string): Promise<void> {
-  try {
-    await fs.rename(oldPath, newPath);
+    await fileIO.moveFile(oldPath, newPath);
   } catch (err: unknown) {
     if (isNodeError(err) && err.code === 'ENOENT') {
       return;

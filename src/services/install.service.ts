@@ -3,7 +3,6 @@ import { promisify } from 'util';
 import type { RegistryService } from './registry.service.js';
 import type { ConfigService } from './config.service.js';
 import type { AdapterRegistry } from '../adapters/adapter.registry.js';
-import type { FileIOService } from './fileio.service.js';
 import type { RegistrySource } from './registry.types.js';
 import type {
   ToolManifest,
@@ -30,6 +29,28 @@ const RUNTIME_COMMANDS: Record<string, string> = {
 /** Timeout for runtime availability checks (5 seconds). */
 const RUNTIME_CHECK_TIMEOUT = 5000;
 
+type InstructionInstallAdapter = {
+  installInstruction(
+    scope: ConfigScope,
+    filename: string,
+    content: string,
+  ): Promise<void>;
+};
+
+function hasInstructionInstaller(adapter: unknown): adapter is InstructionInstallAdapter {
+  return typeof (adapter as { installInstruction?: unknown }).installInstruction === 'function';
+}
+
+type CustomPromptInstallAdapter = {
+  getCustomPromptInstallScope(): ConfigScope;
+  getCustomPromptInstallName(manifestName: string): string;
+  installCustomPrompt(manifestName: string, content: string): Promise<void>;
+};
+
+function hasCustomPromptInstaller(adapter: unknown): adapter is CustomPromptInstallAdapter {
+  return typeof (adapter as { installCustomPrompt?: unknown }).installCustomPrompt === 'function';
+}
+
 /**
  * Pure orchestrator service for one-click tool installation.
  *
@@ -45,7 +66,6 @@ export class InstallService {
     private readonly registryService: RegistryService,
     private readonly configService: ConfigService,
     private readonly registry: AdapterRegistry,
-    private readonly fileIOService: FileIOService,
     private readonly workspaceRoot?: string,
   ) {}
 
@@ -131,6 +151,148 @@ export class InstallService {
     contentPath: string,
   ): Promise<ToolManifest> {
     return this.registryService.fetchToolManifest(source, contentPath);
+  }
+
+  /**
+   * Resolve where a custom prompt will be installed for the active adapter.
+   */
+  getCustomPromptInstallScope(requestedScope: ConfigScope): ConfigScope {
+    const adapter = this.getAdapter();
+    if (hasInstructionInstaller(adapter)) {
+      return ConfigScope.Project;
+    }
+    if (hasCustomPromptInstaller(adapter)) {
+      return adapter.getCustomPromptInstallScope();
+    }
+    return requestedScope;
+  }
+
+  /**
+   * Resolve the displayed identity and scope of a custom prompt destination.
+   */
+  getCustomPromptInstallTarget(
+    manifest: ToolManifest,
+    requestedScope: ConfigScope,
+  ): { name: string; scope: ConfigScope } {
+    const adapter = this.getAdapter();
+    const files = manifest.files ?? [`${manifest.name}.md`];
+    const fileName = files[0] ?? `${manifest.name}.md`;
+    const scope = this.getCustomPromptInstallScope(requestedScope);
+
+    if (hasInstructionInstaller(adapter)) {
+      if (fileName === 'copilot-instructions.md') {
+        return { name: 'copilot-instructions', scope };
+      }
+      if (fileName.endsWith('.instructions.md')) {
+        return { name: fileName.slice(0, -'.instructions.md'.length), scope };
+      }
+      if (fileName.endsWith('.prompt.md')) {
+        return { name: fileName.slice(0, -'.prompt.md'.length), scope };
+      }
+    }
+
+    if (hasCustomPromptInstaller(adapter)) {
+      return {
+        name: adapter.getCustomPromptInstallName(manifest.name),
+        scope,
+      };
+    }
+
+    return { name: manifest.name, scope };
+  }
+
+  /**
+   * Return an error when a manifest name cannot identify its installed prompt.
+   */
+  getCustomPromptValidationError(
+    manifest: ToolManifest,
+    requestedScope: ConfigScope,
+  ): string | undefined {
+    const adapter = this.getAdapter();
+    const target = this.getCustomPromptInstallTarget(manifest, requestedScope);
+    if (target.name === manifest.name) {
+      return undefined;
+    }
+    return `custom_prompt name "${manifest.name}" does not match installed name "${target.name}" for ${adapter.displayName}`;
+  }
+
+  /**
+   * Install custom prompt content that has already been fetched by the caller.
+   *
+   * Repo-sourced installs use this entry point so they can preserve authenticated
+   * RepoScanner fetching while sharing adapter-specific placement behavior.
+   */
+  async installCustomPromptContent(
+    manifest: ToolManifest,
+    content: string,
+    requestedScope: ConfigScope,
+    allowOverwrite = false,
+  ): Promise<InstallResult> {
+    const adapter = this.getAdapter();
+    if (!adapter.supportedToolTypes.has(ToolType.CustomPrompt)) {
+      return {
+        success: false,
+        error: `custom_prompt install is not supported for ${adapter.displayName}`,
+        toolName: manifest.name,
+        scope: requestedScope,
+      };
+    }
+
+    const target = this.getCustomPromptInstallTarget(manifest, requestedScope);
+    const validationError = this.getCustomPromptValidationError(
+      manifest,
+      requestedScope,
+    );
+    if (validationError) {
+      return {
+        success: false,
+        error: validationError,
+        toolName: manifest.name,
+        scope: target.scope,
+      };
+    }
+
+    if (
+      !allowOverwrite &&
+      await this.checkConflict(target.name, manifest.type, target.scope)
+    ) {
+      return {
+        success: false,
+        error: `"${target.name}" already exists at ${target.scope} scope`,
+        toolName: manifest.name,
+        scope: target.scope,
+      };
+    }
+
+    const files = manifest.files ?? [`${manifest.name}.md`];
+    const fileName = files[0] ?? `${manifest.name}.md`;
+
+    if (hasInstructionInstaller(adapter)) {
+      await adapter.installInstruction(target.scope, fileName, content);
+
+      return {
+        success: true,
+        toolName: manifest.name,
+        scope: target.scope,
+      };
+    }
+
+    if (hasCustomPromptInstaller(adapter)) {
+      await adapter.installCustomPrompt(manifest.name, content);
+
+      return {
+        success: true,
+        toolName: manifest.name,
+        scope: target.scope,
+      };
+    }
+
+    return {
+      success: false,
+      error: `custom_prompt install is not supported for ${adapter.displayName}`,
+      toolName: manifest.name,
+      scope: requestedScope,
+    };
   }
 
   /**
@@ -331,41 +493,37 @@ export class InstallService {
   }
 
   /**
-   * Install a custom_prompt (instruction/prompt file) via the Copilot adapter.
+   * Install a custom_prompt (instruction/prompt file) for the active adapter.
    *
-   * Fetches the file content from the registry and delegates to
-   * CopilotAdapter.installInstruction(). Always project-scoped.
-   * Returns an error if the active adapter is not CopilotAdapter.
+   * Copilot exposes installInstruction(); Codex prompts are user-scoped
+   * markdown files under ~/.codex/prompts.
    */
   private async installCustomPrompt(
     request: InstallRequest,
   ): Promise<InstallResult> {
     const { manifest, source, contentPath } = request;
-    const scope = ConfigScope.Project;
 
     const adapter = this.getAdapter();
-    const { CopilotAdapter } = await import('../adapters/copilot/copilot.adapter.js');
-    if (!(adapter instanceof CopilotAdapter)) {
+    if (!adapter.supportedToolTypes.has(ToolType.CustomPrompt)) {
       return {
         success: false,
-        error: 'custom_prompt install is only supported for Copilot',
+        error: `custom_prompt install is not supported for ${adapter.displayName}`,
         toolName: manifest.name,
-        scope,
+        scope: request.scope,
       };
     }
 
     const files = manifest.files ?? [`${manifest.name}.md`];
-    const fileName = files[0];
+    const fileName = files[0] ?? `${manifest.name}.md`;
     const filePath = `${contentPath}/${fileName}`;
     const content = await this.registryService.fetchToolFile(source, filePath);
 
-    await adapter.installInstruction(scope, fileName, content);
-
-    return {
-      success: true,
-      toolName: manifest.name,
-      scope,
-    };
+    return this.installCustomPromptContent(
+      manifest,
+      content,
+      request.scope,
+      request.allowOverwrite,
+    );
   }
 
 }

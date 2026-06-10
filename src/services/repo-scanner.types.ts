@@ -16,7 +16,7 @@ export interface ScannedTool {
   /** Display name (e.g., parent dir name for skills, server key for MCP). */
   name: string;
   /** Detected tool type. */
-  toolType: 'skill' | 'mcp_server' | 'command';
+  toolType: 'skill' | 'mcp_server' | 'command' | 'custom_prompt';
   /** Description extracted from file content or repo description. */
   description: string;
   /** Repository owner. */

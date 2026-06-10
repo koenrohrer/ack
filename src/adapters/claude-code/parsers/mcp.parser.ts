@@ -1,7 +1,9 @@
 import type { FileIOService } from '../../../services/fileio.service.js';
 import type { SchemaService } from '../../../services/schema.service.js';
-import { ToolType, ConfigScope, ToolStatus } from '../../../types/enums.js';
+import { ConfigScope, ToolStatus } from '../../../types/enums.js';
 import type { NormalizedTool } from '../../../types/config.js';
+import { makeMcpErrorTool } from '../../shared/mcp-error-tool.js';
+import { extractMcpServers } from '../../shared/mcp-extract.js';
 
 /**
  * Parse an MCP configuration file (.mcp.json or managed-mcp.json)
@@ -20,7 +22,7 @@ export async function parseMcpFile(
   const readResult = await fileIO.readJsonFile(filePath);
 
   if (!readResult.success) {
-    return [makeErrorTool(filePath, scope, readResult.error)];
+    return [makeMcpErrorTool(filePath, scope, readResult.error)];
   }
 
   if (readResult.data === null) {
@@ -32,7 +34,7 @@ export async function parseMcpFile(
     const message = validation.error.issues
       .map((i) => i.message)
       .join('; ');
-    return [makeErrorTool(filePath, scope, message)];
+    return [makeMcpErrorTool(filePath, scope, message)];
   }
 
   const data = validation.data as {
@@ -57,7 +59,7 @@ export async function parseClaudeJson(
   const readResult = await fileIO.readJsonFile(filePath);
 
   if (!readResult.success) {
-    return [makeErrorTool(filePath, ConfigScope.User, readResult.error)];
+    return [makeMcpErrorTool(filePath, ConfigScope.User, readResult.error)];
   }
 
   if (readResult.data === null) {
@@ -69,7 +71,7 @@ export async function parseClaudeJson(
     const message = validation.error.issues
       .map((i) => i.message)
       .join('; ');
-    return [makeErrorTool(filePath, ConfigScope.User, message)];
+    return [makeMcpErrorTool(filePath, ConfigScope.User, message)];
   }
 
   const data = validation.data as {
@@ -96,19 +98,12 @@ function extractServers(
   filePath: string,
   disabledServers: string[],
 ): NormalizedTool[] {
-  const tools: NormalizedTool[] = [];
   const disabledSet = new Set(disabledServers);
 
-  for (const [serverName, config] of Object.entries(servers)) {
+  return extractMcpServers(servers, scope, filePath, (config, serverName) => {
     const isDisabled = disabledSet.has(serverName) || config.disabled === true;
-
-    tools.push({
-      id: `mcp:${scope}:${serverName}`,
-      type: ToolType.McpServer,
-      name: serverName,
-      scope,
+    return {
       status: isDisabled ? ToolStatus.Disabled : ToolStatus.Enabled,
-      source: { filePath },
       metadata: {
         command: config.command,
         args: config.args ?? [],
@@ -116,21 +111,6 @@ function extractServers(
         transport: config.transport ?? config.type,
         url: config.url,
       },
-    });
-  }
-
-  return tools;
-}
-
-function makeErrorTool(filePath: string, scope: ConfigScope, detail: string): NormalizedTool {
-  return {
-    id: `mcp-error:${scope}:${filePath}`,
-    type: ToolType.McpServer,
-    name: 'MCP Config Error',
-    scope,
-    status: ToolStatus.Error,
-    statusDetail: detail,
-    source: { filePath },
-    metadata: {},
-  };
+    };
+  });
 }

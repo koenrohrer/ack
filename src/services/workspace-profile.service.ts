@@ -1,4 +1,3 @@
-import * as fs from 'fs/promises';
 import * as path from 'path';
 import { z } from 'zod';
 import type * as vscode from 'vscode';
@@ -137,14 +136,7 @@ export class WorkspaceProfileService {
    */
   async removeAssociation(workspaceRoot: string): Promise<void> {
     const filePath = path.join(workspaceRoot, ASSOCIATION_FILE);
-    try {
-      await fs.unlink(filePath);
-    } catch (err: unknown) {
-      // Ignore ENOENT -- file already doesn't exist
-      if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code !== 'ENOENT') {
-        throw err;
-      }
-    }
+    await this.fileIO.deleteFile(filePath);
     await this.clearOverride(workspaceRoot);
   }
 

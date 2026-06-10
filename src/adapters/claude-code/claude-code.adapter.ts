@@ -280,6 +280,18 @@ export class ClaudeCodeAdapter implements IPlatformAdapter {
     return this.getMcpFileInfo(scope).schemaKey;
   }
 
+  getMcpContainerKey(): string {
+    return 'mcpServers';
+  }
+
+  getMcpDisableField(): { field: string; disabledValue: unknown } {
+    return { field: 'disabled', disabledValue: true };
+  }
+
+  getMcpConfigFormat(): 'toml' | 'json' {
+    return 'json';
+  }
+
   // ---------------------------------------------------------------------------
   // IPathAdapter
   // ---------------------------------------------------------------------------

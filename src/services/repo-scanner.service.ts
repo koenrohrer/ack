@@ -454,6 +454,7 @@ export class RepoScannerService {
    * - any-path/SKILL.md -> skill (name from parent directory)
    * - Root .mcp.json -> MCP server(s)
    * - .claude/commands/name.md or commands/name.md -> commands
+   * - .github/prompts/name.prompt.md -> custom prompt
    */
   private detectTools(
     filePaths: string[],
@@ -530,6 +531,28 @@ export class RepoScannerService {
           name: commandName,
           toolType: 'command',
           description: `Custom command from ${repoFullName}`,
+          author,
+          repoUrl,
+          repoFullName,
+          defaultBranch,
+          repoPath: path,
+          files: [path],
+        });
+      }
+
+      // --- Custom prompts: .github/prompts/*.prompt.md ---
+      if (
+        lowerPath.startsWith('.github/prompts/') &&
+        path.endsWith('.prompt.md')
+      ) {
+        const fileName = path.split('/').pop()!;
+        const promptName = fileName.replace(/\.prompt\.md$/i, '');
+
+        tools.push({
+          id: `repo:${repoFullName}:custom_prompt:${promptName}`,
+          name: promptName,
+          toolType: 'custom_prompt',
+          description: repoDescription,
           author,
           repoUrl,
           repoFullName,

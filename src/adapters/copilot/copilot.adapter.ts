@@ -39,6 +39,7 @@ import { addCopilotMcpServer, removeCopilotMcpServer } from './writers/mcp.write
 export class CopilotAdapter implements IPlatformAdapter {
   readonly id = 'copilot';
   readonly displayName = 'GitHub Copilot';
+  readonly hideWhenUndetected = true;
   readonly supportedToolTypes: ReadonlySet<ToolType> = new Set([
     ToolType.McpServer,
     ToolType.CustomPrompt,
@@ -49,6 +50,7 @@ export class CopilotAdapter implements IPlatformAdapter {
     // McpServer: Copilot MCP config has no disabled state (no enable/disable).
     // CustomPrompt: instructions and prompts have no enable/disable concept.
   ]);
+  readonly movableToolTypes: ReadonlySet<ToolType> = new Set();
 
   /**
    * VS Code user directory derived from context.globalStorageUri at construction.
@@ -340,6 +342,19 @@ export class CopilotAdapter implements IPlatformAdapter {
    */
   getMcpSchemaKey(_scope: ConfigScope): string {
     return 'copilot-mcp';
+  }
+
+  getMcpContainerKey(): string {
+    return 'servers';
+  }
+
+  getMcpDisableField(): { field: string; disabledValue: unknown } | undefined {
+    // Copilot MCP config has no disabled state — servers cannot be toggled.
+    return undefined;
+  }
+
+  getMcpConfigFormat(): 'toml' | 'json' {
+    return 'json';
   }
 
   // ---------------------------------------------------------------------------

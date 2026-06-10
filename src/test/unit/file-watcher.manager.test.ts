@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { collectWatchDirs } from '../../views/file-watcher.utils.js';
 import { ConfigScope, ToolType } from '../../types/enums.js';
 import type { IPlatformAdapter } from '../../types/adapter.js';
+import { createMockAdapter } from './helpers/mock-adapter.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -10,16 +11,12 @@ import type { IPlatformAdapter } from '../../types/adapter.js';
 function makeAdapter(
   watchPaths: Partial<Record<ConfigScope, string[]>>,
 ): IPlatformAdapter {
-  return {
+  return createMockAdapter({
     id: 'test',
     displayName: 'Test',
     supportedToolTypes: new Set([ToolType.Skill]),
-    readTools: vi.fn(),
-    writeTool: vi.fn(),
-    removeTool: vi.fn(),
     getWatchPaths: (scope: ConfigScope) => watchPaths[scope] ?? [],
-    detect: vi.fn(),
-  };
+  });
 }
 
 /**

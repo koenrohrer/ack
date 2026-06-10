@@ -75,7 +75,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // 2. Core services
   const fileIO = new FileIOService();
-  const backup = new BackupService();
+  const backup = new BackupService(fileIO);
   const schemas = new SchemaService();
 
   // 3. Register schemas
@@ -87,21 +87,29 @@ export function activate(context: vscode.ExtensionContext): void {
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
   // 5. Adapter setup
+  // Register all adapters by iterating a single list. Adding a new adapter
+  // is one array entry — construction, registration, and write-service
+  // injection are all driven from here.
   const registry = new AdapterRegistry();
-  const claudeAdapter = new ClaudeCodeAdapter(fileIO, schemas, workspaceRoot);
-  registry.register(claudeAdapter);
-  const codexAdapter = new CodexAdapter(fileIO, schemas, workspaceRoot);
-  registry.register(codexAdapter);
-  const copilotAdapter = new CopilotAdapter(fileIO, schemas, workspaceRoot, context);
-  registry.register(copilotAdapter);
+  const adapters = [
+    new ClaudeCodeAdapter(fileIO, schemas, workspaceRoot),
+    new CodexAdapter(fileIO, schemas, workspaceRoot),
+    new CopilotAdapter(fileIO, schemas, workspaceRoot, context),
+  ];
+  for (const adapter of adapters) {
+    registry.register(adapter);
+  }
+
+  // Codex needs an individual reference later for Codex-specific notifications.
+  const codexAdapter = adapters.find((a): a is CodexAdapter => a instanceof CodexAdapter)!;
 
   // 6. Config service (the main API for reading/writing tool configs)
   const configService = new ConfigService(fileIO, backup, schemas, registry);
 
   // 6b. Inject write services into adapters now that configService exists
-  claudeAdapter.setWriteServices(configService, backup);
-  codexAdapter.setWriteServices(configService, backup);
-  copilotAdapter.setWriteServices(configService, backup);
+  for (const adapter of adapters) {
+    adapter.setWriteServices(configService, backup);
+  }
 
   // 7. Tool management service
   const toolManager = new ToolManagerService(configService, registry);
@@ -111,14 +119,14 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // 9. Install service for one-click marketplace installs
   const installService = new InstallService(
-    registryService, configService, registry, fileIO, workspaceRoot,
+    registryService, configService, registry, workspaceRoot,
   );
 
   // 9b. Repo scanner service for marketplace discovery
   const repoScannerService = new RepoScannerService(context.globalState);
 
   // 9c. Profile service for named tool presets
-  const profileService = new ProfileService(context.globalState, configService, toolManager, registry, outputChannel);
+  const profileService = new ProfileService(context.globalState, configService, toolManager, registry, fileIO, outputChannel);
 
   // 9c.1. Run profile migration before any profile operations
   // Migration is fire-and-forget at activation - errors logged but don't block
@@ -219,11 +227,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
       const codexDir = CodexPaths.projectCodexDir(workspaceRoot);
       const configPath = CodexPaths.projectConfigToml(workspaceRoot);
-      const promptsDir = CodexPaths.projectPromptsDir(workspaceRoot);
       const skillsDir = CodexPaths.projectSkillsDir(workspaceRoot);
 
       const { mkdir } = await import('fs/promises');
-      await mkdir(promptsDir, { recursive: true });
       await mkdir(skillsDir, { recursive: true });
 
       // Create config.toml only if it doesn't exist

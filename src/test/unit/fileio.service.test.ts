@@ -230,4 +230,48 @@ describe('FileIOService', () => {
 
     expect(files).toEqual(['linked-cmd.md']);
   });
+
+  // -- deleteFile --
+
+  it('deletes an existing file', async () => {
+    const dir = await makeTmpDir();
+    const file = path.join(dir, 'target.txt');
+    await fs.writeFile(file, 'bye');
+
+    await svc.deleteFile(file);
+
+    expect(await svc.fileExists(file)).toBe(false);
+  });
+
+  it('treats deleting a missing file as a no-op success', async () => {
+    const dir = await makeTmpDir();
+    const file = path.join(dir, 'missing.txt');
+
+    await expect(svc.deleteFile(file)).resolves.toBeUndefined();
+  });
+
+  // -- moveFile --
+
+  it('moves a file to a new location', async () => {
+    const dir = await makeTmpDir();
+    const src = path.join(dir, 'src.txt');
+    const dest = path.join(dir, 'dest.txt');
+    await fs.writeFile(src, 'content');
+
+    await svc.moveFile(src, dest);
+
+    expect(await svc.fileExists(src)).toBe(false);
+    expect(await fs.readFile(dest, 'utf-8')).toBe('content');
+  });
+
+  it('creates the destination parent directory when moving', async () => {
+    const dir = await makeTmpDir();
+    const src = path.join(dir, 'src.txt');
+    const dest = path.join(dir, 'deep', 'nested', 'dest.txt');
+    await fs.writeFile(src, 'content');
+
+    await svc.moveFile(src, dest);
+
+    expect(await fs.readFile(dest, 'utf-8')).toBe('content');
+  });
 });

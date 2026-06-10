@@ -19,6 +19,13 @@ export interface IToolAdapter {
   readonly toggleableToolTypes?: ReadonlySet<ToolType>;
 
   /**
+   * Subset of supportedToolTypes that can be moved between user/project scopes.
+   * If undefined, ALL supportedToolTypes are assumed movable (backward compat
+   * for adapters with complete writeTool implementations).
+   */
+  readonly movableToolTypes?: ReadonlySet<ToolType>;
+
+  /**
    * Read all tools of a given type within a scope.
    */
   readTools(type: ToolType, scope: ConfigScope): Promise<NormalizedTool[]>;

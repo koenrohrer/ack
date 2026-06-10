@@ -6,6 +6,7 @@ import type { ConfigService } from '../../services/config.service.js';
 import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import type { IPlatformAdapter } from '../../types/adapter.js';
 import type { GroupNode, EventGroupNode, ToolNode, SubToolNode } from '../../views/tool-tree/tool-tree.nodes.js';
+import { createMockAdapter } from './helpers/mock-adapter.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -52,22 +53,11 @@ function createMockRegistry(
     ToolType.Command,
   ]),
 ): AdapterRegistry {
-  const adapter: IPlatformAdapter = {
+  const adapter = createMockAdapter({
     id: 'mock',
     displayName: 'Mock',
     supportedToolTypes: supportedTypes,
-    async readTools() {
-      return [];
-    },
-    async writeTool() {},
-    async removeTool() {},
-    getWatchPaths() {
-      return [];
-    },
-    async detect() {
-      return true;
-    },
-  };
+  });
 
   return {
     getActiveAdapter(): IPlatformAdapter {

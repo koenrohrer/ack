@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
@@ -11,6 +11,8 @@ import { claudeCodeSchemas } from '../../adapters/claude-code/schemas.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import type { IPlatformAdapter } from '../../types/adapter.js';
 import type { NormalizedTool } from '../../types/config.js';
+import { createMockAdapter as createBaseMockAdapter } from './helpers/mock-adapter.js';
+import { makeTool } from './helpers/make-tool.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -18,35 +20,8 @@ import type { NormalizedTool } from '../../types/config.js';
 
 let tmpDir: string;
 
-function makeTool(overrides: Partial<NormalizedTool> & { name: string; scope: ConfigScope }): NormalizedTool {
-  return {
-    id: `${overrides.type ?? ToolType.McpServer}:${overrides.name}:${overrides.scope}`,
-    type: overrides.type ?? ToolType.McpServer,
-    name: overrides.name,
-    description: overrides.description,
-    scope: overrides.scope,
-    status: overrides.status ?? ToolStatus.Enabled,
-    statusDetail: overrides.statusDetail,
-    source: overrides.source ?? { filePath: `/fake/${overrides.scope}/${overrides.name}` },
-    metadata: overrides.metadata ?? {},
-    scopeEntries: overrides.scopeEntries,
-  };
-}
-
 function createMockAdapter(toolsByScope: Record<string, NormalizedTool[]> = {}): IPlatformAdapter {
-  return {
-    id: 'mock',
-    displayName: 'Mock Platform',
-    supportedToolTypes: new Set([ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command]),
-    async readTools(type: ToolType, scope: ConfigScope): Promise<NormalizedTool[]> {
-      const key = `${type}:${scope}`;
-      return toolsByScope[key] ?? [];
-    },
-    async writeTool() {},
-    async removeTool() {},
-    getWatchPaths() { return []; },
-    async detect() { return true; },
-  };
+  return createBaseMockAdapter({ toolsByScope });
 }
 
 beforeEach(async () => {
@@ -71,7 +46,7 @@ describe('ConfigService - scope resolution', () => {
 
   beforeEach(() => {
     fileIO = new FileIOService();
-    backup = new BackupService();
+    backup = new BackupService(fileIO);
     schemas = new SchemaService();
     schemas.registerSchemas(claudeCodeSchemas);
   });
@@ -93,6 +68,45 @@ describe('ConfigService - scope resolution', () => {
     expect(tools[0].scope).toBe(ConfigScope.User);
     expect(tools[0].scopeEntries).toHaveLength(1);
     expect(tools[0].scopeEntries![0].scope).toBe(ConfigScope.User);
+  });
+
+  it('reads project-scoped Copilot custom prompts', async () => {
+    const projectPrompt = makeTool({
+      name: 'review.prompt.md',
+      scope: ConfigScope.Project,
+      type: ToolType.CustomPrompt,
+      source: { filePath: '/workspace/.github/prompts/review.prompt.md' },
+    });
+    const readScopes: ConfigScope[] = [];
+    const adapter = createBaseMockAdapter({
+      id: 'copilot',
+      displayName: 'GitHub Copilot',
+      supportedToolTypes: new Set([ToolType.CustomPrompt]),
+      async readTools(type: ToolType, scope: ConfigScope): Promise<NormalizedTool[]> {
+        expect(type).toBe(ToolType.CustomPrompt);
+        readScopes.push(scope);
+        return scope === ConfigScope.Project ? [projectPrompt] : [];
+      },
+    });
+    const registry = new AdapterRegistry();
+    registry.register(adapter);
+    registry.setActiveAdapter('copilot');
+
+    const svc = new ConfigService(fileIO, backup, schemas, registry);
+    const tools = await svc.readAllTools(ToolType.CustomPrompt);
+
+    expect(readScopes).toContain(ConfigScope.Project);
+    expect(tools).toHaveLength(1);
+    expect(tools[0].name).toBe('review.prompt.md');
+    expect(tools[0].type).toBe(ToolType.CustomPrompt);
+    expect(tools[0].scope).toBe(ConfigScope.Project);
+    expect(tools[0].scopeEntries).toEqual([
+      {
+        scope: ConfigScope.Project,
+        status: ToolStatus.Enabled,
+        filePath: '/workspace/.github/prompts/review.prompt.md',
+      },
+    ]);
   });
 
   it('tool in User AND Project -> Project version wins, scopeEntries has both', async () => {
@@ -253,7 +267,7 @@ describe('ConfigService - scope resolution', () => {
   });
 
   it('catches read errors and returns error-status tools', async () => {
-    const errorAdapter: IPlatformAdapter = {
+    const errorAdapter = createBaseMockAdapter({
       id: 'error-mock',
       displayName: 'Error Mock',
       supportedToolTypes: new Set([ToolType.McpServer]),
@@ -263,11 +277,7 @@ describe('ConfigService - scope resolution', () => {
         }
         return [];
       },
-      async writeTool() {},
-      async removeTool() {},
-      getWatchPaths() { return []; },
-      async detect() { return true; },
-    };
+    });
 
     const registry = new AdapterRegistry();
     registry.register(errorAdapter);
@@ -296,7 +306,7 @@ describe('ConfigService - write pipeline', () => {
 
   beforeEach(() => {
     fileIO = new FileIOService();
-    backup = new BackupService();
+    backup = new BackupService(fileIO);
     schemas = new SchemaService();
     schemas.registerSchemas(claudeCodeSchemas);
     registry = new AdapterRegistry();

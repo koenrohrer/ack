@@ -6,11 +6,26 @@ import { FileIOService } from '../../services/fileio.service.js';
 import { SchemaService } from '../../services/schema.service.js';
 import { claudeCodeSchemas } from '../../adapters/claude-code/schemas.js';
 import { ClaudeCodeAdapter } from '../../adapters/claude-code/claude-code.adapter.js';
+import { CodexAdapter } from '../../adapters/codex/codex.adapter.js';
 import { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { AdapterScopeError } from '../../types/adapter-errors.js';
-import type { IPlatformAdapter } from '../../types/adapter.js';
 import type { NormalizedTool } from '../../types/config.js';
+import { ConfigService } from '../../services/config.service.js';
+import { BackupService } from '../../services/backup.service.js';
+import { createMockAdapter } from './helpers/mock-adapter.js';
+import { createMockFileIO } from './helpers/mock-fileio.js';
+
+/**
+ * Build real, fully-typed write services for adapters whose toggle paths
+ * (skill/command directory renames) never touch ConfigService/BackupService
+ * but still require non-null instances to pass ensureWriteServices().
+ */
+function makeWriteServices(): { configService: ConfigService; backupService: BackupService } {
+  const backupService = new BackupService(fileIO);
+  const configService = new ConfigService(fileIO, backupService, schemaService, new AdapterRegistry());
+  return { configService, backupService };
+}
 
 let tmpDir: string;
 let fileIO: FileIOService;
@@ -79,29 +94,14 @@ describe('AdapterRegistry', () => {
 
   it('detectAndActivate returns the detected adapter when exactly one matches', async () => {
     const registry = new AdapterRegistry();
-    const dir = await makeTmpDir();
 
     // Create a mock adapter that always detects
-    const mockAdapter: IPlatformAdapter = {
+    const mockAdapter = createMockAdapter({
       id: 'mock-platform',
       displayName: 'Mock Platform',
       supportedToolTypes: new Set([ToolType.Skill]),
-      async readTools() { return []; },
-      async writeTool() {},
-      async removeTool() {},
-      async toggleTool() {},
-      async installMcpServer() {},
-      getMcpFilePath() { return ''; },
-      getMcpSchemaKey() { return ''; },
-      getSkillsDir() { return ''; },
-      getCommandsDir() { return ''; },
-      getSettingsPath() { return ''; },
-      async installSkill() {},
-      async installCommand() {},
-      async installHook() {},
-      getWatchPaths() { return []; },
       async detect() { return true; },
-    };
+    });
 
     registry.register(mockAdapter);
 
@@ -113,47 +113,19 @@ describe('AdapterRegistry', () => {
   it('detectAndActivate returns undefined when multiple adapters match', async () => {
     const registry = new AdapterRegistry();
 
-    const mock1: IPlatformAdapter = {
+    const mock1 = createMockAdapter({
       id: 'platform-1',
       displayName: 'Platform 1',
       supportedToolTypes: new Set([]),
-      async readTools() { return []; },
-      async writeTool() {},
-      async removeTool() {},
-      async toggleTool() {},
-      async installMcpServer() {},
-      getMcpFilePath() { return ''; },
-      getMcpSchemaKey() { return ''; },
-      getSkillsDir() { return ''; },
-      getCommandsDir() { return ''; },
-      getSettingsPath() { return ''; },
-      async installSkill() {},
-      async installCommand() {},
-      async installHook() {},
-      getWatchPaths() { return []; },
       async detect() { return true; },
-    };
+    });
 
-    const mock2: IPlatformAdapter = {
+    const mock2 = createMockAdapter({
       id: 'platform-2',
       displayName: 'Platform 2',
       supportedToolTypes: new Set([]),
-      async readTools() { return []; },
-      async writeTool() {},
-      async removeTool() {},
-      async toggleTool() {},
-      async installMcpServer() {},
-      getMcpFilePath() { return ''; },
-      getMcpSchemaKey() { return ''; },
-      getSkillsDir() { return ''; },
-      getCommandsDir() { return ''; },
-      getSettingsPath() { return ''; },
-      async installSkill() {},
-      async installCommand() {},
-      async installHook() {},
-      getWatchPaths() { return []; },
       async detect() { return true; },
-    };
+    });
 
     registry.register(mock1);
     registry.register(mock2);
@@ -165,26 +137,12 @@ describe('AdapterRegistry', () => {
   it('detectAndActivate returns undefined when no adapters match', async () => {
     const registry = new AdapterRegistry();
 
-    const mockAdapter: IPlatformAdapter = {
+    const mockAdapter = createMockAdapter({
       id: 'mock',
       displayName: 'Mock',
       supportedToolTypes: new Set([]),
-      async readTools() { return []; },
-      async writeTool() {},
-      async removeTool() {},
-      async toggleTool() {},
-      async installMcpServer() {},
-      getMcpFilePath() { return ''; },
-      getMcpSchemaKey() { return ''; },
-      getSkillsDir() { return ''; },
-      getCommandsDir() { return ''; },
-      getSettingsPath() { return ''; },
-      async installSkill() {},
-      async installCommand() {},
-      async installHook() {},
-      getWatchPaths() { return []; },
       async detect() { return false; },
-    };
+    });
 
     registry.register(mockAdapter);
 
@@ -387,10 +345,9 @@ Deploy everything.`);
   });
 
   it('detect returns false when neither exists', async () => {
-    const mockFileIO = {
-      ...fileIO,
+    const mockFileIO = createMockFileIO({
       async fileExists(): Promise<boolean> { return false; },
-    } as FileIOService;
+    });
 
     const adapter = new ClaudeCodeAdapter(mockFileIO, schemaService);
     const detected = await adapter.detect();
@@ -496,7 +453,8 @@ Deploy everything.`);
 
     const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
     // Inject minimal services so ensureWriteServices() passes
-    adapter.setWriteServices({} as any, {} as any);
+    const { configService, backupService } = makeWriteServices();
+    adapter.setWriteServices(configService, backupService);
 
     const tool: NormalizedTool = {
       id: 'skill:user:my-skill',
@@ -525,7 +483,8 @@ Deploy everything.`);
     await fs.writeFile(path.join(skillDir, 'SKILL.md'), 'content');
 
     const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
-    adapter.setWriteServices({} as any, {} as any);
+    const { configService, backupService } = makeWriteServices();
+    adapter.setWriteServices(configService, backupService);
 
     const tool: NormalizedTool = {
       id: 'skill:user:my-skill',
@@ -550,7 +509,8 @@ Deploy everything.`);
     await fs.writeFile(cmdFile, 'content');
 
     const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
-    adapter.setWriteServices({} as any, {} as any);
+    const { configService, backupService } = makeWriteServices();
+    adapter.setWriteServices(configService, backupService);
 
     const tool: NormalizedTool = {
       id: 'command:user:deploy',
@@ -758,5 +718,18 @@ Deploy everything.`);
     expect(err.message).toContain('managed');
     expect(err.message).toContain('getSkillsDir');
     expect(err).toBeInstanceOf(Error);
+  });
+});
+
+describe('CodexAdapter capabilities', () => {
+  it('excludes custom prompts from toggle and move capabilities', () => {
+    const adapter = new CodexAdapter(fileIO, schemaService);
+
+    expect(adapter.toggleableToolTypes?.has(ToolType.Skill)).toBe(true);
+    expect(adapter.toggleableToolTypes?.has(ToolType.McpServer)).toBe(true);
+    expect(adapter.toggleableToolTypes?.has(ToolType.CustomPrompt)).toBe(false);
+    expect(adapter.movableToolTypes?.has(ToolType.Skill)).toBe(true);
+    expect(adapter.movableToolTypes?.has(ToolType.McpServer)).toBe(true);
+    expect(adapter.movableToolTypes?.has(ToolType.CustomPrompt)).toBe(false);
   });
 });
