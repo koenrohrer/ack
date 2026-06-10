@@ -4,6 +4,20 @@ All notable changes to ACK are documented here.
 
 ---
 
+## 1.3.1
+
+Activity bar visibility and logo refresh.
+
+### Fixed
+
+- Replaced the dense ACK activity bar glyph with a simpler themed icon so the sidebar tab is easier to find in VS Code
+
+### Changed
+
+- Refreshed the extension logo with a calmer pastel mark
+
+---
+
 ## 1.3.0
 
 Adapter consistency hardening and config panel save feedback.
