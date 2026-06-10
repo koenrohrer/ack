@@ -4,6 +4,41 @@ All notable changes to ACK are documented here.
 
 ---
 
+## 1.3.0
+
+Adapter consistency hardening and config panel save feedback.
+
+### Added
+
+- Custom prompts can now be installed from the marketplace for Codex (written to `~/.codex/prompts`), with an overwrite confirmation when a prompt of the same name already exists
+- Marketplace repo scanning now detects Copilot prompt files (`.github/prompts/*.prompt.md`)
+- Project-scoped Copilot custom prompts now appear in the tool tree
+
+### Fixed
+
+- Editing MCP server env vars for Codex now writes valid TOML to `config.toml`
+- Profile editor no longer gets stuck on "Saving…" after a successful save
+- Unsaved MCP settings edits are preserved across unrelated panel re-renders
+- Save buttons disable while a save is in flight and show a confirmation when it completes
+
+### Changed
+
+- Toggle and move context-menu items only appear when the active agent supports them
+- Codex-only commands (Add MCP Server, env var editing) are hidden for other agents
+- "Initialize Codex for This Project" no longer scaffolds a `prompts/` directory (Codex prompts are user-scoped)
+
+---
+
+## 1.2.6
+
+Minified production build.
+
+### Changed
+
+- Extension and webview bundles are now minified for release
+
+---
+
 ## 1.2.5
 
 UX improvement for the profile switcher empty state.

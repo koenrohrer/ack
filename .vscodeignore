@@ -16,3 +16,4 @@ package-lock.json
 CONTRIBUTING.md
 media/screenshots/**
 test-workspace/**
+docs/**
