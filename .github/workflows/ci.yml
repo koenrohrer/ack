@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify and package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check types
+        run: npm run check-types
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Build production package
+        run: npm run package
+
+      - name: Probe integration tests
+        id: integration
+        continue-on-error: true
+        run: xvfb-run -a npm run test:integration
+
+      - name: Record integration test gap
+        if: steps.integration.outcome == 'failure'
+        run: |
+          {
+            echo "### Integration tests"
+            echo ""
+            echo "\`npm run test:integration\` is currently a non-blocking CI probe because the repo does not have a \`.vscode-test\` config yet."
+            echo "Make this step blocking after adding CI-ready VS Code extension-host tests."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Package VSIX
+        run: npx @vscode/vsce package --out ack.vsix
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ack-vsix-${{ github.sha }}
+          path: ack.vsix
+          if-no-files-found: error
+          retention-days: 14
