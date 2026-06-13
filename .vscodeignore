@@ -3,8 +3,10 @@ src/**
 node_modules/**
 .planning/**
 .claude/**
+.github/**
 .git/**
 .gitignore
+*.vsix
 tsconfig.json
 tsconfig.webview.json
 esbuild.mjs

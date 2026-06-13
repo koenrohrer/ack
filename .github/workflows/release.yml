@@ -1,0 +1,143 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify release candidate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check manual release ref
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/master' && !startsWith(github.ref, 'refs/tags/v')
+        run: |
+          echo "Manual releases must run from master or a v* tag."
+          echo "Current ref: $GITHUB_REF"
+          exit 1
+
+      - name: Check tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          package_version="$(node -p "require('./package.json').version")"
+          expected_tag="v${package_version}"
+          if [ "$GITHUB_REF_NAME" != "$expected_tag" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $package_version."
+            echo "Expected tag: $expected_tag"
+            exit 1
+          fi
+
+      - name: Check types
+        run: npm run check-types
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Build production package
+        run: npm run package
+
+      - name: Probe integration tests
+        id: integration
+        continue-on-error: true
+        run: xvfb-run -a npm run test:integration
+
+      - name: Record integration test gap
+        if: steps.integration.outcome == 'failure'
+        run: |
+          {
+            echo "### Integration tests"
+            echo ""
+            echo "\`npm run test:integration\` is currently a non-blocking release probe because the repo does not have a \`.vscode-test\` config yet."
+            echo "Make this step blocking after adding CI-ready VS Code extension-host tests."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Package VSIX
+        run: npx @vscode/vsce package --out ack.vsix
+
+      - name: Upload release candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ack-release-vsix
+          path: ack.vsix
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish to Visual Studio Marketplace
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: vscode-marketplace
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download release candidate artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ack-release-vsix
+
+      - name: Publish extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx @vscode/vsce publish --packagePath ack.vsix
+
+  github-release:
+    name: Attach VSIX to GitHub release
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release candidate artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ack-release-vsix
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          asset="ack-${GITHUB_REF_NAME}.vsix"
+          mv ack.vsix "$asset"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$asset" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$asset" --verify-tag --title "$GITHUB_REF_NAME" --notes "Published ACK VS Code extension package for $GITHUB_REF_NAME."
+          fi
