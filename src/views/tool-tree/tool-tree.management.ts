@@ -8,8 +8,9 @@ import type { ConfigService } from '../../services/config.service.js';
 import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import { ConfigScope, ToolStatus, ToolType } from '../../types/enums.js';
 import { buildDeleteDescription } from '../../services/tool-manager.utils.js';
+import { LocalInstallService } from '../../services/local-install.service.js';
 import type { ToolTreeProvider } from './tool-tree.provider.js';
-import type { ToolNode, SubToolNode, TreeNode } from './tool-tree.nodes.js';
+import type { ToolNode, GroupNode, SubToolNode, TreeNode } from './tool-tree.nodes.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -31,7 +32,7 @@ interface CodexConfig {
  * - deleteTool: Delete with confirmation (+ "don't ask again" option)
  * - moveToolToUser: Move tool to global/user scope
  * - moveToolToProject: Move tool to project scope
- * - installTool: Placeholder for local install (Phase 2)
+ * - installTool: Install a skill or command from local disk (by group type)
  * - addMcpServer: Multi-step guided flow to add a Codex MCP server
  * - toggleMcpTool: Toggle individual tool enabled/disabled within an MCP server
  * - addEnvVar: Add environment variable to an MCP server
@@ -192,19 +193,34 @@ export function registerManagementCommands(
   );
 
   // ---------------------------------------------------------------------------
-  // Install Tool (placeholder -- local install lands in Phase 2)
+  // Install Tool (local skill/command install, by group tool type)
   // ---------------------------------------------------------------------------
 
+  const localInstall = new LocalInstallService();
   const installCmd = vscode.commands.registerCommand(
     'ack.installTool',
-    (node: TreeNode) => {
-      // Placeholder keeps the group "+" affordance registered so the menu
-      // contribution stays valid. Local install is implemented in Phase 2.
+    async (node: TreeNode) => {
       if (!node || node.kind !== 'group') {
         return;
       }
-      outputChannel.appendLine('ack.installTool invoked (local install lands in Phase 2)');
-      vscode.window.showInformationMessage('Local tool install is coming soon.');
+      const groupNode = node as GroupNode;
+      const adapter = registry.getActiveAdapter();
+      if (!adapter) {
+        vscode.window.showErrorMessage('No active agent.');
+        return;
+      }
+      try {
+        const installed = await localInstall.install(adapter, groupNode.toolType);
+        if (installed) {
+          outputChannel.appendLine(
+            `Local install: ${groupNode.toolType} for ${adapter.displayName}`,
+          );
+          await treeProvider.refresh();
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Install failed: ${msg}`);
+      }
     },
   );
 
