@@ -12,14 +12,15 @@ import type { BackupService } from '../../../services/backup.service.js';
 /**
  * Remove a skill by deleting its entire directory recursively.
  *
- * Creates a backup of the SKILL.md file before deletion.
+ * Backs up whichever SKILL.md variant exists first -- a disabled skill has its
+ * file renamed to SKILL.md.disabled. createBackup is a no-op for the absent one.
  */
 export async function removeSkill(
   backupService: BackupService,
   skillDirPath: string,
 ): Promise<void> {
-  const skillMdPath = path.join(skillDirPath, 'SKILL.md');
-  await backupService.createBackup(skillMdPath);
+  await backupService.createBackup(path.join(skillDirPath, 'SKILL.md'));
+  await backupService.createBackup(path.join(skillDirPath, 'SKILL.md.disabled'));
   await fs.rm(skillDirPath, { recursive: true, force: true });
 }
 
@@ -38,11 +39,11 @@ export async function copySkill(
 }
 
 /**
- * Rename a skill directory.
+ * Rename a skill path (generic fs.rename).
  *
- * Used for disable (adding .disabled suffix) and re-enable (removing it).
- * The parser skips directories with .disabled suffix since SKILL.md won't
- * be found at the expected path pattern.
+ * Used to disable a skill by renaming SKILL.md -> SKILL.md.disabled (so the
+ * agent no longer discovers it) and to re-enable by removing the suffix. Also
+ * used to re-enable legacy skills whose whole directory was renamed *.disabled.
  */
 export async function renameSkill(
   sourcePath: string,

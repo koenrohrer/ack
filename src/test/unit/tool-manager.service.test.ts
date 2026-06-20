@@ -318,6 +318,20 @@ describe('tool-manager.utils', () => {
       expect(isToggleDisable(tool)).toBe(false);
     });
 
+    it('returns false for a skill disabled via SKILL.md rename (dir has no suffix)', () => {
+      // Current scheme: directory name is unchanged, only SKILL.md was renamed.
+      // The parsed status -- not the directory name -- must drive the decision.
+      const tool = makeTool({
+        status: ToolStatus.Disabled,
+        source: {
+          filePath: '/home/user/.claude/skills/test-tool/SKILL.md.disabled',
+          directoryPath: '/home/user/.claude/skills/test-tool',
+          isDirectory: true,
+        },
+      });
+      expect(isToggleDisable(tool)).toBe(false);
+    });
+
     it('returns true for enabled MCP server', () => {
       const tool = makeMcpTool({ status: ToolStatus.Enabled });
       expect(isToggleDisable(tool)).toBe(true);

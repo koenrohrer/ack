@@ -19,11 +19,30 @@ export async function parseSkillDirectory(
   scope: ConfigScope,
 ): Promise<NormalizedTool> {
   const dirName = path.basename(skillDir);
-  const isDisabled = dirName.endsWith('.disabled');
-  const cleanName = isDisabled ? dirName.replace(/\.disabled$/, '') : dirName;
-  const skillMdPath = path.join(skillDir, 'SKILL.md');
+  const legacyDisabled = dirName.endsWith('.disabled');
+  const cleanName = legacyDisabled ? dirName.replace(/\.disabled$/, '') : dirName;
 
-  const content = await fileIO.readTextFile(skillMdPath);
+  // Current scheme: a disabled skill has its SKILL.md renamed to
+  // SKILL.md.disabled, so the agent's `SKILL.md` discovery skips the folder
+  // (renaming the directory alone does NOT hide it -- the agent still finds
+  // SKILL.md inside). Legacy scheme: the whole directory was renamed
+  // (*.disabled) with SKILL.md left inside -- still read here so such skills
+  // round-trip and can be re-enabled.
+  const enabledMdPath = path.join(skillDir, 'SKILL.md');
+  const disabledMdPath = path.join(skillDir, 'SKILL.md.disabled');
+
+  let skillMdPath = enabledMdPath;
+  let content = await fileIO.readTextFile(enabledMdPath);
+  let fileDisabled = false;
+  if (content === null) {
+    const disabledContent = await fileIO.readTextFile(disabledMdPath);
+    if (disabledContent !== null) {
+      content = disabledContent;
+      skillMdPath = disabledMdPath;
+      fileDisabled = true;
+    }
+  }
+  const isDisabled = legacyDisabled || fileDisabled;
 
   if (content === null) {
     return {

@@ -446,7 +446,7 @@ Deploy everything.`);
     );
   });
 
-  it('toggleTool renames skill directory to add .disabled suffix when enabling', async () => {
+  it('toggleTool disables a skill by renaming SKILL.md -> SKILL.md.disabled (dir unchanged)', async () => {
     const dir = await makeTmpDir();
     const skillDir = path.join(dir, 'my-skill');
     await fs.mkdir(skillDir, { recursive: true });
@@ -469,15 +469,43 @@ Deploy everything.`);
 
     await provider.toggleTool(tool);
 
-    // Should have renamed to .disabled
-    const disabledExists = await fs.stat(`${skillDir}.disabled`).then(() => true).catch(() => false);
+    // The directory keeps its name; only SKILL.md is renamed so the agent's
+    // SKILL.md discovery skips the folder.
+    const dirStillExists = await fs.stat(skillDir).then(() => true).catch(() => false);
+    expect(dirStillExists).toBe(true);
+    const skillMdGone = await fs.stat(path.join(skillDir, 'SKILL.md')).then(() => true).catch(() => false);
+    expect(skillMdGone).toBe(false);
+    const disabledExists = await fs.stat(path.join(skillDir, 'SKILL.md.disabled')).then(() => true).catch(() => false);
     expect(disabledExists).toBe(true);
-
-    const originalExists = await fs.stat(skillDir).then(() => true).catch(() => false);
-    expect(originalExists).toBe(false);
   });
 
-  it('toggleTool renames skill directory to remove .disabled suffix when re-enabling', async () => {
+  it('toggleTool re-enables a skill by restoring SKILL.md', async () => {
+    const dir = await makeTmpDir();
+    const skillDir = path.join(dir, 'my-skill');
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(path.join(skillDir, 'SKILL.md.disabled'), 'content');
+
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
+    const { configService, backupService } = makeWriteServices();
+    provider.setWriteServices(configService, backupService);
+
+    const tool: NormalizedTool = {
+      id: 'skill:user:my-skill',
+      type: ToolType.Skill,
+      name: 'my-skill',
+      scope: ConfigScope.User,
+      status: ToolStatus.Disabled,
+      source: { filePath: path.join(skillDir, 'SKILL.md.disabled'), isDirectory: true, directoryPath: skillDir },
+      metadata: {},
+    };
+
+    await provider.toggleTool(tool);
+
+    const enabledExists = await fs.stat(path.join(skillDir, 'SKILL.md')).then(() => true).catch(() => false);
+    expect(enabledExists).toBe(true);
+  });
+
+  it('toggleTool re-enables a legacy skill by restoring the renamed directory', async () => {
     const dir = await makeTmpDir();
     const skillDir = path.join(dir, 'my-skill.disabled');
     await fs.mkdir(skillDir, { recursive: true });

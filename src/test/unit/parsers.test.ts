@@ -351,6 +351,42 @@ Body text.`;
     expect(typeof tool.metadata.allowedTools).toBe('string');
     expect(tool.metadata.allowedTools).toBe('Read,Write,Bash,Glob');
   });
+
+  it('marks a skill Disabled when SKILL.md is renamed to SKILL.md.disabled', async () => {
+    const dir = await makeTmpDir();
+    const skillDir = path.join(dir, 'handoff');
+    await fs.mkdir(skillDir);
+    await fs.writeFile(path.join(skillDir, 'SKILL.md.disabled'), `---
+name: handoff
+description: A disabled skill
+---
+
+Body.`);
+
+    const tool = await parseSkillDirectory(fileIO, schemaService, skillDir, ConfigScope.User);
+
+    expect(tool.status).toBe(ToolStatus.Disabled);
+    expect(tool.name).toBe('handoff');
+    expect(tool.source.filePath).toBe(path.join(skillDir, 'SKILL.md.disabled'));
+    expect(tool.source.directoryPath).toBe(skillDir);
+  });
+
+  it('marks a legacy skill Disabled when the whole directory is *.disabled', async () => {
+    const dir = await makeTmpDir();
+    const skillDir = path.join(dir, 'handoff.disabled');
+    await fs.mkdir(skillDir);
+    await fs.writeFile(path.join(skillDir, 'SKILL.md'), `---
+name: handoff
+description: A legacy disabled skill
+---
+
+Body.`);
+
+    const tool = await parseSkillDirectory(fileIO, schemaService, skillDir, ConfigScope.User);
+
+    expect(tool.status).toBe(ToolStatus.Disabled);
+    expect(tool.name).toBe('handoff');
+  });
 });
 
 describe('parseSkillsDir', () => {

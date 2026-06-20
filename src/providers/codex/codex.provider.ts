@@ -208,12 +208,18 @@ export class CodexProvider implements AgentProvider {
         break;
       }
       case ToolType.Skill: {
-        const dirPath = tool.source.directoryPath ?? path.dirname(tool.source.filePath);
         const isDisabling = tool.status === ToolStatus.Enabled;
+        const dirPath = tool.source.directoryPath ?? path.dirname(tool.source.filePath);
+        // Legacy disable renamed the whole directory; re-enable by restoring it.
+        if (!isDisabling && dirPath.endsWith('.disabled')) {
+          await renameSkill(dirPath, dirPath.replace(/\.disabled$/, ''));
+          break;
+        }
+        // Current scheme: rename SKILL.md so the agent stops discovering it.
         const targetPath = isDisabling
-          ? `${dirPath}.disabled`
-          : dirPath.replace(/\.disabled$/, '');
-        await renameSkill(dirPath, targetPath);
+          ? `${tool.source.filePath}.disabled`
+          : tool.source.filePath.replace(/\.disabled$/, '');
+        await renameSkill(tool.source.filePath, targetPath);
         break;
       }
       default:

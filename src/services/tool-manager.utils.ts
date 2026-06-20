@@ -164,11 +164,13 @@ export function buildDeleteDescription(tool: NormalizedTool): string {
 /**
  * Check if toggling this tool would disable it (i.e., it is currently enabled).
  *
- * For skills/commands: checks if the directory name does NOT end with `.disabled`.
- * For MCP/hooks: checks if tool.status === ToolStatus.Enabled.
+ * For commands: checks if the file/directory name does NOT end with `.disabled`.
+ * For skills/MCP/hooks: checks if tool.status === ToolStatus.Enabled. (Skills
+ * can no longer rely on the directory name -- disabling renames SKILL.md, not
+ * the directory -- so the parsed status is the source of truth.)
  */
 export function isToggleDisable(tool: NormalizedTool): boolean {
-  if (tool.type === ToolType.Skill || tool.type === ToolType.Command) {
+  if (tool.type === ToolType.Command) {
     const dirOrFile = tool.source.directoryPath ?? tool.source.filePath;
     return !dirOrFile.endsWith('.disabled');
   }

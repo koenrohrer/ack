@@ -50,7 +50,7 @@ export interface ToolCapability {
    * The provider handles type-aware routing internally:
    * - MCP servers: set disabled field in config JSON
    * - Hooks: set disabled field on matcher group in settings JSON
-   * - Skills: rename directory with .disabled suffix
+   * - Skills: rename SKILL.md to SKILL.md.disabled (directory name unchanged)
    * - Commands: rename file/directory with .disabled suffix
    */
   toggleTool(tool: NormalizedTool): Promise<void>;

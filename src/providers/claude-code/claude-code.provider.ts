@@ -205,7 +205,8 @@ export class ClaudeCodeProvider implements AgentProvider {
    * Routes by tool type:
    * - MCP servers: set disabled field in config JSON
    * - Hooks: set disabled field on matcher group in settings JSON
-   * - Skills: rename directory with .disabled suffix
+   * - Skills: rename SKILL.md to SKILL.md.disabled (renaming the directory is
+   *   not enough -- the agent still discovers SKILL.md inside it)
    * - Commands: rename file/directory with .disabled suffix
    */
   async toggleTool(tool: NormalizedTool): Promise<void> {
@@ -231,10 +232,17 @@ export class ClaudeCodeProvider implements AgentProvider {
 
       case ToolType.Skill: {
         const dirPath = tool.source.directoryPath ?? path.dirname(tool.source.filePath);
+        // Legacy disable renamed the whole directory; re-enable by restoring the
+        // directory name (its SKILL.md is intact inside).
+        if (!shouldDisable && dirPath.endsWith('.disabled')) {
+          await renameSkill(dirPath, dirPath.replace(/\.disabled$/, ''));
+          break;
+        }
+        // Current scheme: rename SKILL.md so the agent stops discovering it.
         const targetPath = shouldDisable
-          ? `${dirPath}.disabled`
-          : dirPath.replace(/\.disabled$/, '');
-        await renameSkill(dirPath, targetPath);
+          ? `${tool.source.filePath}.disabled`
+          : tool.source.filePath.replace(/\.disabled$/, '');
+        await renameSkill(tool.source.filePath, targetPath);
         break;
       }
 
