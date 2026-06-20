@@ -9,6 +9,7 @@ import type { CustomPromptInstallResult } from '../../types/provider-install.js'
 import type { NormalizedTool } from '../../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { CodexPaths } from './paths.js';
+import { isCodexInstalled } from './codex.detect.utils.js';
 import { parseCodexConfigMcpServers } from './parsers/config.parser.js';
 import { parsePromptsDir } from './parsers/prompt.parser.js';
 import { parseSkillsDir } from '../claude-code/parsers/skill.parser.js';
@@ -227,11 +228,19 @@ export class CodexProvider implements AgentProvider {
   /**
    * Detect whether Codex is available on the current system.
    *
-   * Returns true if ~/.codex/ directory exists. This is the primary
-   * indicator that Codex has been installed and configured.
+   * The presence of ~/.codex/ alone is not reliable -- an unrelated tool can
+   * own that directory. We require a Codex-OWNED marker: config.toml, a
+   * prompts/ directory, or a skills/ directory. See codex.detect.utils for
+   * the rationale (incl. why prompts/ or skills/ alone must still detect, to
+   * keep the "no config.toml -> create one?" flow in checkConfiguration live).
    */
   async detect(): Promise<boolean> {
-    return this.fileIO.fileExists(CodexPaths.userCodexDir);
+    const [configToml, promptsDir, skillsDir] = await Promise.all([
+      this.fileIO.fileExists(CodexPaths.userConfigToml),
+      this.fileIO.fileExists(CodexPaths.userPromptsDir),
+      this.fileIO.fileExists(CodexPaths.userSkillsDir),
+    ]);
+    return isCodexInstalled({ configToml, promptsDir, skillsDir });
   }
 
   // ---------------------------------------------------------------------------
