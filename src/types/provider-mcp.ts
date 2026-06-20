@@ -7,7 +7,7 @@ import type { NormalizedTool } from './config.js';
  * Covers installing MCP servers and resolving MCP-specific paths
  * (config file location, schema key for validation).
  */
-export interface IMcpAdapter {
+export interface McpCapability {
   /**
    * Install an MCP server into the config file for the given scope.
    */
@@ -35,13 +35,13 @@ export interface IMcpAdapter {
    * The object key in the config file under which MCP servers are stored.
    *
    * Claude Code -> 'mcpServers', Codex -> 'mcp_servers', Copilot -> 'servers'.
-   * Lets callers edit the right container without branching on adapter id.
+   * Lets callers edit the right container without branching on provider id.
    */
   getMcpContainerKey(): string;
 
   /**
    * Describe how a server's disabled state is persisted, or `undefined` if the
-   * adapter cannot toggle MCP servers (e.g. Copilot has no disable mechanism).
+   * provider cannot toggle MCP servers (e.g. Copilot has no disable mechanism).
    *
    * When defined, disabling sets `server[field] = disabledValue` and enabling
    * deletes `field`. Claude Code uses `{ field: 'disabled', disabledValue: true }`;
@@ -54,7 +54,7 @@ export interface IMcpAdapter {
    *
    * Codex stores MCP servers in `config.toml` -> `'toml'`; Claude Code and
    * Copilot use JSON files -> `'json'`. Lets callers pick the right reader/
-   * writer without branching on adapter id.
+   * writer without branching on provider id.
    */
   getMcpConfigFormat(): 'toml' | 'json';
 
@@ -66,7 +66,7 @@ export interface IMcpAdapter {
    * Set an environment variable on an MCP server (add or overwrite).
    *
    * Present iff `capabilities.mcpEnvVars`. `server` is the MCP server tool; the
-   * adapter resolves its own config file and format.
+   * provider resolves its own config file and format.
    */
   setMcpEnvVar?(server: NormalizedTool, key: string, value: string): Promise<void>;
 

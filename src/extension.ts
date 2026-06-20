@@ -3,14 +3,14 @@ import { FileIOService } from './services/fileio.service.js';
 import { BackupService } from './services/backup.service.js';
 import { SchemaService } from './services/schema.service.js';
 import { ConfigService } from './services/config.service.js';
-import { AdapterRegistry } from './adapters/adapter.registry.js';
-import { resolveCapabilities, DEFAULT_CAPABILITIES } from './types/adapter.js';
-import { ClaudeCodeAdapter } from './adapters/claude-code/claude-code.adapter.js';
-import { claudeCodeSchemas } from './adapters/claude-code/schemas.js';
-import { CodexAdapter } from './adapters/codex/codex.adapter.js';
-import { codexSchemas } from './adapters/codex/schemas.js';
-import { CopilotAdapter } from './adapters/copilot/copilot.adapter.js';
-import { copilotSchemas } from './adapters/copilot/schemas.js';
+import { ProviderRegistry } from './providers/provider.registry.js';
+import { resolveCapabilities, DEFAULT_CAPABILITIES } from './types/provider.js';
+import { ClaudeCodeProvider } from './providers/claude-code/claude-code.provider.js';
+import { claudeCodeSchemas } from './providers/claude-code/schemas.js';
+import { CodexProvider } from './providers/codex/codex.provider.js';
+import { codexSchemas } from './providers/codex/schemas.js';
+import { CopilotProvider } from './providers/copilot/copilot.provider.js';
+import { copilotSchemas } from './providers/copilot/schemas.js';
 import { ToolTreeProvider } from './views/tool-tree/tool-tree.provider.js';
 import { registerToolTreeCommands } from './views/tool-tree/tool-tree.commands.js';
 import { registerManagementCommands } from './views/tool-tree/tool-tree.management.js';
@@ -33,7 +33,7 @@ import { createAgentStatusBar, updateAgentStatusBar } from './views/agent-switch
 let services:
   | {
       configService: ConfigService;
-      registry: AdapterRegistry;
+      registry: ProviderRegistry;
       toolManager: ToolManagerService;
       workspaceProfileService: WorkspaceProfileService;
       agentSwitcherService: AgentSwitcherService;
@@ -50,7 +50,7 @@ let services:
  */
 export function getServices(): {
   configService: ConfigService;
-  registry: AdapterRegistry;
+  registry: ProviderRegistry;
   toolManager: ToolManagerService;
   workspaceProfileService: WorkspaceProfileService;
   agentSwitcherService: AgentSwitcherService;
@@ -80,22 +80,22 @@ export function activate(context: vscode.ExtensionContext): void {
   // 4. Workspace root (undefined when no folder is open)
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
-  // 5. Adapter setup
-  // Register all adapters by iterating a single list. Adding a new adapter
+  // 5. Provider setup
+  // Register all providers by iterating a single list. Adding a new provider
   // is one array entry — construction, registration, and write-service
   // injection are all driven from here.
-  const registry = new AdapterRegistry();
-  const adapters = [
-    new ClaudeCodeAdapter(fileIO, schemas, workspaceRoot),
-    new CodexAdapter(fileIO, schemas, workspaceRoot),
-    new CopilotAdapter(fileIO, schemas, workspaceRoot, context),
+  const registry = new ProviderRegistry();
+  const providers = [
+    new ClaudeCodeProvider(fileIO, schemas, workspaceRoot),
+    new CodexProvider(fileIO, schemas, workspaceRoot),
+    new CopilotProvider(fileIO, schemas, workspaceRoot, context),
   ];
-  for (const adapter of adapters) {
-    registry.register(adapter);
+  for (const provider of providers) {
+    registry.register(provider);
   }
 
   // Register each provider's own commands (the host owns registerCommand).
-  for (const a of registry.getAllAdapters()) {
+  for (const a of registry.getAllProviders()) {
     for (const cmd of a.getCommands?.() ?? []) {
       context.subscriptions.push(vscode.commands.registerCommand(cmd.id, cmd.handler));
     }
@@ -104,9 +104,9 @@ export function activate(context: vscode.ExtensionContext): void {
   // 6. Config service (the main API for reading/writing tool configs)
   const configService = new ConfigService(fileIO, backup, schemas, registry);
 
-  // 6b. Inject write services into adapters now that configService exists
-  for (const adapter of adapters) {
-    adapter.setWriteServices(configService, backup);
+  // 6b. Inject write services into providers now that configService exists
+  for (const provider of providers) {
+    provider.setWriteServices(configService, backup);
   }
 
   // 7. Tool management service
@@ -176,7 +176,7 @@ export function activate(context: vscode.ExtensionContext): void {
         outputChannel,
         workspaceProfileService,
         registry,
-        registry.getActiveAdapter()?.displayName,
+        registry.getActiveProvider()?.displayName,
       ),
   );
   context.subscriptions.push(openConfigPanel);
@@ -195,18 +195,18 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // 15e. React to agent switches (status bar, file watchers, tree, panels, workspace profiles)
   context.subscriptions.push(
-    agentSwitcher.onDidSwitchAgent(async (adapter) => {
-      await vscode.commands.executeCommand('setContext', 'ack.activeAdapterId', adapter?.id ?? '');
+    agentSwitcher.onDidSwitchAgent(async (provider) => {
+      await vscode.commands.executeCommand('setContext', 'ack.activeProviderId', provider?.id ?? '');
       // Capability context keys drive `when`-clauses without branching on agent id.
-      const caps = adapter ? resolveCapabilities(adapter) : DEFAULT_CAPABILITIES;
+      const caps = provider ? resolveCapabilities(provider) : DEFAULT_CAPABILITIES;
       await vscode.commands.executeCommand('setContext', 'ack.cap.mcpEnvVars', caps.mcpEnvVars);
       await vscode.commands.executeCommand('setContext', 'ack.cap.mcpServerToolToggle', caps.mcpServerToolToggle);
       await vscode.commands.executeCommand('setContext', 'ack.cap.customPromptFileInstall', caps.customPromptFileInstall);
-      updateAgentStatusBar(agentStatusBar, adapter);
-      treeProvider.setAgentName(adapter?.displayName);
-      ConfigPanel.notifyAgentChanged(adapter?.displayName ?? 'No Agent');
-      if (adapter) {
-        fileWatcher.setupWatchers(adapter);
+      updateAgentStatusBar(agentStatusBar, provider);
+      treeProvider.setAgentName(provider?.displayName);
+      ConfigPanel.notifyAgentChanged(provider?.displayName ?? 'No Agent');
+      if (provider) {
+        fileWatcher.setupWatchers(provider);
         treeProvider.refresh();
 
         // Re-check workspace profile association for the new agent
@@ -230,9 +230,9 @@ export function activate(context: vscode.ExtensionContext): void {
     async () => {
       outputChannel.appendLine('Re-detecting agents...');
 
-      // Log individual detection results and collect detected adapters
-      const detected: import('./types/adapter.js').IPlatformAdapter[] = [];
-      for (const a of registry.getAllAdapters()) {
+      // Log individual detection results and collect detected providers
+      const detected: import('./types/provider.js').AgentProvider[] = [];
+      for (const a of registry.getAllProviders()) {
         const found = await a.detect();
         outputChannel.appendLine(`  ${a.displayName}: ${found ? 'detected' : 'not detected'}`);
         if (found) {
@@ -277,7 +277,7 @@ export function activate(context: vscode.ExtensionContext): void {
       outputChannel.show();
 
       // Re-run provider configuration checks (force re-surfaces dismissed prompts).
-      for (const a of registry.getAllAdapters()) {
+      for (const a of registry.getAllProviders()) {
         await a.checkConfiguration?.(context, true);
       }
     },
@@ -300,9 +300,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // 16b. Startup detection and agent reconciliation
   (async () => {
-    // Run detection on all adapters
-    const detected: import('./types/adapter.js').IPlatformAdapter[] = [];
-    for (const a of registry.getAllAdapters()) {
+    // Run detection on all providers
+    const detected: import('./types/provider.js').AgentProvider[] = [];
+    for (const a of registry.getAllProviders()) {
       const found = await a.detect();
       outputChannel.appendLine(`${a.displayName}: ${found ? 'detected' : 'not detected'}`);
       if (found) {
@@ -357,7 +357,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     // Run provider configuration checks (each provider self-gates on detection).
-    for (const a of registry.getAllAdapters()) {
+    for (const a of registry.getAllProviders()) {
       await a.checkConfiguration?.(context);
     }
   })().catch((err: unknown) => {
@@ -368,12 +368,12 @@ export function activate(context: vscode.ExtensionContext): void {
   const testCmd = vscode.commands.registerCommand(
     'ack.testReadAll',
     async () => {
-      const adapter = registry.getActiveAdapter();
-      if (!adapter) {
+      const provider = registry.getActiveProvider();
+      if (!provider) {
         vscode.window.showWarningMessage('No agent platform detected');
         return;
       }
-      for (const type of adapter.supportedToolTypes) {
+      for (const type of provider.supportedToolTypes) {
         const tools = await configService.readAllTools(type);
         outputChannel.appendLine(`${type}: ${tools.length} tools found`);
         for (const tool of tools) {
@@ -407,7 +407,7 @@ async function handleWorkspaceAutoActivation(
   workspaceProfileService: WorkspaceProfileService,
   treeProvider: ToolTreeProvider,
   outputChannel: vscode.OutputChannel,
-  registry: AdapterRegistry,
+  registry: ProviderRegistry,
 ): Promise<void> {
   // 1. Check global setting -- is auto-activation enabled?
   const autoActivate = vscode.workspace
@@ -418,7 +418,7 @@ async function handleWorkspaceAutoActivation(
   }
 
   // 2. Get active agent ID
-  const activeAgentId = registry.getActiveAdapter()?.id;
+  const activeAgentId = registry.getActiveProvider()?.id;
   if (!activeAgentId) {
     outputChannel.appendLine('Workspace profile auto-activation skipped: no active agent');
     return;

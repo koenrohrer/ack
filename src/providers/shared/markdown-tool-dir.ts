@@ -4,7 +4,7 @@ import type { NormalizedTool } from '../../types/config.js';
 import { extractFrontmatter, type FrontmatterResult } from '../../utils/markdown.js';
 
 /**
- * Per-file context handed to an adapter's `map` callback.
+ * Per-file context handed to an provider's `map` callback.
  *
  * `baseName` is the filename with its extension stripped; `fm` is the parsed
  * frontmatter (or null when the file has none); `filePath` is the absolute
@@ -20,10 +20,10 @@ export interface MarkdownToolFile {
 /**
  * Walk a directory of markdown files and build NormalizedTool entries.
  *
- * Shared across adapter markdown-frontmatter parsers (Codex prompts, Copilot
+ * Shared across provider markdown-frontmatter parsers (Codex prompts, Copilot
  * agents/prompts/instructions). The common walk — list files by extension,
  * read each, skip unreadable ones, strip the extension, extract frontmatter,
- * and sort the results alphabetically by name — lives here. Each adapter
+ * and sort the results alphabetically by name — lives here. Each provider
  * supplies a `map` callback that turns a {@link MarkdownToolFile} into the
  * NormalizedTool it wants (deciding id, type, name, status, and metadata),
  * mirroring how `extractMcpServers` takes a `map`.

@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'fs/promises';
 import * as path from 'path';
 import { ConfigScope } from '../types/enums.js';
-import type { IPlatformAdapter } from '../types/adapter.js';
+import type { AgentProvider } from '../types/provider.js';
 
 /** A file to install: its base name and text content. */
 export interface NamedFile {
@@ -12,7 +12,7 @@ export interface NamedFile {
 /**
  * Read the top-level files of a directory as `NamedFile`s.
  *
- * Subdirectories are not descended into — the install adapters write a flat
+ * Subdirectories are not descended into — the install providers write a flat
  * file set into a single target directory — so any nested folders are
  * reported in `skippedDirs` for the caller to surface (no silent truncation).
  */
@@ -46,7 +46,7 @@ export async function readDirFiles(
  * workspace is open.
  */
 export function resolveInstallScopes(
-  adapter: Pick<IPlatformAdapter, 'getSkillsDir' | 'getCommandsDir'>,
+  provider: Pick<AgentProvider, 'getSkillsDir' | 'getCommandsDir'>,
   type: 'skill' | 'command',
   hasWorkspace: boolean,
 ): ConfigScope[] {
@@ -54,7 +54,7 @@ export function resolveInstallScopes(
     ? [ConfigScope.User, ConfigScope.Project]
     : [ConfigScope.User];
   const resolve = (scope: ConfigScope): string =>
-    type === 'skill' ? adapter.getSkillsDir(scope) : adapter.getCommandsDir(scope);
+    type === 'skill' ? provider.getSkillsDir(scope) : provider.getCommandsDir(scope);
 
   const valid = candidates.filter((scope) => {
     try {

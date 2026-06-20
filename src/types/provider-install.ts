@@ -18,10 +18,10 @@ export type CustomPromptInstallResult =
  * Tool installation capability interface.
  *
  * Handles writing tool content (skills, commands, hooks) to the
- * correct scope-specific location. The adapter manages directory
+ * correct scope-specific location. The provider manages directory
  * creation and file writing internally.
  */
-export interface IInstallAdapter {
+export interface InstallCapability {
   /**
    * Install a skill by writing files to the scope's skills directory.
    *
@@ -60,7 +60,7 @@ export interface IInstallAdapter {
   /**
    * Install a custom prompt / instruction from a local file.
    *
-   * Present iff `capabilities.customPromptFileInstall`. The adapter validates the
+   * Present iff `capabilities.customPromptFileInstall`. The provider validates the
    * file, resolves its own target path, and copies it — the view only picks the
    * file and surfaces the result. Returns `conflict` when a file already exists
    * and `options.overwrite` is not set.

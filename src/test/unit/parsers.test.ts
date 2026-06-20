@@ -4,11 +4,11 @@ import * as path from 'path';
 import * as os from 'os';
 import { FileIOService } from '../../services/fileio.service.js';
 import { SchemaService } from '../../services/schema.service.js';
-import { claudeCodeSchemas } from '../../adapters/claude-code/schemas.js';
-import { parseSettingsFile, readDisabledMcpServers } from '../../adapters/claude-code/parsers/settings.parser.js';
-import { parseMcpFile, parseClaudeJson } from '../../adapters/claude-code/parsers/mcp.parser.js';
-import { parseSkillDirectory, parseSkillsDir } from '../../adapters/claude-code/parsers/skill.parser.js';
-import { parseCommandFile, parseCommandsDir } from '../../adapters/claude-code/parsers/command.parser.js';
+import { claudeCodeSchemas } from '../../providers/claude-code/schemas.js';
+import { parseSettingsFile, readDisabledMcpServers } from '../../providers/claude-code/parsers/settings.parser.js';
+import { parseMcpFile, parseClaudeJson } from '../../providers/claude-code/parsers/mcp.parser.js';
+import { parseSkillDirectory, parseSkillsDir } from '../../providers/claude-code/parsers/skill.parser.js';
+import { parseCommandFile, parseCommandsDir } from '../../providers/claude-code/parsers/command.parser.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 
 let tmpDir: string;

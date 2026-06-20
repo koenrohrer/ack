@@ -4,7 +4,7 @@ import { promisify } from 'util';
 import type { ToolManagerService } from '../../services/tool-manager.service.js';
 import type { ProfileService } from '../../services/profile.service.js';
 import type { ConfigService } from '../../services/config.service.js';
-import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
+import type { ProviderRegistry } from '../../providers/provider.registry.js';
 import { ConfigScope, ToolStatus, ToolType } from '../../types/enums.js';
 import { buildDeleteDescription } from '../../services/tool-manager.utils.js';
 import { LocalInstallService } from '../../services/local-install.service.js';
@@ -39,7 +39,7 @@ export function registerManagementCommands(
   profileService: ProfileService,
   configService: ConfigService,
   outputChannel: vscode.OutputChannel,
-  registry: AdapterRegistry,
+  registry: ProviderRegistry,
 ): void {
   // ---------------------------------------------------------------------------
   // Toggle Enable/Disable
@@ -193,16 +193,16 @@ export function registerManagementCommands(
         return;
       }
       const groupNode = node as GroupNode;
-      const adapter = registry.getActiveAdapter();
-      if (!adapter) {
+      const provider = registry.getActiveProvider();
+      if (!provider) {
         vscode.window.showErrorMessage('No active agent.');
         return;
       }
       try {
-        const installed = await localInstall.install(adapter, groupNode.toolType);
+        const installed = await localInstall.install(provider, groupNode.toolType);
         if (installed) {
           outputChannel.appendLine(
-            `Local install: ${groupNode.toolType} for ${adapter.displayName}`,
+            `Local install: ${groupNode.toolType} for ${provider.displayName}`,
           );
           await treeProvider.refresh();
         }
@@ -221,8 +221,8 @@ export function registerManagementCommands(
     'ack.addMcpServer',
     async () => {
       try {
-        const adapter = registry.getActiveAdapter();
-        if (!adapter || !adapter.supportedToolTypes.has(ToolType.McpServer)) {
+        const provider = registry.getActiveProvider();
+        if (!provider || !provider.supportedToolTypes.has(ToolType.McpServer)) {
           vscode.window.showErrorMessage('Add MCP Server is not supported by the active agent.');
           return;
         }
@@ -256,7 +256,7 @@ export function registerManagementCommands(
         )
           .filter((s) => {
             try {
-              adapter.getMcpFilePath(s);
+              provider.getMcpFilePath(s);
               return true;
             } catch {
               return false;
@@ -367,8 +367,8 @@ export function registerManagementCommands(
           serverConfig = { url };
         }
 
-        // Write to config via adapter (respects boundary)
-        await adapter.installMcpServer(scope, serverName, serverConfig);
+        // Write to config via provider (respects boundary)
+        await provider.installMcpServer(scope, serverName, serverConfig);
         await treeProvider.refresh();
         vscode.window.showInformationMessage(`MCP server '${serverName}' added.`);
       } catch (err: unknown) {
@@ -394,8 +394,8 @@ export function registerManagementCommands(
           return;
         }
 
-        const adapter = registry.getActiveAdapter();
-        if (!adapter?.toggleMcpServerTool) {
+        const provider = registry.getActiveProvider();
+        if (!provider?.toggleMcpServerTool) {
           vscode.window.showErrorMessage('The active agent does not support toggling MCP tools.');
           return;
         }
@@ -403,7 +403,7 @@ export function registerManagementCommands(
         const toolName = subNode.label;
         const shouldEnable = subNode.detail !== 'enabled';
 
-        await adapter.toggleMcpServerTool(subNode.parentTool, toolName, shouldEnable);
+        await provider.toggleMcpServerTool(subNode.parentTool, toolName, shouldEnable);
         await treeProvider.refresh();
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -428,8 +428,8 @@ export function registerManagementCommands(
           return;
         }
 
-        const adapter = registry.getActiveAdapter();
-        if (!adapter?.setMcpEnvVar) {
+        const provider = registry.getActiveProvider();
+        if (!provider?.setMcpEnvVar) {
           vscode.window.showErrorMessage('The active agent does not support MCP environment variables.');
           return;
         }
@@ -464,7 +464,7 @@ export function registerManagementCommands(
           return;
         }
 
-        await adapter.setMcpEnvVar(toolNode.tool, key, value);
+        await provider.setMcpEnvVar(toolNode.tool, key, value);
 
         await treeProvider.refresh();
         vscode.window.showInformationMessage(`Environment variable '${key}' added to ${toolNode.tool.name}.`);
@@ -491,8 +491,8 @@ export function registerManagementCommands(
           return;
         }
 
-        const adapter = registry.getActiveAdapter();
-        if (!adapter?.setMcpEnvVar) {
+        const provider = registry.getActiveProvider();
+        if (!provider?.setMcpEnvVar) {
           vscode.window.showErrorMessage('The active agent does not support MCP environment variables.');
           return;
         }
@@ -514,7 +514,7 @@ export function registerManagementCommands(
           return;
         }
 
-        await adapter.setMcpEnvVar(subNode.parentTool, key, newValue);
+        await provider.setMcpEnvVar(subNode.parentTool, key, newValue);
 
         await treeProvider.refresh();
         vscode.window.showInformationMessage(`Environment variable '${key}' updated.`);
@@ -585,8 +585,8 @@ export function registerManagementCommands(
           return;
         }
 
-        const adapter = registry.getActiveAdapter();
-        if (!adapter?.removeMcpEnvVar) {
+        const provider = registry.getActiveProvider();
+        if (!provider?.removeMcpEnvVar) {
           vscode.window.showErrorMessage('The active agent does not support MCP environment variables.');
           return;
         }
@@ -603,7 +603,7 @@ export function registerManagementCommands(
           return;
         }
 
-        await adapter.removeMcpEnvVar(subNode.parentTool, key);
+        await provider.removeMcpEnvVar(subNode.parentTool, key);
 
         await treeProvider.refresh();
         vscode.window.showInformationMessage(`Environment variable '${key}' removed from ${serverName}.`);
@@ -622,8 +622,8 @@ export function registerManagementCommands(
     'ack.installCustomPromptFile',
     async () => {
       try {
-        const adapter = registry.getActiveAdapter();
-        if (!adapter?.installCustomPromptFile) {
+        const provider = registry.getActiveProvider();
+        if (!provider?.installCustomPromptFile) {
           vscode.window.showErrorMessage(
             'The active agent does not support installing custom prompts from a file.',
           );
@@ -641,9 +641,9 @@ export function registerManagementCommands(
         }
         const sourcePath = uris[0].fsPath;
 
-        // The adapter owns path resolution, validation, and the write; the view
+        // The provider owns path resolution, validation, and the write; the view
         // only picks the file and resolves the overwrite prompt on conflict.
-        let result = await adapter.installCustomPromptFile(sourcePath);
+        let result = await provider.installCustomPromptFile(sourcePath);
         if (result.status === 'conflict') {
           const choice = await vscode.window.showWarningMessage(
             `'${result.name}' already exists. Overwrite?`,
@@ -653,7 +653,7 @@ export function registerManagementCommands(
           if (choice !== 'Overwrite') {
             return;
           }
-          result = await adapter.installCustomPromptFile(sourcePath, { overwrite: true });
+          result = await provider.installCustomPromptFile(sourcePath, { overwrite: true });
         }
 
         if (result.status === 'rejected') {

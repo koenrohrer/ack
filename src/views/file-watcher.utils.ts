@@ -6,18 +6,18 @@
  */
 
 import * as path from 'path';
-import type { IPlatformAdapter } from '../types/adapter.js';
+import type { AgentProvider } from '../types/provider.js';
 import { ConfigScope } from '../types/enums.js';
 
 /**
- * Collects and deduplicates watch directories from a platform adapter.
+ * Collects and deduplicates watch directories from a platform provider.
  *
  * Gathers all paths from getWatchPaths() across all scopes, resolves each
  * to its parent directory (for files) or keeps it as-is (for directories),
  * then deduplicates. Directories that contain skills/commands are flagged
  * for recursive watching.
  */
-export function collectWatchDirs(adapter: IPlatformAdapter): {
+export function collectWatchDirs(provider: AgentProvider): {
   dir: string;
   recursive: boolean;
 }[] {
@@ -31,7 +31,7 @@ export function collectWatchDirs(adapter: IPlatformAdapter): {
   const dirSet = new Map<string, boolean>();
 
   for (const scope of allScopes) {
-    const paths = adapter.getWatchPaths(scope);
+    const paths = provider.getWatchPaths(scope);
 
     for (const p of paths) {
       // Skills, commands, prompts, instructions, and agents directories need recursive watching

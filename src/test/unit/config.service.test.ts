@@ -6,12 +6,12 @@ import { ConfigService } from '../../services/config.service.js';
 import { FileIOService } from '../../services/fileio.service.js';
 import { BackupService } from '../../services/backup.service.js';
 import { SchemaService } from '../../services/schema.service.js';
-import { AdapterRegistry } from '../../adapters/adapter.registry.js';
-import { claudeCodeSchemas } from '../../adapters/claude-code/schemas.js';
+import { ProviderRegistry } from '../../providers/provider.registry.js';
+import { claudeCodeSchemas } from '../../providers/claude-code/schemas.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
-import type { IPlatformAdapter } from '../../types/adapter.js';
+import type { AgentProvider } from '../../types/provider.js';
 import type { NormalizedTool } from '../../types/config.js';
-import { createMockAdapter as createBaseMockAdapter } from './helpers/mock-adapter.js';
+import { createMockProvider as createBaseMockProvider } from './helpers/mock-provider.js';
 import { makeTool } from './helpers/make-tool.js';
 
 // ---------------------------------------------------------------------------
@@ -20,8 +20,8 @@ import { makeTool } from './helpers/make-tool.js';
 
 let tmpDir: string;
 
-function createMockAdapter(toolsByScope: Record<string, NormalizedTool[]> = {}): IPlatformAdapter {
-  return createBaseMockAdapter({ toolsByScope });
+function createMockProvider(toolsByScope: Record<string, NormalizedTool[]> = {}): AgentProvider {
+  return createBaseMockProvider({ toolsByScope });
 }
 
 beforeEach(async () => {
@@ -53,12 +53,12 @@ describe('ConfigService - scope resolution', () => {
 
   it('tool in User only is returned as-is with single scopeEntry', async () => {
     const userTool = makeTool({ name: 'my-server', scope: ConfigScope.User });
-    const adapter = createMockAdapter({
+    const provider = createMockProvider({
       [`${ToolType.McpServer}:${ConfigScope.User}`]: [userTool],
     });
-    const registry = new AdapterRegistry();
-    registry.register(adapter);
-    registry.setActiveAdapter('mock');
+    const registry = new ProviderRegistry();
+    registry.register(provider);
+    registry.setActiveProvider('mock');
 
     const svc = new ConfigService(fileIO, backup, schemas, registry);
     const tools = await svc.readAllTools(ToolType.McpServer);
@@ -78,7 +78,7 @@ describe('ConfigService - scope resolution', () => {
       source: { filePath: '/workspace/.github/prompts/review.prompt.md' },
     });
     const readScopes: ConfigScope[] = [];
-    const adapter = createBaseMockAdapter({
+    const provider = createBaseMockProvider({
       id: 'copilot',
       displayName: 'GitHub Copilot',
       supportedToolTypes: new Set([ToolType.CustomPrompt]),
@@ -88,9 +88,9 @@ describe('ConfigService - scope resolution', () => {
         return scope === ConfigScope.Project ? [projectPrompt] : [];
       },
     });
-    const registry = new AdapterRegistry();
-    registry.register(adapter);
-    registry.setActiveAdapter('copilot');
+    const registry = new ProviderRegistry();
+    registry.register(provider);
+    registry.setActiveProvider('copilot');
 
     const svc = new ConfigService(fileIO, backup, schemas, registry);
     const tools = await svc.readAllTools(ToolType.CustomPrompt);
@@ -113,13 +113,13 @@ describe('ConfigService - scope resolution', () => {
     const userTool = makeTool({ name: 'shared-server', scope: ConfigScope.User, status: ToolStatus.Enabled });
     const projectTool = makeTool({ name: 'shared-server', scope: ConfigScope.Project, status: ToolStatus.Enabled });
 
-    const adapter = createMockAdapter({
+    const provider = createMockProvider({
       [`${ToolType.McpServer}:${ConfigScope.User}`]: [userTool],
       [`${ToolType.McpServer}:${ConfigScope.Project}`]: [projectTool],
     });
-    const registry = new AdapterRegistry();
-    registry.register(adapter);
-    registry.setActiveAdapter('mock');
+    const registry = new ProviderRegistry();
+    registry.register(provider);
+    registry.setActiveProvider('mock');
 
     const svc = new ConfigService(fileIO, backup, schemas, registry);
     const tools = await svc.readAllTools(ToolType.McpServer);
@@ -136,13 +136,13 @@ describe('ConfigService - scope resolution', () => {
     const userTool = makeTool({ name: 'enterprise-server', scope: ConfigScope.User });
     const managedTool = makeTool({ name: 'enterprise-server', scope: ConfigScope.Managed });
 
-    const adapter = createMockAdapter({
+    const provider = createMockProvider({
       [`${ToolType.McpServer}:${ConfigScope.User}`]: [userTool],
       [`${ToolType.McpServer}:${ConfigScope.Managed}`]: [managedTool],
     });
-    const registry = new AdapterRegistry();
-    registry.register(adapter);
-    registry.setActiveAdapter('mock');
+    const registry = new ProviderRegistry();
+    registry.register(provider);
+    registry.setActiveProvider('mock');
 
     const svc = new ConfigService(fileIO, backup, schemas, registry);
     const tools = await svc.readAllTools(ToolType.McpServer);
@@ -155,13 +155,13 @@ describe('ConfigService - scope resolution', () => {
     const userTool = makeTool({ name: 'toggle-server', scope: ConfigScope.User, status: ToolStatus.Enabled });
     const projectTool = makeTool({ name: 'toggle-server', scope: ConfigScope.Project, status: ToolStatus.Disabled });
 
-    const adapter = createMockAdapter({
+    const provider = createMockProvider({
       [`${ToolType.McpServer}:${ConfigScope.User}`]: [userTool],
       [`${ToolType.McpServer}:${ConfigScope.Project}`]: [projectTool],
     });
-    const registry = new AdapterRegistry();
-    registry.register(adapter);
-    registry.setActiveAdapter('mock');
+    const registry = new ProviderRegistry();
+    registry.register(provider);
+    registry.setActiveProvider('mock');
 
     const svc = new ConfigService(fileIO, backup, schemas, registry);
     const tools = await svc.readAllTools(ToolType.McpServer);
@@ -195,15 +195,15 @@ describe('ConfigService - scope resolution', () => {
       metadata: { eventName: 'PreToolUse', matcher: 'Bash' },
     });
 
-    const adapter = createMockAdapter({
+    const provider = createMockProvider({
       [`${ToolType.Hook}:${ConfigScope.User}`]: [userTool],
       [`${ToolType.Hook}:${ConfigScope.Project}`]: [projectTool],
       [`${ToolType.Hook}:${ConfigScope.Local}`]: [localTool],
       [`${ToolType.Hook}:${ConfigScope.Managed}`]: [managedTool],
     });
-    const registry = new AdapterRegistry();
-    registry.register(adapter);
-    registry.setActiveAdapter('mock');
+    const registry = new ProviderRegistry();
+    registry.register(provider);
+    registry.setActiveProvider('mock');
 
     const svc = new ConfigService(fileIO, backup, schemas, registry);
     const tools = await svc.readAllTools(ToolType.Hook);
@@ -222,12 +222,12 @@ describe('ConfigService - scope resolution', () => {
     const toolA = makeTool({ name: 'server-a', scope: ConfigScope.User });
     const toolB = makeTool({ name: 'server-b', scope: ConfigScope.User });
 
-    const adapter = createMockAdapter({
+    const provider = createMockProvider({
       [`${ToolType.McpServer}:${ConfigScope.User}`]: [toolA, toolB],
     });
-    const registry = new AdapterRegistry();
-    registry.register(adapter);
-    registry.setActiveAdapter('mock');
+    const registry = new ProviderRegistry();
+    registry.register(provider);
+    registry.setActiveProvider('mock');
 
     const svc = new ConfigService(fileIO, backup, schemas, registry);
     const tools = await svc.readAllTools(ToolType.McpServer);
@@ -238,24 +238,24 @@ describe('ConfigService - scope resolution', () => {
     expect(names).toContain('server-b');
   });
 
-  it('returns empty array when no active adapter', async () => {
-    const registry = new AdapterRegistry();
+  it('returns empty array when no active provider', async () => {
+    const registry = new ProviderRegistry();
     const svc = new ConfigService(fileIO, backup, schemas, registry);
     const tools = await svc.readAllTools(ToolType.McpServer);
     expect(tools).toEqual([]);
   });
 
-  it('readToolsByScope delegates to adapter without resolution', async () => {
+  it('readToolsByScope delegates to provider without resolution', async () => {
     const userTool = makeTool({ name: 'only-user', scope: ConfigScope.User });
     const projectTool = makeTool({ name: 'only-user', scope: ConfigScope.Project });
 
-    const adapter = createMockAdapter({
+    const provider = createMockProvider({
       [`${ToolType.McpServer}:${ConfigScope.User}`]: [userTool],
       [`${ToolType.McpServer}:${ConfigScope.Project}`]: [projectTool],
     });
-    const registry = new AdapterRegistry();
-    registry.register(adapter);
-    registry.setActiveAdapter('mock');
+    const registry = new ProviderRegistry();
+    registry.register(provider);
+    registry.setActiveProvider('mock');
 
     const svc = new ConfigService(fileIO, backup, schemas, registry);
     const tools = await svc.readToolsByScope(ToolType.McpServer, ConfigScope.User);
@@ -267,7 +267,7 @@ describe('ConfigService - scope resolution', () => {
   });
 
   it('catches read errors and returns error-status tools', async () => {
-    const errorAdapter = createBaseMockAdapter({
+    const errorProvider = createBaseMockProvider({
       id: 'error-mock',
       displayName: 'Error Mock',
       supportedToolTypes: new Set([ToolType.McpServer]),
@@ -279,9 +279,9 @@ describe('ConfigService - scope resolution', () => {
       },
     });
 
-    const registry = new AdapterRegistry();
-    registry.register(errorAdapter);
-    registry.setActiveAdapter('error-mock');
+    const registry = new ProviderRegistry();
+    registry.register(errorProvider);
+    registry.setActiveProvider('error-mock');
 
     const svc = new ConfigService(fileIO, backup, schemas, registry);
     const tools = await svc.readAllTools(ToolType.McpServer);
@@ -301,7 +301,7 @@ describe('ConfigService - write pipeline', () => {
   let fileIO: FileIOService;
   let backup: BackupService;
   let schemas: SchemaService;
-  let registry: AdapterRegistry;
+  let registry: ProviderRegistry;
   let svc: ConfigService;
 
   beforeEach(() => {
@@ -309,7 +309,7 @@ describe('ConfigService - write pipeline', () => {
     backup = new BackupService(fileIO);
     schemas = new SchemaService();
     schemas.registerSchemas(claudeCodeSchemas);
-    registry = new AdapterRegistry();
+    registry = new ProviderRegistry();
     svc = new ConfigService(fileIO, backup, schemas, registry);
   });
 

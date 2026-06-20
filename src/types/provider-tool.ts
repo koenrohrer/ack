@@ -5,23 +5,23 @@ import type { NormalizedTool } from './config.js';
  * Tool read/write/toggle capability interface.
  *
  * Covers all CRUD + toggle operations for tools across scopes.
- * Adapters route by ToolType internally (MCP JSON field vs directory rename).
+ * Providers route by ToolType internally (MCP JSON field vs directory rename).
  */
-export interface IToolAdapter {
+export interface ToolCapability {
   readonly supportedToolTypes: ReadonlySet<ToolType>;
 
   /**
    * Subset of supportedToolTypes that can be toggled (enabled/disabled).
    * If undefined, ALL supportedToolTypes are assumed toggleable (backward compat
-   * for Claude Code and Codex adapters which do not declare this property).
-   * Adapters where only some types are toggleable MUST declare this property.
+   * for Claude Code and Codex providers which do not declare this property).
+   * Providers where only some types are toggleable MUST declare this property.
    */
   readonly toggleableToolTypes?: ReadonlySet<ToolType>;
 
   /**
    * Subset of supportedToolTypes that can be moved between user/project scopes.
    * If undefined, ALL supportedToolTypes are assumed movable (backward compat
-   * for adapters with complete writeTool implementations).
+   * for providers with complete writeTool implementations).
    */
   readonly movableToolTypes?: ReadonlySet<ToolType>;
 
@@ -38,7 +38,7 @@ export interface IToolAdapter {
   /**
    * Remove a tool from its scope.
    *
-   * Accepts the full NormalizedTool so the adapter has access to
+   * Accepts the full NormalizedTool so the provider has access to
    * type, scope, source path, and metadata needed to locate and
    * remove the tool's config entries or files.
    */
@@ -47,7 +47,7 @@ export interface IToolAdapter {
   /**
    * Toggle a tool between enabled and disabled states.
    *
-   * The adapter handles type-aware routing internally:
+   * The provider handles type-aware routing internally:
    * - MCP servers: set disabled field in config JSON
    * - Hooks: set disabled field on matcher group in settings JSON
    * - Skills: rename directory with .disabled suffix

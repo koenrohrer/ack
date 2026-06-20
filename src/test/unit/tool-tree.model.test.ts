@@ -3,10 +3,10 @@ import { ToolTreeModel } from '../../views/tool-tree/tool-tree.model.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import type { NormalizedTool } from '../../types/config.js';
 import type { ConfigService } from '../../services/config.service.js';
-import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
-import type { IPlatformAdapter } from '../../types/adapter.js';
+import type { ProviderRegistry } from '../../providers/provider.registry.js';
+import type { AgentProvider } from '../../types/provider.js';
 import type { GroupNode, EventGroupNode, ToolNode, SubToolNode } from '../../views/tool-tree/tool-tree.nodes.js';
-import { createMockAdapter } from './helpers/mock-adapter.js';
+import { createMockProvider } from './helpers/mock-provider.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -52,26 +52,26 @@ function createMockRegistry(
     ToolType.Hook,
     ToolType.Command,
   ]),
-): AdapterRegistry {
-  const adapter = createMockAdapter({
+): ProviderRegistry {
+  const provider = createMockProvider({
     id: 'mock',
     displayName: 'Mock',
     supportedToolTypes: supportedTypes,
   });
 
   return {
-    getActiveAdapter(): IPlatformAdapter {
-      return adapter;
+    getActiveProvider(): AgentProvider {
+      return provider;
     },
-  } as unknown as AdapterRegistry;
+  } as unknown as ProviderRegistry;
 }
 
-function createInactiveRegistry(): AdapterRegistry {
+function createInactiveRegistry(): ProviderRegistry {
   return {
-    getActiveAdapter(): IPlatformAdapter | undefined {
+    getActiveProvider(): AgentProvider | undefined {
       return undefined;
     },
-  } as unknown as AdapterRegistry;
+  } as unknown as ProviderRegistry;
 }
 
 // ---------------------------------------------------------------------------
@@ -89,7 +89,7 @@ describe('ToolTreeModel', () => {
   // Empty state
   // -----------------------------------------------------------------------
 
-  it('returns empty groups when no active adapter', async () => {
+  it('returns empty groups when no active provider', async () => {
     const configService = createMockConfigService({});
     const registry = createInactiveRegistry();
 
@@ -536,7 +536,7 @@ describe('ToolTreeModel', () => {
   // Unsupported tool types excluded
   // -----------------------------------------------------------------------
 
-  it('skips tool types not supported by the adapter', async () => {
+  it('skips tool types not supported by the provider', async () => {
     const tools: Record<string, NormalizedTool[]> = {
       [`${ToolType.Skill}:${ConfigScope.User}`]: [
         makeTool({ name: 'skill', scope: ConfigScope.User }),

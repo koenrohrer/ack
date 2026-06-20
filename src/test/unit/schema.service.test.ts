@@ -7,7 +7,7 @@ import {
   SkillFrontmatterSchema,
   CommandFrontmatterSchema,
   claudeCodeSchemas,
-} from '../../adapters/claude-code/schemas.js';
+} from '../../providers/claude-code/schemas.js';
 
 describe('Zod schemas', () => {
   // -- SettingsFileSchema --

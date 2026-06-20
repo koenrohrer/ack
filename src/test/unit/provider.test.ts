@@ -4,27 +4,27 @@ import * as path from 'path';
 import * as os from 'os';
 import { FileIOService } from '../../services/fileio.service.js';
 import { SchemaService } from '../../services/schema.service.js';
-import { claudeCodeSchemas } from '../../adapters/claude-code/schemas.js';
-import { ClaudeCodeAdapter } from '../../adapters/claude-code/claude-code.adapter.js';
-import { CodexAdapter } from '../../adapters/codex/codex.adapter.js';
-import { AdapterRegistry } from '../../adapters/adapter.registry.js';
+import { claudeCodeSchemas } from '../../providers/claude-code/schemas.js';
+import { ClaudeCodeProvider } from '../../providers/claude-code/claude-code.provider.js';
+import { CodexProvider } from '../../providers/codex/codex.provider.js';
+import { ProviderRegistry } from '../../providers/provider.registry.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
-import { AdapterScopeError } from '../../types/adapter-errors.js';
-import { resolveCapabilities } from '../../types/adapter.js';
+import { ProviderScopeError } from '../../types/provider-errors.js';
+import { resolveCapabilities } from '../../types/provider.js';
 import type { NormalizedTool } from '../../types/config.js';
 import { ConfigService } from '../../services/config.service.js';
 import { BackupService } from '../../services/backup.service.js';
-import { createMockAdapter } from './helpers/mock-adapter.js';
+import { createMockProvider } from './helpers/mock-provider.js';
 import { createMockFileIO } from './helpers/mock-fileio.js';
 
 /**
- * Build real, fully-typed write services for adapters whose toggle paths
+ * Build real, fully-typed write services for providers whose toggle paths
  * (skill/command directory renames) never touch ConfigService/BackupService
  * but still require non-null instances to pass ensureWriteServices().
  */
 function makeWriteServices(): { configService: ConfigService; backupService: BackupService } {
   const backupService = new BackupService(fileIO);
-  const configService = new ConfigService(fileIO, backupService, schemaService, new AdapterRegistry());
+  const configService = new ConfigService(fileIO, backupService, schemaService, new ProviderRegistry());
   return { configService, backupService };
 }
 
@@ -33,7 +33,7 @@ let fileIO: FileIOService;
 let schemaService: SchemaService;
 
 async function makeTmpDir(): Promise<string> {
-  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'adapter-test-'));
+  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'provider-test-'));
   return tmpDir;
 }
 
@@ -51,77 +51,77 @@ afterEach(async () => {
 });
 
 // ---------------------------------------------------------------------------
-// AdapterRegistry
+// ProviderRegistry
 // ---------------------------------------------------------------------------
 
-describe('AdapterRegistry', () => {
-  it('registers and retrieves adapters', () => {
-    const registry = new AdapterRegistry();
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    registry.register(adapter);
+describe('ProviderRegistry', () => {
+  it('registers and retrieves providers', () => {
+    const registry = new ProviderRegistry();
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    registry.register(provider);
 
-    expect(registry.getAdapter('claude-code')).toBe(adapter);
-    expect(registry.getAdapter('nonexistent')).toBeUndefined();
+    expect(registry.getProvider('claude-code')).toBe(provider);
+    expect(registry.getProvider('nonexistent')).toBeUndefined();
   });
 
-  it('returns all registered adapters', () => {
-    const registry = new AdapterRegistry();
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    registry.register(adapter);
+  it('returns all registered providers', () => {
+    const registry = new ProviderRegistry();
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    registry.register(provider);
 
-    const all = registry.getAllAdapters();
+    const all = registry.getAllProviders();
     expect(all).toHaveLength(1);
     expect(all[0].id).toBe('claude-code');
   });
 
-  it('sets and gets active adapter', () => {
-    const registry = new AdapterRegistry();
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    registry.register(adapter);
+  it('sets and gets active provider', () => {
+    const registry = new ProviderRegistry();
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    registry.register(provider);
 
-    expect(registry.getActiveAdapter()).toBeUndefined();
+    expect(registry.getActiveProvider()).toBeUndefined();
 
-    registry.setActiveAdapter('claude-code');
-    expect(registry.getActiveAdapter()).toBe(adapter);
+    registry.setActiveProvider('claude-code');
+    expect(registry.getActiveProvider()).toBe(provider);
   });
 
-  it('throws when setting active adapter to unregistered id', () => {
-    const registry = new AdapterRegistry();
+  it('throws when setting active provider to unregistered id', () => {
+    const registry = new ProviderRegistry();
 
-    expect(() => registry.setActiveAdapter('nonexistent')).toThrow(
-      'Adapter "nonexistent" is not registered',
+    expect(() => registry.setActiveProvider('nonexistent')).toThrow(
+      'Provider "nonexistent" is not registered',
     );
   });
 
-  it('detectAndActivate returns the detected adapter when exactly one matches', async () => {
-    const registry = new AdapterRegistry();
+  it('detectAndActivate returns the detected provider when exactly one matches', async () => {
+    const registry = new ProviderRegistry();
 
-    // Create a mock adapter that always detects
-    const mockAdapter = createMockAdapter({
+    // Create a mock provider that always detects
+    const mockProvider = createMockProvider({
       id: 'mock-platform',
       displayName: 'Mock Platform',
       supportedToolTypes: new Set([ToolType.Skill]),
       async detect() { return true; },
     });
 
-    registry.register(mockAdapter);
+    registry.register(mockProvider);
 
     const result = await registry.detectAndActivate();
-    expect(result).toBe(mockAdapter);
-    expect(registry.getActiveAdapter()).toBe(mockAdapter);
+    expect(result).toBe(mockProvider);
+    expect(registry.getActiveProvider()).toBe(mockProvider);
   });
 
-  it('detectAndActivate returns undefined when multiple adapters match', async () => {
-    const registry = new AdapterRegistry();
+  it('detectAndActivate returns undefined when multiple providers match', async () => {
+    const registry = new ProviderRegistry();
 
-    const mock1 = createMockAdapter({
+    const mock1 = createMockProvider({
       id: 'platform-1',
       displayName: 'Platform 1',
       supportedToolTypes: new Set([]),
       async detect() { return true; },
     });
 
-    const mock2 = createMockAdapter({
+    const mock2 = createMockProvider({
       id: 'platform-2',
       displayName: 'Platform 2',
       supportedToolTypes: new Set([]),
@@ -135,17 +135,17 @@ describe('AdapterRegistry', () => {
     expect(result).toBeUndefined();
   });
 
-  it('detectAndActivate returns undefined when no adapters match', async () => {
-    const registry = new AdapterRegistry();
+  it('detectAndActivate returns undefined when no providers match', async () => {
+    const registry = new ProviderRegistry();
 
-    const mockAdapter = createMockAdapter({
+    const mockProvider = createMockProvider({
       id: 'mock',
       displayName: 'Mock',
       supportedToolTypes: new Set([]),
       async detect() { return false; },
     });
 
-    registry.register(mockAdapter);
+    registry.register(mockProvider);
 
     const result = await registry.detectAndActivate();
     expect(result).toBeUndefined();
@@ -153,18 +153,18 @@ describe('AdapterRegistry', () => {
 });
 
 // ---------------------------------------------------------------------------
-// ClaudeCodeAdapter
+// ClaudeCodeProvider
 // ---------------------------------------------------------------------------
 
-describe('ClaudeCodeAdapter', () => {
+describe('ClaudeCodeProvider', () => {
   it('has correct identity properties', () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    expect(adapter.id).toBe('claude-code');
-    expect(adapter.displayName).toBe('Claude Code');
-    expect(adapter.supportedToolTypes.has(ToolType.Skill)).toBe(true);
-    expect(adapter.supportedToolTypes.has(ToolType.McpServer)).toBe(true);
-    expect(adapter.supportedToolTypes.has(ToolType.Hook)).toBe(true);
-    expect(adapter.supportedToolTypes.has(ToolType.Command)).toBe(true);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    expect(provider.id).toBe('claude-code');
+    expect(provider.displayName).toBe('Claude Code');
+    expect(provider.supportedToolTypes.has(ToolType.Skill)).toBe(true);
+    expect(provider.supportedToolTypes.has(ToolType.McpServer)).toBe(true);
+    expect(provider.supportedToolTypes.has(ToolType.Hook)).toBe(true);
+    expect(provider.supportedToolTypes.has(ToolType.Command)).toBe(true);
   });
 
   it('readTools routes Skill+User scope to skill parser', async () => {
@@ -182,7 +182,7 @@ description: A test skill
 
 Body text.`);
 
-    // Patch paths for testing: create adapter with workspace root that
+    // Patch paths for testing: create provider with workspace root that
     // simulates user-scope skills by using the tmp dir
     // Since we cannot override user scope paths easily, we test Project scope
     // which uses the workspaceRoot parameter
@@ -201,8 +201,8 @@ description: A project-level skill
 
 Project skill body.`);
 
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, projectRoot);
-    const tools = await adapter.readTools(ToolType.Skill, ConfigScope.Project);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, projectRoot);
+    const tools = await provider.readTools(ToolType.Skill, ConfigScope.Project);
 
     expect(tools).toHaveLength(1);
     expect(tools[0].name).toBe('Project Skill');
@@ -212,25 +212,25 @@ Project skill body.`);
 
   it('readTools returns empty array when no workspace and Project scope requested', async () => {
     // No workspaceRoot provided
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
 
-    const skillTools = await adapter.readTools(ToolType.Skill, ConfigScope.Project);
+    const skillTools = await provider.readTools(ToolType.Skill, ConfigScope.Project);
     expect(skillTools).toEqual([]);
 
-    const hookTools = await adapter.readTools(ToolType.Hook, ConfigScope.Project);
+    const hookTools = await provider.readTools(ToolType.Hook, ConfigScope.Project);
     expect(hookTools).toEqual([]);
 
-    const mcpTools = await adapter.readTools(ToolType.McpServer, ConfigScope.Project);
+    const mcpTools = await provider.readTools(ToolType.McpServer, ConfigScope.Project);
     expect(mcpTools).toEqual([]);
 
-    const cmdTools = await adapter.readTools(ToolType.Command, ConfigScope.Project);
+    const cmdTools = await provider.readTools(ToolType.Command, ConfigScope.Project);
     expect(cmdTools).toEqual([]);
   });
 
   it('readTools returns empty array for Local scope without workspace', async () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
 
-    const tools = await adapter.readTools(ToolType.Hook, ConfigScope.Local);
+    const tools = await provider.readTools(ToolType.Hook, ConfigScope.Local);
     expect(tools).toEqual([]);
   });
 
@@ -249,8 +249,8 @@ Project skill body.`);
       }),
     );
 
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, projectRoot);
-    const tools = await adapter.readTools(ToolType.Hook, ConfigScope.Project);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, projectRoot);
+    const tools = await provider.readTools(ToolType.Hook, ConfigScope.Project);
 
     expect(tools).toHaveLength(1);
     expect(tools[0].type).toBe(ToolType.Hook);
@@ -279,8 +279,8 @@ Project skill body.`);
       }),
     );
 
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, projectRoot);
-    const tools = await adapter.readTools(ToolType.McpServer, ConfigScope.Project);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, projectRoot);
+    const tools = await provider.readTools(ToolType.McpServer, ConfigScope.Project);
 
     expect(tools).toHaveLength(2);
     const active = tools.find(t => t.name === 'active-server')!;
@@ -300,8 +300,8 @@ description: Deploy the app
 
 Deploy everything.`);
 
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, projectRoot);
-    const tools = await adapter.readTools(ToolType.Command, ConfigScope.Project);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, projectRoot);
+    const tools = await provider.readTools(ToolType.Command, ConfigScope.Project);
 
     expect(tools).toHaveLength(1);
     expect(tools[0].name).toBe('deploy');
@@ -315,7 +315,7 @@ Deploy everything.`);
     const claudeDir = path.join(dir, '.claude');
     await fs.mkdir(claudeDir);
 
-    // Create a custom adapter that points to our tmp dir
+    // Create a custom provider that points to our tmp dir
     // We cannot easily override paths, so test the logic by creating a
     // minimal mock that demonstrates detect() behavior
     const mockFileIO = {
@@ -326,8 +326,8 @@ Deploy everything.`);
       },
     } as FileIOService;
 
-    const adapter = new ClaudeCodeAdapter(mockFileIO, schemaService);
-    const detected = await adapter.detect();
+    const provider = new ClaudeCodeProvider(mockFileIO, schemaService);
+    const detected = await provider.detect();
     expect(detected).toBe(true);
   });
 
@@ -340,8 +340,8 @@ Deploy everything.`);
       },
     } as FileIOService;
 
-    const adapter = new ClaudeCodeAdapter(mockFileIO, schemaService);
-    const detected = await adapter.detect();
+    const provider = new ClaudeCodeProvider(mockFileIO, schemaService);
+    const detected = await provider.detect();
     expect(detected).toBe(true);
   });
 
@@ -350,14 +350,14 @@ Deploy everything.`);
       async fileExists(): Promise<boolean> { return false; },
     });
 
-    const adapter = new ClaudeCodeAdapter(mockFileIO, schemaService);
-    const detected = await adapter.detect();
+    const provider = new ClaudeCodeProvider(mockFileIO, schemaService);
+    const detected = await provider.detect();
     expect(detected).toBe(false);
   });
 
   it('getWatchPaths returns correct paths for User scope', () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    const paths = adapter.getWatchPaths(ConfigScope.User);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    const paths = provider.getWatchPaths(ConfigScope.User);
 
     expect(paths).toHaveLength(4);
     expect(paths.some(p => p.endsWith('settings.json'))).toBe(true);
@@ -368,8 +368,8 @@ Deploy everything.`);
 
   it('getWatchPaths returns correct paths for Project scope with workspace', async () => {
     const dir = await makeTmpDir();
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
-    const paths = adapter.getWatchPaths(ConfigScope.Project);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
+    const paths = provider.getWatchPaths(ConfigScope.Project);
 
     expect(paths).toHaveLength(5);
     expect(paths.some(p => p.includes('.claude') && p.endsWith('settings.json'))).toBe(true);
@@ -380,14 +380,14 @@ Deploy everything.`);
   });
 
   it('getWatchPaths returns empty for Project scope without workspace', () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    const paths = adapter.getWatchPaths(ConfigScope.Project);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    const paths = provider.getWatchPaths(ConfigScope.Project);
     expect(paths).toEqual([]);
   });
 
   it('getWatchPaths returns correct paths for Managed scope', () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    const paths = adapter.getWatchPaths(ConfigScope.Managed);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    const paths = provider.getWatchPaths(ConfigScope.Managed);
 
     expect(paths).toHaveLength(2);
     expect(paths.some(p => p.endsWith('managed-settings.json'))).toBe(true);
@@ -396,23 +396,23 @@ Deploy everything.`);
 
   it('getWatchPaths returns correct paths for Local scope with workspace', async () => {
     const dir = await makeTmpDir();
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
-    const paths = adapter.getWatchPaths(ConfigScope.Local);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
+    const paths = provider.getWatchPaths(ConfigScope.Local);
 
     expect(paths).toHaveLength(1);
     expect(paths[0]).toContain('settings.local.json');
   });
 
   it('writeTool throws when ConfigService not provided', async () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
     const tool = { type: ToolType.Skill, name: 'test' } as NormalizedTool;
-    await expect(adapter.writeTool(tool, ConfigScope.User)).rejects.toThrow(
+    await expect(provider.writeTool(tool, ConfigScope.User)).rejects.toThrow(
       'ConfigService and BackupService are required',
     );
   });
 
   it('removeTool throws when ConfigService not provided', async () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
     const tool = {
       id: 'skill:user:test',
       type: ToolType.Skill,
@@ -421,7 +421,7 @@ Deploy everything.`);
       source: { filePath: '/fake/SKILL.md', isDirectory: true, directoryPath: '/fake' },
       metadata: {},
     } as NormalizedTool;
-    await expect(adapter.removeTool(tool)).rejects.toThrow(
+    await expect(provider.removeTool(tool)).rejects.toThrow(
       'ConfigService and BackupService are required',
     );
   });
@@ -431,7 +431,7 @@ Deploy everything.`);
   // ---------------------------------------------------------------------------
 
   it('toggleTool throws when ConfigService not provided', async () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
     const tool = {
       id: 'skill:user:test',
       type: ToolType.Skill,
@@ -441,7 +441,7 @@ Deploy everything.`);
       source: { filePath: '/fake/SKILL.md', isDirectory: true, directoryPath: '/fake' },
       metadata: {},
     } as NormalizedTool;
-    await expect(adapter.toggleTool(tool)).rejects.toThrow(
+    await expect(provider.toggleTool(tool)).rejects.toThrow(
       'ConfigService and BackupService are required',
     );
   });
@@ -452,10 +452,10 @@ Deploy everything.`);
     await fs.mkdir(skillDir, { recursive: true });
     await fs.writeFile(path.join(skillDir, 'SKILL.md'), 'content');
 
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
     // Inject minimal services so ensureWriteServices() passes
     const { configService, backupService } = makeWriteServices();
-    adapter.setWriteServices(configService, backupService);
+    provider.setWriteServices(configService, backupService);
 
     const tool: NormalizedTool = {
       id: 'skill:user:my-skill',
@@ -467,7 +467,7 @@ Deploy everything.`);
       metadata: {},
     };
 
-    await adapter.toggleTool(tool);
+    await provider.toggleTool(tool);
 
     // Should have renamed to .disabled
     const disabledExists = await fs.stat(`${skillDir}.disabled`).then(() => true).catch(() => false);
@@ -483,9 +483,9 @@ Deploy everything.`);
     await fs.mkdir(skillDir, { recursive: true });
     await fs.writeFile(path.join(skillDir, 'SKILL.md'), 'content');
 
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
     const { configService, backupService } = makeWriteServices();
-    adapter.setWriteServices(configService, backupService);
+    provider.setWriteServices(configService, backupService);
 
     const tool: NormalizedTool = {
       id: 'skill:user:my-skill',
@@ -497,7 +497,7 @@ Deploy everything.`);
       metadata: {},
     };
 
-    await adapter.toggleTool(tool);
+    await provider.toggleTool(tool);
 
     const enabledDir = path.join(dir, 'my-skill');
     const enabledExists = await fs.stat(enabledDir).then(() => true).catch(() => false);
@@ -509,9 +509,9 @@ Deploy everything.`);
     const cmdFile = path.join(dir, 'deploy.md');
     await fs.writeFile(cmdFile, 'content');
 
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
     const { configService, backupService } = makeWriteServices();
-    adapter.setWriteServices(configService, backupService);
+    provider.setWriteServices(configService, backupService);
 
     const tool: NormalizedTool = {
       id: 'command:user:deploy',
@@ -523,7 +523,7 @@ Deploy everything.`);
       metadata: {},
     };
 
-    await adapter.toggleTool(tool);
+    await provider.toggleTool(tool);
 
     const disabledExists = await fs.stat(`${cmdFile}.disabled`).then(() => true).catch(() => false);
     expect(disabledExists).toBe(true);
@@ -534,33 +534,33 @@ Deploy everything.`);
   // ---------------------------------------------------------------------------
 
   it('getMcpFilePath returns user claude.json for User scope', () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    const filePath = adapter.getMcpFilePath(ConfigScope.User);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    const filePath = provider.getMcpFilePath(ConfigScope.User);
     expect(filePath).toContain('.claude.json');
   });
 
   it('getMcpFilePath returns project .mcp.json for Project scope', async () => {
     const dir = await makeTmpDir();
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
-    const filePath = adapter.getMcpFilePath(ConfigScope.Project);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
+    const filePath = provider.getMcpFilePath(ConfigScope.Project);
     expect(filePath).toContain('.mcp.json');
     expect(filePath).toContain(dir);
   });
 
   it('getMcpFilePath throws for unsupported scope', () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    expect(() => adapter.getMcpFilePath(ConfigScope.Local)).toThrow();
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    expect(() => provider.getMcpFilePath(ConfigScope.Local)).toThrow();
   });
 
   it('getMcpSchemaKey returns claude-json for User scope', () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    expect(adapter.getMcpSchemaKey(ConfigScope.User)).toBe('claude-json');
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    expect(provider.getMcpSchemaKey(ConfigScope.User)).toBe('claude-json');
   });
 
   it('getMcpSchemaKey returns mcp-file for Project scope', async () => {
     const dir = await makeTmpDir();
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
-    expect(adapter.getMcpSchemaKey(ConfigScope.Project)).toBe('mcp-file');
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
+    expect(provider.getMcpSchemaKey(ConfigScope.Project)).toBe('mcp-file');
   });
 
   // ---------------------------------------------------------------------------
@@ -568,73 +568,73 @@ Deploy everything.`);
   // ---------------------------------------------------------------------------
 
   it('getSkillsDir returns user skills dir for User scope', () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    const dir = adapter.getSkillsDir(ConfigScope.User);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    const dir = provider.getSkillsDir(ConfigScope.User);
     expect(dir).toContain('skills');
     expect(dir).toContain('.claude');
   });
 
   it('getSkillsDir returns project skills dir for Project scope', async () => {
     const dir = await makeTmpDir();
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
-    const skillsDir = adapter.getSkillsDir(ConfigScope.Project);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
+    const skillsDir = provider.getSkillsDir(ConfigScope.Project);
     expect(skillsDir).toContain(dir);
     expect(skillsDir).toContain('skills');
   });
 
-  it('getSkillsDir throws AdapterScopeError for Managed scope', () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    expect(() => adapter.getSkillsDir(ConfigScope.Managed)).toThrow(AdapterScopeError);
+  it('getSkillsDir throws ProviderScopeError for Managed scope', () => {
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    expect(() => provider.getSkillsDir(ConfigScope.Managed)).toThrow(ProviderScopeError);
   });
 
-  it('getSkillsDir throws AdapterScopeError for Project scope without workspace', () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    expect(() => adapter.getSkillsDir(ConfigScope.Project)).toThrow(AdapterScopeError);
+  it('getSkillsDir throws ProviderScopeError for Project scope without workspace', () => {
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    expect(() => provider.getSkillsDir(ConfigScope.Project)).toThrow(ProviderScopeError);
   });
 
   it('getCommandsDir returns user commands dir for User scope', () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    const dir = adapter.getCommandsDir(ConfigScope.User);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    const dir = provider.getCommandsDir(ConfigScope.User);
     expect(dir).toContain('commands');
   });
 
   it('getCommandsDir returns project commands dir for Project scope', async () => {
     const dir = await makeTmpDir();
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
-    const cmdsDir = adapter.getCommandsDir(ConfigScope.Project);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
+    const cmdsDir = provider.getCommandsDir(ConfigScope.Project);
     expect(cmdsDir).toContain(dir);
     expect(cmdsDir).toContain('commands');
   });
 
-  it('getCommandsDir throws AdapterScopeError for Local scope', () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    expect(() => adapter.getCommandsDir(ConfigScope.Local)).toThrow(AdapterScopeError);
+  it('getCommandsDir throws ProviderScopeError for Local scope', () => {
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    expect(() => provider.getCommandsDir(ConfigScope.Local)).toThrow(ProviderScopeError);
   });
 
   it('getSettingsPath returns user settings path for User scope', () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    const settingsPath = adapter.getSettingsPath(ConfigScope.User);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    const settingsPath = provider.getSettingsPath(ConfigScope.User);
     expect(settingsPath).toContain('settings.json');
   });
 
   it('getSettingsPath returns project settings path for Project scope', async () => {
     const dir = await makeTmpDir();
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
-    const settingsPath = adapter.getSettingsPath(ConfigScope.Project);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
+    const settingsPath = provider.getSettingsPath(ConfigScope.Project);
     expect(settingsPath).toContain(dir);
     expect(settingsPath).toContain('settings.json');
   });
 
   it('getSettingsPath returns local settings path for Local scope', async () => {
     const dir = await makeTmpDir();
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
-    const settingsPath = adapter.getSettingsPath(ConfigScope.Local);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
+    const settingsPath = provider.getSettingsPath(ConfigScope.Local);
     expect(settingsPath).toContain('settings.local.json');
   });
 
   it('getSettingsPath throws for Managed scope', () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    expect(() => adapter.getSettingsPath(ConfigScope.Managed)).toThrow();
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    expect(() => provider.getSettingsPath(ConfigScope.Managed)).toThrow();
   });
 
   // ---------------------------------------------------------------------------
@@ -643,9 +643,9 @@ Deploy everything.`);
 
   it('installSkill writes files to the correct project skills directory', async () => {
     const dir = await makeTmpDir();
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
 
-    await adapter.installSkill(ConfigScope.Project, 'test-skill', [
+    await provider.installSkill(ConfigScope.Project, 'test-skill', [
       { name: 'SKILL.md', content: '# Test Skill\n\nDo the thing.' },
       { name: 'helper.md', content: 'Helper content.' },
     ]);
@@ -660,9 +660,9 @@ Deploy everything.`);
 
   it('installCommand writes single-file command directly to commands dir', async () => {
     const dir = await makeTmpDir();
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
 
-    await adapter.installCommand(ConfigScope.Project, 'deploy', [
+    await provider.installCommand(ConfigScope.Project, 'deploy', [
       { name: 'deploy.md', content: '# Deploy\n\nDeploy everything.' },
     ]);
 
@@ -673,9 +673,9 @@ Deploy everything.`);
 
   it('installCommand writes multi-file command to subdirectory', async () => {
     const dir = await makeTmpDir();
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService, dir);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
 
-    await adapter.installCommand(ConfigScope.Project, 'build', [
+    await provider.installCommand(ConfigScope.Project, 'build', [
       { name: 'build.md', content: '# Build' },
       { name: 'config.md', content: 'Config details' },
     ]);
@@ -693,26 +693,26 @@ Deploy everything.`);
   // ---------------------------------------------------------------------------
 
   it('installHook throws when ConfigService not provided', async () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
     await expect(
-      adapter.installHook(ConfigScope.User, 'PreToolUse', { matcher: 'Bash', hooks: [] }),
+      provider.installHook(ConfigScope.User, 'PreToolUse', { matcher: 'Bash', hooks: [] }),
     ).rejects.toThrow('ConfigService and BackupService are required');
   });
 
   it('installMcpServer throws when ConfigService not provided', async () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
     await expect(
-      adapter.installMcpServer(ConfigScope.User, 'test-server', { command: 'node' }),
+      provider.installMcpServer(ConfigScope.User, 'test-server', { command: 'node' }),
     ).rejects.toThrow('ConfigService and BackupService are required');
   });
 
   // ---------------------------------------------------------------------------
-  // Adapter error types
+  // Provider error types
   // ---------------------------------------------------------------------------
 
-  it('AdapterScopeError has correct properties', () => {
-    const err = new AdapterScopeError('Claude Code', 'managed', 'getSkillsDir');
-    expect(err.name).toBe('AdapterScopeError');
+  it('ProviderScopeError has correct properties', () => {
+    const err = new ProviderScopeError('Claude Code', 'managed', 'getSkillsDir');
+    expect(err.name).toBe('ProviderScopeError');
     expect(err.agentName).toBe('Claude Code');
     expect(err.scope).toBe('managed');
     expect(err.message).toContain('Claude Code');
@@ -722,16 +722,16 @@ Deploy everything.`);
   });
 });
 
-describe('CodexAdapter capabilities', () => {
+describe('CodexProvider capabilities', () => {
   it('excludes custom prompts from toggle and move capabilities', () => {
-    const adapter = new CodexAdapter(fileIO, schemaService);
+    const provider = new CodexProvider(fileIO, schemaService);
 
-    expect(adapter.toggleableToolTypes?.has(ToolType.Skill)).toBe(true);
-    expect(adapter.toggleableToolTypes?.has(ToolType.McpServer)).toBe(true);
-    expect(adapter.toggleableToolTypes?.has(ToolType.CustomPrompt)).toBe(false);
-    expect(adapter.movableToolTypes?.has(ToolType.Skill)).toBe(true);
-    expect(adapter.movableToolTypes?.has(ToolType.McpServer)).toBe(true);
-    expect(adapter.movableToolTypes?.has(ToolType.CustomPrompt)).toBe(false);
+    expect(provider.toggleableToolTypes?.has(ToolType.Skill)).toBe(true);
+    expect(provider.toggleableToolTypes?.has(ToolType.McpServer)).toBe(true);
+    expect(provider.toggleableToolTypes?.has(ToolType.CustomPrompt)).toBe(false);
+    expect(provider.movableToolTypes?.has(ToolType.Skill)).toBe(true);
+    expect(provider.movableToolTypes?.has(ToolType.McpServer)).toBe(true);
+    expect(provider.movableToolTypes?.has(ToolType.CustomPrompt)).toBe(false);
   });
 });
 
@@ -741,8 +741,8 @@ describe('CodexAdapter capabilities', () => {
 
 describe('provider capabilities', () => {
   it('Claude Code declares no optional capabilities', () => {
-    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
-    expect(adapter.capabilities).toEqual({
+    const provider = new ClaudeCodeProvider(fileIO, schemaService);
+    expect(provider.capabilities).toEqual({
       mcpEnvVars: false,
       mcpServerToolToggle: false,
       customPromptFileInstall: false,
@@ -750,26 +750,26 @@ describe('provider capabilities', () => {
   });
 
   it('Codex declares MCP env/toggle + custom-prompt-file, with matching methods', () => {
-    const adapter = new CodexAdapter(fileIO, schemaService);
-    expect(adapter.capabilities).toEqual({
+    const provider = new CodexProvider(fileIO, schemaService);
+    expect(provider.capabilities).toEqual({
       mcpEnvVars: true,
       mcpServerToolToggle: true,
       customPromptFileInstall: true,
     });
-    expect(typeof adapter.setMcpEnvVar).toBe('function');
-    expect(typeof adapter.removeMcpEnvVar).toBe('function');
-    expect(typeof adapter.toggleMcpServerTool).toBe('function');
-    expect(typeof adapter.installCustomPromptFile).toBe('function');
+    expect(typeof provider.setMcpEnvVar).toBe('function');
+    expect(typeof provider.removeMcpEnvVar).toBe('function');
+    expect(typeof provider.toggleMcpServerTool).toBe('function');
+    expect(typeof provider.installCustomPromptFile).toBe('function');
   });
 
   it('Codex exposes its init command via getCommands', () => {
-    const adapter = new CodexAdapter(fileIO, schemaService);
-    const ids = (adapter.getCommands?.() ?? []).map((c) => c.id);
+    const provider = new CodexProvider(fileIO, schemaService);
+    const ids = (provider.getCommands?.() ?? []).map((c) => c.id);
     expect(ids).toContain('ack.initCodexProject');
   });
 
   it('resolveCapabilities fills absent flags with false', () => {
-    const mock = createMockAdapter({ capabilities: undefined });
+    const mock = createMockProvider({ capabilities: undefined });
     expect(resolveCapabilities(mock)).toEqual({
       mcpEnvVars: false,
       mcpServerToolToggle: false,
@@ -778,7 +778,7 @@ describe('provider capabilities', () => {
   });
 
   it('resolveCapabilities preserves declared flags', () => {
-    const mock = createMockAdapter({
+    const mock = createMockProvider({
       capabilities: { mcpEnvVars: true, mcpServerToolToggle: false, customPromptFileInstall: true },
     });
     expect(resolveCapabilities(mock)).toEqual({

@@ -4,13 +4,13 @@ import {
   canToggleMcpStatus,
 } from '../../views/config-panel/config-panel.mcp-utils.js';
 
-// Capability shapes as returned by each adapter's getMcpContainerKey()/getMcpDisableField().
+// Capability shapes as returned by each provider's getMcpContainerKey()/getMcpDisableField().
 const CLAUDE = { key: 'mcpServers', disable: { field: 'disabled', disabledValue: true } };
 const CODEX = { key: 'mcp_servers', disable: { field: 'enabled', disabledValue: false } };
 const COPILOT = { key: 'servers', disable: undefined };
 
 describe('config panel MCP update helpers', () => {
-  it('exposes status toggle only for adapters that persist MCP status', () => {
+  it('exposes status toggle only for providers that persist MCP status', () => {
     expect(canToggleMcpStatus(CLAUDE.disable)).toBe(true);
     expect(canToggleMcpStatus(CODEX.disable)).toBe(true);
     expect(canToggleMcpStatus(COPILOT.disable)).toBe(false);

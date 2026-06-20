@@ -8,7 +8,7 @@ import * as path from 'path';
  *
  * Copilot uses:
  * - User MCP at `{vsCodeUserDir}/mcp.json` — vsCodeUserDir is derived from
- *   context.globalStorageUri at adapter construction time (not os.homedir())
+ *   context.globalStorageUri at provider construction time (not os.homedir())
  * - Workspace MCP at `.vscode/mcp.json`
  * - Copilot instructions at `.github/copilot-instructions.md`
  * - Per-file instructions at `.github/instructions/`
@@ -18,7 +18,7 @@ import * as path from 'path';
 export const CopilotPaths = {
   // ---------------------------------------------------------------------------
   // User scope — vsCodeUserDir is derived from context.globalStorageUri
-  //              at adapter construction time (path.dirname twice)
+  //              at provider construction time (path.dirname twice)
   // ---------------------------------------------------------------------------
 
   /**

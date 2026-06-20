@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { access, readFile } from 'fs/promises';
 import { ConfigScope, ToolType } from '../types/enums.js';
-import type { IPlatformAdapter } from '../types/adapter.js';
+import type { AgentProvider } from '../types/provider.js';
 import {
   readDirFiles,
   resolveInstallScopes,
@@ -26,18 +26,18 @@ export class LocalInstallService {
    * Returns true when something was installed, false when the user cancelled
    * or the type is not handled by local install.
    */
-  async install(adapter: IPlatformAdapter, toolType: ToolType): Promise<boolean> {
+  async install(provider: AgentProvider, toolType: ToolType): Promise<boolean> {
     switch (toolType) {
       case ToolType.Skill:
-        return this.installSkill(adapter);
+        return this.installSkill(provider);
       case ToolType.Command:
-        return this.installCommand(adapter);
+        return this.installCommand(provider);
       default:
         return false;
     }
   }
 
-  private async installSkill(adapter: IPlatformAdapter): Promise<boolean> {
+  private async installSkill(provider: AgentProvider): Promise<boolean> {
     const picked = await vscode.window.showOpenDialog({
       canSelectFiles: false,
       canSelectFolders: true,
@@ -57,22 +57,22 @@ export class LocalInstallService {
       return false;
     }
 
-    const scope = await this.pickScope(adapter, ToolType.Skill);
+    const scope = await this.pickScope(provider, ToolType.Skill);
     if (scope === undefined) {
       return false;
     }
-    if (!(await this.confirmOverwrite(adapter, ToolType.Skill, scope, skillName))) {
+    if (!(await this.confirmOverwrite(provider, ToolType.Skill, scope, skillName))) {
       return false;
     }
 
-    await adapter.installSkill(scope, skillName, files);
+    await provider.installSkill(scope, skillName, files);
     vscode.window.showInformationMessage(
       buildInstalledMessage('Skill', skillName, files.length, skippedDirs),
     );
     return true;
   }
 
-  private async installCommand(adapter: IPlatformAdapter): Promise<boolean> {
+  private async installCommand(provider: AgentProvider): Promise<boolean> {
     const kind = await vscode.window.showQuickPick(
       [
         { label: 'Single file', source: 'file' as const },
@@ -125,18 +125,18 @@ export class LocalInstallService {
       }
     }
 
-    const scope = await this.pickScope(adapter, ToolType.Command);
+    const scope = await this.pickScope(provider, ToolType.Command);
     if (scope === undefined) {
       return false;
     }
     // A single-file command lands under its file name; a multi-file command
     // lands under a folder named for the command.
     const conflictName = files.length === 1 ? files[0].name : commandName;
-    if (!(await this.confirmOverwrite(adapter, ToolType.Command, scope, conflictName))) {
+    if (!(await this.confirmOverwrite(provider, ToolType.Command, scope, conflictName))) {
       return false;
     }
 
-    await adapter.installCommand(scope, commandName, files);
+    await provider.installCommand(scope, commandName, files);
     vscode.window.showInformationMessage(
       buildInstalledMessage('Command', commandName, files.length, skippedDirs),
     );
@@ -144,12 +144,12 @@ export class LocalInstallService {
   }
 
   private async pickScope(
-    adapter: IPlatformAdapter,
+    provider: AgentProvider,
     toolType: ToolType.Skill | ToolType.Command,
   ): Promise<ConfigScope | undefined> {
     const hasWorkspace = (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
     const scopes = resolveInstallScopes(
-      adapter,
+      provider,
       toolType === ToolType.Skill ? 'skill' : 'command',
       hasWorkspace,
     );
@@ -179,7 +179,7 @@ export class LocalInstallService {
   }
 
   private async confirmOverwrite(
-    adapter: IPlatformAdapter,
+    provider: AgentProvider,
     toolType: ToolType.Skill | ToolType.Command,
     scope: ConfigScope,
     name: string,
@@ -188,8 +188,8 @@ export class LocalInstallService {
     try {
       baseDir =
         toolType === ToolType.Skill
-          ? adapter.getSkillsDir(scope)
-          : adapter.getCommandsDir(scope);
+          ? provider.getSkillsDir(scope)
+          : provider.getCommandsDir(scope);
     } catch {
       // Target directory not resolvable (e.g. Copilot agents) -- let the
       // provider's installer own any overwrite.

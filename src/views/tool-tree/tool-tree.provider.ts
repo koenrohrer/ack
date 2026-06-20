@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { ConfigService } from '../../services/config.service.js';
-import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
+import type { ProviderRegistry } from '../../providers/provider.registry.js';
 import { ToolStatus } from '../../types/enums.js';
 import {
   buildToolContextValue,
@@ -47,7 +47,7 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly registry: AdapterRegistry,
+    private readonly registry: ProviderRegistry,
     private readonly extensionUri: vscode.Uri,
   ) {
     this.model = new ToolTreeModel();
@@ -254,10 +254,10 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   }
 
   private getActionCapabilities(): ToolActionCapabilities {
-    const adapter = this.registry.getActiveAdapter();
+    const provider = this.registry.getActiveProvider();
     return {
-      toggleableToolTypes: adapter?.toggleableToolTypes,
-      movableToolTypes: adapter?.movableToolTypes,
+      toggleableToolTypes: provider?.toggleableToolTypes,
+      movableToolTypes: provider?.movableToolTypes,
     };
   }
 

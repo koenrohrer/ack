@@ -4,9 +4,9 @@ import type { NormalizedTool } from '../../types/config.js';
 /**
  * Build an Error-status NormalizedTool for an MCP config read/validation failure.
  *
- * Shared across all adapter MCP parsers. The id is built as
+ * Shared across all provider MCP parsers. The id is built as
  * `mcp-error:{idSegment}{scope}:{filePath}` where `idSegment` (e.g. `codex:`)
- * disambiguates adapters that need a distinct id namespace. Claude Code and
+ * disambiguates providers that need a distinct id namespace. Claude Code and
  * Copilot pass no segment and share the `mcp-error:{scope}:{filePath}` format;
  * Codex passes `codex:` to produce `mcp-error:codex:{scope}:{filePath}`.
  */

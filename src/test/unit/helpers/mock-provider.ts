@@ -1,11 +1,11 @@
 import { ToolType, ConfigScope } from '../../../types/enums.js';
-import type { IPlatformAdapter } from '../../../types/adapter.js';
+import type { AgentProvider } from '../../../types/provider.js';
 import type { NormalizedTool } from '../../../types/config.js';
 
 /**
- * Shared, fully-typed mock adapter factory for unit tests.
+ * Shared, fully-typed mock provider factory for unit tests.
  *
- * Returns a COMPLETE `IPlatformAdapter` -- every interface member is
+ * Returns a COMPLETE `AgentProvider` -- every interface member is
  * implemented with a sensible no-op/default -- so the returned value
  * genuinely satisfies the interface (no `as any` / `as unknown as` casts).
  *
@@ -14,15 +14,15 @@ import type { NormalizedTool } from '../../../types/config.js';
  * mocks' behavior: the default `readTools(type, scope)` returns
  * `toolsByScope['${type}:${scope}'] ?? []`.
  */
-export type MockAdapterOverrides = Partial<IPlatformAdapter> & {
+export type MockProviderOverrides = Partial<AgentProvider> & {
   toolsByScope?: Record<string, NormalizedTool[]>;
 };
 
-export function createMockAdapter(overrides: MockAdapterOverrides = {}): IPlatformAdapter {
+export function createMockProvider(overrides: MockProviderOverrides = {}): AgentProvider {
   const { toolsByScope = {}, ...rest } = overrides;
 
-  const base: IPlatformAdapter = {
-    // ILifecycleAdapter
+  const base: AgentProvider = {
+    // LifecycleCapability
     id: 'mock',
     displayName: 'Mock Platform',
     async detect(): Promise<boolean> {
@@ -32,7 +32,7 @@ export function createMockAdapter(overrides: MockAdapterOverrides = {}): IPlatfo
       return [];
     },
 
-    // IToolAdapter
+    // ToolCapability
     supportedToolTypes: new Set([
       ToolType.Skill,
       ToolType.McpServer,
@@ -46,7 +46,7 @@ export function createMockAdapter(overrides: MockAdapterOverrides = {}): IPlatfo
     async removeTool(): Promise<void> {},
     async toggleTool(): Promise<void> {},
 
-    // IMcpAdapter
+    // McpCapability
     async installMcpServer(): Promise<void> {},
     getMcpFilePath(): string {
       return '/home/user/.claude.json';
@@ -64,7 +64,7 @@ export function createMockAdapter(overrides: MockAdapterOverrides = {}): IPlatfo
       return 'json';
     },
 
-    // IPathAdapter
+    // PathCapability
     getSkillsDir(): string {
       return '/home/user/.claude/skills';
     },
@@ -75,7 +75,7 @@ export function createMockAdapter(overrides: MockAdapterOverrides = {}): IPlatfo
       return '/home/user/.claude/settings.json';
     },
 
-    // IInstallAdapter
+    // InstallCapability
     async installSkill(): Promise<void> {},
     async installCommand(): Promise<void> {},
     async installHook(): Promise<void> {},

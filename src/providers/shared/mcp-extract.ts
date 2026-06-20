@@ -2,9 +2,9 @@ import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import type { NormalizedTool } from '../../types/config.js';
 
 /**
- * Per-server mapping produced by an adapter for each MCP server entry.
+ * Per-server mapping produced by an provider for each MCP server entry.
  *
- * `status` and `metadata` are the only parts that vary between adapters;
+ * `status` and `metadata` are the only parts that vary between providers;
  * the surrounding NormalizedTool shape (id, type, name, scope, source) is
  * built identically by {@link extractMcpServers}.
  */
@@ -16,8 +16,8 @@ export interface McpServerMapping {
 /**
  * Walk an MCP server container record and build NormalizedTool entries.
  *
- * Shared across adapter MCP parsers. The common walk (entry iteration, id
- * construction, NormalizedTool assembly) lives here; each adapter supplies a
+ * Shared across provider MCP parsers. The common walk (entry iteration, id
+ * construction, NormalizedTool assembly) lives here; each provider supplies a
  * `map` callback that derives the per-server status + metadata from its own
  * config shape.
  *

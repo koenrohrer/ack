@@ -11,7 +11,7 @@ import type { ToolTreeProvider } from './tool-tree.provider.js';
 import type { ProfileToolEntry } from '../../services/profile.types.js';
 import { ToolType, ConfigScope } from '../../types/enums.js';
 import { canonicalKey, extractToolTypeFromKey } from '../../utils/tool-key.utils.js';
-import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
+import type { ProviderRegistry } from '../../providers/provider.registry.js';
 
 /**
  * QuickPick item that carries an optional profile reference.
@@ -61,7 +61,7 @@ export function registerProfileCommands(
   configService: ConfigService,
   treeProvider: ToolTreeProvider,
   workspaceProfileService: WorkspaceProfileService,
-  registry: AdapterRegistry,
+  registry: ProviderRegistry,
 ): void {
   // ---------------------------------------------------------------------------
   // Create Profile
@@ -175,7 +175,7 @@ export function registerProfileCommands(
 
       // Inform user about non-toggleable entries (e.g. MCP servers on Copilot)
       if (result.nonToggleableSkipped > 0) {
-        const activeAgent = registry.getActiveAdapter()?.displayName ?? 'active agent';
+        const activeAgent = registry.getActiveProvider()?.displayName ?? 'active agent';
         vscode.window.showInformationMessage(
           `${result.nonToggleableSkipped} item(s) in this profile were skipped — ` +
           `${activeAgent} doesn't support toggling them (e.g. MCP servers).`,
@@ -184,7 +184,7 @@ export function registerProfileCommands(
 
       // Show warning for incompatible tools
       if (result.incompatibleSkipped.length > 0) {
-        const activeAgent = registry.getActiveAdapter()?.displayName ?? 'active agent';
+        const activeAgent = registry.getActiveProvider()?.displayName ?? 'active agent';
         const action = await vscode.window.showWarningMessage(
           `${result.incompatibleSkipped.length} tool(s) skipped (not supported by ${activeAgent})`,
           'View Details',
@@ -287,7 +287,7 @@ export function registerProfileCommands(
             const assoc = await workspaceProfileService.getAssociation(renameWsRoot);
             if (assoc && assoc.profileName === oldName) {
               // Preserve agentId from existing association, or use active agent if legacy
-              const agentIdToUse = assoc.agentId ?? registry.getActiveAdapter()?.id ?? 'claude-code';
+              const agentIdToUse = assoc.agentId ?? registry.getActiveProvider()?.id ?? 'claude-code';
               await workspaceProfileService.setAssociation(renameWsRoot, trimmedName, agentIdToUse);
             }
           }
@@ -519,7 +519,7 @@ export function registerProfileCommands(
 
       // Handle agent mismatch - offer conversion
       if (importValidation.requiresConversion) {
-        const activeAgent = registry.getActiveAdapter();
+        const activeAgent = registry.getActiveProvider();
         if (!activeAgent) {
           vscode.window.showErrorMessage('No agent is active. Cannot import profile.');
           return;
@@ -687,12 +687,12 @@ export function registerProfileCommands(
         await workspaceProfileService.removeAssociation(wsRoot);
         vscode.window.showInformationMessage('Workspace profile association removed');
       } else {
-        const currentAdapter = registry.getActiveAdapter();
-        if (!currentAdapter) {
+        const currentProvider = registry.getActiveProvider();
+        if (!currentProvider) {
           vscode.window.showWarningMessage('No agent is active. Cannot associate profile.');
           return;
         }
-        await workspaceProfileService.setAssociation(wsRoot, selected.profile.name, currentAdapter.id);
+        await workspaceProfileService.setAssociation(wsRoot, selected.profile.name, currentProvider.id);
         vscode.window.showInformationMessage(
           `Workspace associated with profile "${selected.profile.name}"`,
         );
@@ -708,8 +708,8 @@ export function registerProfileCommands(
     'ack.cloneProfileToAgent',
     async () => {
       // 1. Get current agent and profiles
-      const currentAdapter = registry.getActiveAdapter();
-      if (!currentAdapter) {
+      const currentProvider = registry.getActiveProvider();
+      if (!currentProvider) {
         vscode.window.showWarningMessage('No agent is active. Cannot clone profile.');
         return;
       }
@@ -737,22 +737,22 @@ export function registerProfileCommands(
       const sourceProfile = selectedProfile.profile;
 
       // 3. Select target agent (exclude current)
-      const allAdapters = registry.getAllAdapters();
-      const otherAdapters = allAdapters.filter((a) => a.id !== currentAdapter.id);
+      const allProviders = registry.getAllProviders();
+      const otherProviders = allProviders.filter((a) => a.id !== currentProvider.id);
 
-      if (otherAdapters.length === 0) {
+      if (otherProviders.length === 0) {
         vscode.window.showWarningMessage('No other agents available to clone to.');
         return;
       }
 
       interface AgentQuickPickItem extends vscode.QuickPickItem {
-        adapterId: string;
+        providerId: string;
       }
 
-      const agentItems: AgentQuickPickItem[] = otherAdapters.map((a) => ({
+      const agentItems: AgentQuickPickItem[] = otherProviders.map((a) => ({
         label: a.displayName,
         description: `Supports: ${[...a.supportedToolTypes].join(', ')}`,
-        adapterId: a.id,
+        providerId: a.id,
       }));
 
       const selectedAgent = await vscode.window.showQuickPick(agentItems, {
@@ -763,8 +763,8 @@ export function registerProfileCommands(
         return;
       }
 
-      const targetAdapter = registry.getAdapter(selectedAgent.adapterId);
-      if (!targetAdapter) {
+      const targetProvider = registry.getProvider(selectedAgent.providerId);
+      if (!targetProvider) {
         vscode.window.showErrorMessage('Selected agent not found.');
         return;
       }
@@ -780,7 +780,7 @@ export function registerProfileCommands(
           continue;
         }
 
-        if (targetAdapter.supportedToolTypes.has(toolType)) {
+        if (targetProvider.supportedToolTypes.has(toolType)) {
           compatible.push(entry);
         } else {
           // Build human-readable reason
@@ -794,7 +794,7 @@ export function registerProfileCommands(
           const typeName = typeDisplayNames[toolType] || toolType;
           incompatible.push({
             entry,
-            reason: `${typeName} not supported by ${targetAdapter.displayName}`,
+            reason: `${typeName} not supported by ${targetProvider.displayName}`,
           });
         }
       }
@@ -812,7 +812,7 @@ export function registerProfileCommands(
       }
 
       const confirm = await vscode.window.showWarningMessage(
-        `Clone "${sourceProfile.name}" to ${targetAdapter.displayName}?`,
+        `Clone "${sourceProfile.name}" to ${targetProvider.displayName}?`,
         { modal: true, detail: modalDetail },
         'Clone',
       );
@@ -830,7 +830,7 @@ export function registerProfileCommands(
 
       // For now, the simplest approach is to inform the user they need to switch agents
       // and the profile will be waiting for them. We'll create it directly in the store.
-      const newProfileName = `${sourceProfile.name} (${targetAdapter.displayName})`;
+      const newProfileName = `${sourceProfile.name} (${targetProvider.displayName})`;
 
       // Access the globalState directly through the profile service's internal method
       // Since we can't create a profile for a different agent through the normal API,
@@ -872,11 +872,11 @@ export function registerProfileCommands(
 
       // Check for name collision in target agent's profiles
       const existingInTarget = store.profiles.find(
-        (p) => p.agentId === targetAdapter.id && p.name === newProfileName,
+        (p) => p.agentId === targetProvider.id && p.name === newProfileName,
       );
       if (existingInTarget) {
         vscode.window.showWarningMessage(
-          `A profile named "${newProfileName}" already exists for ${targetAdapter.displayName}.`,
+          `A profile named "${newProfileName}" already exists for ${targetProvider.displayName}.`,
         );
         return;
       }
@@ -886,7 +886,7 @@ export function registerProfileCommands(
       const newProfile = {
         id: crypto.randomUUID(),
         name: newProfileName,
-        agentId: targetAdapter.id,
+        agentId: targetProvider.id,
         tools: compatible,
         createdAt: now,
         updatedAt: now,
@@ -897,8 +897,8 @@ export function registerProfileCommands(
 
       // 7. Show success message
       const successMsg = incompatible.length > 0
-        ? `Cloned "${sourceProfile.name}" to ${targetAdapter.displayName}: ${compatible.length} tools (${incompatible.length} skipped)`
-        : `Cloned "${sourceProfile.name}" to ${targetAdapter.displayName}: ${compatible.length} tools`;
+        ? `Cloned "${sourceProfile.name}" to ${targetProvider.displayName}: ${compatible.length} tools (${incompatible.length} skipped)`
+        : `Cloned "${sourceProfile.name}" to ${targetProvider.displayName}: ${compatible.length} tools`;
 
       vscode.window.showInformationMessage(successMsg);
     },

@@ -8,7 +8,7 @@ import {
   buildInstalledMessage,
 } from '../../services/local-install.utils.js';
 import { ConfigScope } from '../../types/enums.js';
-import { AdapterScopeError } from '../../types/adapter-errors.js';
+import { ProviderScopeError } from '../../types/provider-errors.js';
 
 // ---------------------------------------------------------------------------
 // readDirFiles
@@ -50,64 +50,64 @@ describe('readDirFiles', () => {
 // ---------------------------------------------------------------------------
 
 const throwScope = (label: string) => (scope: ConfigScope): string => {
-  throw new AdapterScopeError(label, scope, 'test');
+  throw new ProviderScopeError(label, scope, 'test');
 };
 
 describe('resolveInstallScopes', () => {
   it('returns User and Project when both resolve and a workspace is open', () => {
-    const adapter = {
+    const provider = {
       getSkillsDir: (s: ConfigScope) => `/skills/${s}`,
       getCommandsDir: (s: ConfigScope) => `/commands/${s}`,
     };
-    expect(resolveInstallScopes(adapter, 'skill', true)).toEqual([
+    expect(resolveInstallScopes(provider, 'skill', true)).toEqual([
       ConfigScope.User,
       ConfigScope.Project,
     ]);
   });
 
   it('returns only User when no workspace is open', () => {
-    const adapter = {
+    const provider = {
       getSkillsDir: (s: ConfigScope) => `/skills/${s}`,
       getCommandsDir: (s: ConfigScope) => `/commands/${s}`,
     };
-    expect(resolveInstallScopes(adapter, 'skill', false)).toEqual([ConfigScope.User]);
+    expect(resolveInstallScopes(provider, 'skill', false)).toEqual([ConfigScope.User]);
   });
 
   it('drops Project when only User resolves', () => {
-    const adapter = {
+    const provider = {
       getSkillsDir: (s: ConfigScope) => {
         if (s === ConfigScope.Project) {
-          throw new AdapterScopeError('x', s, 'no workspace');
+          throw new ProviderScopeError('x', s, 'no workspace');
         }
         return `/skills/${s}`;
       },
       getCommandsDir: throwScope('x'),
     };
-    expect(resolveInstallScopes(adapter, 'skill', true)).toEqual([ConfigScope.User]);
+    expect(resolveInstallScopes(provider, 'skill', true)).toEqual([ConfigScope.User]);
   });
 
   it('falls back to Project when nothing resolves but a workspace is open (Copilot-like)', () => {
-    const adapter = {
+    const provider = {
       getSkillsDir: throwScope('GitHub Copilot'),
       getCommandsDir: throwScope('GitHub Copilot'),
     };
-    expect(resolveInstallScopes(adapter, 'skill', true)).toEqual([ConfigScope.Project]);
+    expect(resolveInstallScopes(provider, 'skill', true)).toEqual([ConfigScope.Project]);
   });
 
   it('returns no scopes when nothing resolves and no workspace is open', () => {
-    const adapter = {
+    const provider = {
       getSkillsDir: throwScope('GitHub Copilot'),
       getCommandsDir: throwScope('GitHub Copilot'),
     };
-    expect(resolveInstallScopes(adapter, 'skill', false)).toEqual([]);
+    expect(resolveInstallScopes(provider, 'skill', false)).toEqual([]);
   });
 
   it('uses getCommandsDir for the command type', () => {
-    const adapter = {
+    const provider = {
       getSkillsDir: throwScope('x'),
       getCommandsDir: (s: ConfigScope) => `/commands/${s}`,
     };
-    expect(resolveInstallScopes(adapter, 'command', true)).toEqual([
+    expect(resolveInstallScopes(provider, 'command', true)).toEqual([
       ConfigScope.User,
       ConfigScope.Project,
     ]);

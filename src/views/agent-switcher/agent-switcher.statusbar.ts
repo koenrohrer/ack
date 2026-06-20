@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { IPlatformAdapter } from '../../types/adapter.js';
+import type { AgentProvider } from '../../types/provider.js';
 
 /**
  * Create the agent status bar item.
@@ -27,7 +27,7 @@ export function createAgentStatusBar(commandId: string): vscode.StatusBarItem {
  */
 export function updateAgentStatusBar(
   statusBar: vscode.StatusBarItem,
-  agent: IPlatformAdapter | undefined,
+  agent: AgentProvider | undefined,
 ): void {
   if (agent) {
     statusBar.text = `$(copilot) ${agent.displayName}`;

@@ -56,7 +56,7 @@ export async function parseCodexConfigMcpServers(
   // 4. Validate against the codex-config schema
   const validation = schemaService.validate('codex-config', readResult.data);
   if (!validation.success) {
-    // Treat malformed config as no tools (notification handled at adapter level)
+    // Treat malformed config as no tools (notification handled at provider level)
     return [];
   }
 

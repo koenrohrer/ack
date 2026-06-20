@@ -3,7 +3,7 @@ import type { FileIOService } from '../../services/fileio.service.js';
 import type { SchemaService } from '../../services/schema.service.js';
 import type { ConfigService } from '../../services/config.service.js';
 import type { BackupService } from '../../services/backup.service.js';
-import type { IPlatformAdapter, ProviderCapabilities } from '../../types/adapter.js';
+import type { AgentProvider, ProviderCapabilities } from '../../types/provider.js';
 import type { NormalizedTool } from '../../types/config.js';
 import { ToolType, ConfigScope } from '../../types/enums.js';
 import { ClaudeCodePaths } from './paths.js';
@@ -11,7 +11,7 @@ import { parseSettingsFile, readDisabledMcpServers } from './parsers/settings.pa
 import { parseMcpFile, parseClaudeJson } from './parsers/mcp.parser.js';
 import { parseSkillsDir } from './parsers/skill.parser.js';
 import { parseCommandsDir } from './parsers/command.parser.js';
-import { AdapterScopeError } from '../../types/adapter-errors.js';
+import { ProviderScopeError } from '../../types/provider-errors.js';
 import { toggleMcpServer, removeMcpServer, addMcpServer } from './writers/mcp.writer.js';
 import { toggleHook, removeHook, addHook } from './writers/settings.writer.js';
 import { removeSkill, copySkill, renameSkill } from './writers/skill.writer.js';
@@ -19,13 +19,13 @@ import { removeCommand, copyCommand, renameCommand } from './writers/command.wri
 import { isToggleDisable } from '../../services/tool-manager.utils.js';
 
 /**
- * Platform adapter for Claude Code.
+ * Platform provider for Claude Code.
  *
  * This is the ONLY module that knows about Claude Code file paths and formats.
  * It reads raw config files through the parsers and returns NormalizedTool[] arrays.
  * All file paths come exclusively from ClaudeCodePaths.
  */
-export class ClaudeCodeAdapter implements IPlatformAdapter {
+export class ClaudeCodeProvider implements AgentProvider {
   readonly id = 'claude-code';
   readonly displayName = 'Claude Code';
   readonly supportedToolTypes: ReadonlySet<ToolType> = new Set([
@@ -50,7 +50,7 @@ export class ClaudeCodeAdapter implements IPlatformAdapter {
 
   /**
    * Inject write-time dependencies after construction.
-   * Needed because ConfigService depends on AdapterRegistry, creating
+   * Needed because ConfigService depends on ProviderRegistry, creating
    * a circular init order. Call this once after ConfigService is created.
    */
   setWriteServices(configService: ConfigService, backupService: BackupService): void {
@@ -196,7 +196,7 @@ export class ClaudeCodeAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IToolAdapter -- toggleTool
+  // ToolCapability -- toggleTool
   // ---------------------------------------------------------------------------
 
   /**
@@ -255,7 +255,7 @@ export class ClaudeCodeAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IMcpAdapter
+  // McpCapability
   // ---------------------------------------------------------------------------
 
   /**
@@ -298,7 +298,7 @@ export class ClaudeCodeAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IPathAdapter
+  // PathCapability
   // ---------------------------------------------------------------------------
 
   /**
@@ -310,11 +310,11 @@ export class ClaudeCodeAdapter implements IPlatformAdapter {
         return ClaudeCodePaths.userSkillsDir;
       case ConfigScope.Project:
         if (!this.workspaceRoot) {
-          throw new AdapterScopeError('Claude Code', scope, 'getSkillsDir (no workspace open)');
+          throw new ProviderScopeError('Claude Code', scope, 'getSkillsDir (no workspace open)');
         }
         return ClaudeCodePaths.projectSkillsDir(this.workspaceRoot);
       default:
-        throw new AdapterScopeError('Claude Code', scope, 'getSkillsDir');
+        throw new ProviderScopeError('Claude Code', scope, 'getSkillsDir');
     }
   }
 
@@ -327,11 +327,11 @@ export class ClaudeCodeAdapter implements IPlatformAdapter {
         return ClaudeCodePaths.userCommandsDir;
       case ConfigScope.Project:
         if (!this.workspaceRoot) {
-          throw new AdapterScopeError('Claude Code', scope, 'getCommandsDir (no workspace open)');
+          throw new ProviderScopeError('Claude Code', scope, 'getCommandsDir (no workspace open)');
         }
         return ClaudeCodePaths.projectCommandsDir(this.workspaceRoot);
       default:
-        throw new AdapterScopeError('Claude Code', scope, 'getCommandsDir');
+        throw new ProviderScopeError('Claude Code', scope, 'getCommandsDir');
     }
   }
 
@@ -343,7 +343,7 @@ export class ClaudeCodeAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IInstallAdapter
+  // InstallCapability
   // ---------------------------------------------------------------------------
 
   /**
@@ -546,7 +546,7 @@ export class ClaudeCodeAdapter implements IPlatformAdapter {
     if (!this.configService || !this.backupService) {
       throw new Error(
         'ConfigService and BackupService are required for write operations. ' +
-        'Pass them to the ClaudeCodeAdapter constructor.',
+        'Pass them to the ClaudeCodeProvider constructor.',
       );
     }
   }

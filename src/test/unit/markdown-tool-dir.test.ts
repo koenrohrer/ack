@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseMarkdownToolDir } from '../../adapters/shared/markdown-tool-dir.js';
+import { parseMarkdownToolDir } from '../../providers/shared/markdown-tool-dir.js';
 import type { FileIOService } from '../../services/fileio.service.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 

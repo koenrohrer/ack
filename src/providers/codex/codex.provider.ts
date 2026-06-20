@@ -4,8 +4,8 @@ import type { FileIOService } from '../../services/fileio.service.js';
 import type { SchemaService } from '../../services/schema.service.js';
 import type { ConfigService } from '../../services/config.service.js';
 import type { BackupService } from '../../services/backup.service.js';
-import type { IPlatformAdapter, ProviderCapabilities } from '../../types/adapter.js';
-import type { CustomPromptInstallResult } from '../../types/adapter-install.js';
+import type { AgentProvider, ProviderCapabilities } from '../../types/provider.js';
+import type { CustomPromptInstallResult } from '../../types/provider-install.js';
 import type { NormalizedTool } from '../../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { CodexPaths } from './paths.js';
@@ -13,7 +13,7 @@ import { parseCodexConfigMcpServers } from './parsers/config.parser.js';
 import { parsePromptsDir } from './parsers/prompt.parser.js';
 import { parseSkillsDir } from '../claude-code/parsers/skill.parser.js';
 import { removeSkill, copySkill, renameSkill } from '../claude-code/writers/skill.writer.js';
-import { AdapterScopeError } from '../../types/adapter-errors.js';
+import { ProviderScopeError } from '../../types/provider-errors.js';
 import {
   addCodexMcpServer,
   removeCodexMcpServer,
@@ -24,7 +24,7 @@ import {
 } from './writers/config.writer.js';
 
 /**
- * Platform adapter for OpenAI Codex.
+ * Platform provider for OpenAI Codex.
  *
  * This is the ONLY module that knows about Codex file paths and formats.
  * It reads TOML config files through the parsers and returns NormalizedTool[]
@@ -40,7 +40,7 @@ import {
  * MCP write operations delegate to config.writer.ts pure functions.
  * Skill write operations delegate to skill.writer.ts shared with Claude Code.
  */
-export class CodexAdapter implements IPlatformAdapter {
+export class CodexProvider implements AgentProvider {
   readonly id = 'codex';
   readonly displayName = 'Codex';
   readonly supportedToolTypes: ReadonlySet<ToolType> = new Set([
@@ -72,7 +72,7 @@ export class CodexAdapter implements IPlatformAdapter {
 
   /**
    * Inject write-time dependencies after construction.
-   * Needed because ConfigService depends on AdapterRegistry, creating
+   * Needed because ConfigService depends on ProviderRegistry, creating
    * a circular init order. Call this once after ConfigService is created.
    */
   setWriteServices(configService: ConfigService, backupService: BackupService): void {
@@ -81,7 +81,7 @@ export class CodexAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IToolAdapter -- readTools
+  // ToolCapability -- readTools
   // ---------------------------------------------------------------------------
 
   /**
@@ -112,7 +112,7 @@ export class CodexAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IToolAdapter -- writeTool
+  // ToolCapability -- writeTool
   // ---------------------------------------------------------------------------
 
   /**
@@ -153,7 +153,7 @@ export class CodexAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IToolAdapter -- removeTool
+  // ToolCapability -- removeTool
   // ---------------------------------------------------------------------------
 
   /**
@@ -184,7 +184,7 @@ export class CodexAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IToolAdapter -- toggleTool
+  // ToolCapability -- toggleTool
   // ---------------------------------------------------------------------------
 
   /**
@@ -221,7 +221,7 @@ export class CodexAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // ILifecycleAdapter -- detect
+  // LifecycleCapability -- detect
   // ---------------------------------------------------------------------------
 
   /**
@@ -235,7 +235,7 @@ export class CodexAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // ILifecycleAdapter -- getWatchPaths
+  // LifecycleCapability -- getWatchPaths
   // ---------------------------------------------------------------------------
 
   /**
@@ -270,7 +270,7 @@ export class CodexAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // ILifecycleAdapter -- provider-owned commands + config checks (Phase 4d)
+  // LifecycleCapability -- provider-owned commands + config checks (Phase 4d)
   // ---------------------------------------------------------------------------
 
   getCommands(): ReadonlyArray<{ id: string; handler: () => void | Promise<void> }> {
@@ -338,7 +338,7 @@ export class CodexAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IMcpAdapter -- installMcpServer
+  // McpCapability -- installMcpServer
   // ---------------------------------------------------------------------------
 
   /**
@@ -358,7 +358,7 @@ export class CodexAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IMcpAdapter -- getMcpFilePath
+  // McpCapability -- getMcpFilePath
   // ---------------------------------------------------------------------------
 
   /**
@@ -374,16 +374,16 @@ export class CodexAdapter implements IPlatformAdapter {
         return CodexPaths.userConfigToml;
       case ConfigScope.Project:
         if (!this.workspaceRoot) {
-          throw new AdapterScopeError('Codex', scope, 'getMcpFilePath (no workspace open)');
+          throw new ProviderScopeError('Codex', scope, 'getMcpFilePath (no workspace open)');
         }
         return CodexPaths.projectConfigToml(this.workspaceRoot);
       default:
-        throw new AdapterScopeError('Codex', scope, 'getMcpFilePath');
+        throw new ProviderScopeError('Codex', scope, 'getMcpFilePath');
     }
   }
 
   // ---------------------------------------------------------------------------
-  // IMcpAdapter -- getMcpSchemaKey
+  // McpCapability -- getMcpSchemaKey
   // ---------------------------------------------------------------------------
 
   /**
@@ -409,7 +409,7 @@ export class CodexAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IMcpAdapter -- optional capability methods (capabilities.mcpEnvVars /
+  // McpCapability -- optional capability methods (capabilities.mcpEnvVars /
   // mcpServerToolToggle). Delegate to the config.writer TOML mutations so the
   // view never touches Codex's file format.
   // ---------------------------------------------------------------------------
@@ -434,7 +434,7 @@ export class CodexAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IPathAdapter -- getSkillsDir
+  // PathCapability -- getSkillsDir
   // ---------------------------------------------------------------------------
 
   /**
@@ -443,7 +443,7 @@ export class CodexAdapter implements IPlatformAdapter {
    * - User -> ~/.codex/skills/
    * - Project -> {root}/.codex/skills/
    *
-   * Throws AdapterScopeError for other scopes.
+   * Throws ProviderScopeError for other scopes.
    */
   getSkillsDir(scope: ConfigScope): string {
     switch (scope) {
@@ -451,50 +451,50 @@ export class CodexAdapter implements IPlatformAdapter {
         return CodexPaths.userSkillsDir;
       case ConfigScope.Project:
         if (!this.workspaceRoot) {
-          throw new AdapterScopeError('Codex', scope, 'getSkillsDir (no workspace open)');
+          throw new ProviderScopeError('Codex', scope, 'getSkillsDir (no workspace open)');
         }
         return CodexPaths.projectSkillsDir(this.workspaceRoot);
       default:
-        throw new AdapterScopeError('Codex', scope, 'getSkillsDir');
+        throw new ProviderScopeError('Codex', scope, 'getSkillsDir');
     }
   }
 
   // ---------------------------------------------------------------------------
-  // IPathAdapter -- getCommandsDir
+  // PathCapability -- getCommandsDir
   // ---------------------------------------------------------------------------
 
   /**
    * Return the commands directory path for the given scope.
    *
-   * **Codex does not support commands.** Always throws AdapterScopeError.
+   * **Codex does not support commands.** Always throws ProviderScopeError.
    */
   getCommandsDir(scope: ConfigScope): string {
-    throw new AdapterScopeError('Codex', scope, 'getCommandsDir (Codex does not support commands)');
+    throw new ProviderScopeError('Codex', scope, 'getCommandsDir (Codex does not support commands)');
   }
 
   // ---------------------------------------------------------------------------
-  // IPathAdapter -- getSettingsPath
+  // PathCapability -- getSettingsPath
   // ---------------------------------------------------------------------------
 
   /**
    * Return the settings file path for the given scope.
    *
    * **Codex uses config.toml, not settings.json.** Always throws
-   * AdapterScopeError -- callers should use getMcpFilePath() instead.
+   * ProviderScopeError -- callers should use getMcpFilePath() instead.
    */
   getSettingsPath(scope: ConfigScope): string {
-    throw new AdapterScopeError('Codex', scope, 'getSettingsPath (Codex uses config.toml, not settings.json)');
+    throw new ProviderScopeError('Codex', scope, 'getSettingsPath (Codex uses config.toml, not settings.json)');
   }
 
   // ---------------------------------------------------------------------------
-  // IInstallAdapter -- installSkill
+  // InstallCapability -- installSkill
   // ---------------------------------------------------------------------------
 
   /**
    * Install a skill by writing files to the scope's skills directory.
    *
    * Creates the skill subdirectory and writes all provided files.
-   * Identical behavior to ClaudeCodeAdapter since skill format is shared.
+   * Identical behavior to ClaudeCodeProvider since skill format is shared.
    */
   async installSkill(
     scope: ConfigScope,
@@ -511,41 +511,41 @@ export class CodexAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IInstallAdapter -- installCommand
+  // InstallCapability -- installCommand
   // ---------------------------------------------------------------------------
 
   /**
    * Install a command.
    *
-   * **Codex does not support commands.** Always throws AdapterScopeError.
+   * **Codex does not support commands.** Always throws ProviderScopeError.
    */
   async installCommand(
     scope: ConfigScope,
     _commandName: string,
     _files: Array<{ name: string; content: string }>,
   ): Promise<void> {
-    throw new AdapterScopeError('Codex', scope, 'installCommand (Codex does not support commands)');
+    throw new ProviderScopeError('Codex', scope, 'installCommand (Codex does not support commands)');
   }
 
   // ---------------------------------------------------------------------------
-  // IInstallAdapter -- installHook
+  // InstallCapability -- installHook
   // ---------------------------------------------------------------------------
 
   /**
    * Install a hook.
    *
-   * **Codex does not support hooks.** Always throws AdapterScopeError.
+   * **Codex does not support hooks.** Always throws ProviderScopeError.
    */
   async installHook(
     scope: ConfigScope,
     _eventName: string,
     _matcherGroup: { matcher: string; hooks: unknown[] },
   ): Promise<void> {
-    throw new AdapterScopeError('Codex', scope, 'installHook (Codex does not support hooks)');
+    throw new ProviderScopeError('Codex', scope, 'installHook (Codex does not support hooks)');
   }
 
   // ---------------------------------------------------------------------------
-  // IInstallAdapter -- installCustomPromptFile (capabilities.customPromptFileInstall)
+  // InstallCapability -- installCustomPromptFile (capabilities.customPromptFileInstall)
   // ---------------------------------------------------------------------------
 
   /**

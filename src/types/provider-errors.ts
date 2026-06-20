@@ -1,21 +1,21 @@
 /**
- * Typed error classes for adapter operations.
+ * Typed error classes for provider operations.
  *
- * All adapter errors include the agent name for clear error messages
- * that identify which platform adapter failed (e.g., "Claude Code: ...").
+ * All provider errors include the agent name for clear error messages
+ * that identify which platform provider failed (e.g., "Claude Code: ...").
  * Callers can catch by type for targeted error handling.
  */
 
 /**
- * Base class for all adapter errors.
+ * Base class for all provider errors.
  * Includes the agent identity for context in error messages.
  */
-export class AdapterError extends Error {
+export class ProviderError extends Error {
   readonly agentName: string;
 
   constructor(agentName: string, message: string) {
     super(`${agentName}: ${message}`);
-    this.name = 'AdapterError';
+    this.name = 'ProviderError';
     this.agentName = agentName;
   }
 }
@@ -23,22 +23,22 @@ export class AdapterError extends Error {
 /**
  * Thrown when a config read or write operation fails.
  */
-export class AdapterConfigError extends AdapterError {
+export class ProviderConfigError extends ProviderError {
   constructor(agentName: string, message: string) {
     super(agentName, message);
-    this.name = 'AdapterConfigError';
+    this.name = 'ProviderConfigError';
   }
 }
 
 /**
  * Thrown when a required config file does not exist.
  */
-export class AdapterFileNotFoundError extends AdapterError {
+export class ProviderFileNotFoundError extends ProviderError {
   readonly filePath: string;
 
   constructor(agentName: string, filePath: string) {
     super(agentName, `config file not found at ${filePath}`);
-    this.name = 'AdapterFileNotFoundError';
+    this.name = 'ProviderFileNotFoundError';
     this.filePath = filePath;
   }
 }
@@ -46,12 +46,12 @@ export class AdapterFileNotFoundError extends AdapterError {
 /**
  * Thrown when an operation is attempted on an unsupported scope.
  */
-export class AdapterScopeError extends AdapterError {
+export class ProviderScopeError extends ProviderError {
   readonly scope: string;
 
   constructor(agentName: string, scope: string, operation: string) {
     super(agentName, `scope "${scope}" is not supported for ${operation}`);
-    this.name = 'AdapterScopeError';
+    this.name = 'ProviderScopeError';
     this.scope = scope;
   }
 }

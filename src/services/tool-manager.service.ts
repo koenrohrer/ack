@@ -1,5 +1,5 @@
 import type { ConfigService } from './config.service.js';
-import type { AdapterRegistry } from '../adapters/adapter.registry.js';
+import type { ProviderRegistry } from '../providers/provider.registry.js';
 import type { NormalizedTool } from '../types/config.js';
 import { ConfigScope } from '../types/enums.js';
 import { isManaged } from './tool-manager.utils.js';
@@ -15,10 +15,10 @@ export type ToolManagerResult =
  * Orchestrates toggle, delete, and scope-move operations for all tool types.
  *
  * This is the business logic layer between the UI command handlers (Plan 03)
- * and the adapter/writer modules (Plan 01). It handles:
+ * and the provider/writer modules (Plan 01). It handles:
  * - Managed-scope protection (reject all operations)
  * - Type-aware toggle routing (directory rename vs. JSON field)
- * - Delete via adapter
+ * - Delete via provider
  * - Move with write-first ordering (safe for partial failure)
  * - Conflict detection at target scope
  *
@@ -27,7 +27,7 @@ export type ToolManagerResult =
 export class ToolManagerService {
   constructor(
     private readonly configService: ConfigService,
-    private readonly registry: AdapterRegistry,
+    private readonly registry: ProviderRegistry,
   ) {}
 
   /**
@@ -44,17 +44,17 @@ export class ToolManagerService {
     }
 
     try {
-      const adapter = this.getAdapter();
+      const provider = this.getProvider();
       if (
-        adapter.toggleableToolTypes !== undefined &&
-        !adapter.toggleableToolTypes.has(tool.type)
+        provider.toggleableToolTypes !== undefined &&
+        !provider.toggleableToolTypes.has(tool.type)
       ) {
         return {
           success: false,
-          error: `${adapter.displayName} cannot toggle ${tool.type} tools`,
+          error: `${provider.displayName} cannot toggle ${tool.type} tools`,
         };
       }
-      await adapter.toggleTool(tool);
+      await provider.toggleTool(tool);
       return { success: true };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -65,7 +65,7 @@ export class ToolManagerService {
   /**
    * Delete a tool by removing its files and/or config entries.
    *
-   * Delegates to the active adapter's removeTool method which routes
+   * Delegates to the active provider's removeTool method which routes
    * to the correct writer for the tool type.
    */
   async deleteTool(tool: NormalizedTool): Promise<ToolManagerResult> {
@@ -74,8 +74,8 @@ export class ToolManagerService {
     }
 
     try {
-      const adapter = this.getAdapter();
-      await adapter.removeTool(tool);
+      const provider = this.getProvider();
+      await provider.removeTool(tool);
       return { success: true };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -107,23 +107,23 @@ export class ToolManagerService {
     }
 
     try {
-      const adapter = this.getAdapter();
+      const provider = this.getProvider();
       if (
-        adapter.movableToolTypes !== undefined &&
-        !adapter.movableToolTypes.has(tool.type)
+        provider.movableToolTypes !== undefined &&
+        !provider.movableToolTypes.has(tool.type)
       ) {
         return {
           success: false,
-          error: `${adapter.displayName} cannot move ${tool.type} tools`,
+          error: `${provider.displayName} cannot move ${tool.type} tools`,
         };
       }
 
       // Step 1: Write to target scope (copy)
-      await adapter.writeTool(tool, targetScope);
+      await provider.writeTool(tool, targetScope);
 
       // Step 2: Remove from source scope
       // If this fails, user has duplicate (recoverable) not data loss
-      await adapter.removeTool(tool);
+      await provider.removeTool(tool);
 
       return { success: true };
     } catch (err: unknown) {
@@ -159,15 +159,15 @@ export class ToolManagerService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Get the active adapter from the registry.
-   * Throws if no adapter is active.
+   * Get the active provider from the registry.
+   * Throws if no provider is active.
    */
-  private getAdapter() {
-    const adapter = this.registry.getActiveAdapter();
-    if (!adapter) {
-      throw new Error('No active platform adapter');
+  private getProvider() {
+    const provider = this.registry.getActiveProvider();
+    if (!provider) {
+      throw new Error('No active platform provider');
     }
-    return adapter;
+    return provider;
   }
 
 }

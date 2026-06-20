@@ -7,7 +7,7 @@ import type { ConfigScope } from './enums.js';
  * Covers platform detection and filesystem watch path resolution.
  * These methods drive the extension's startup flow and file watcher setup.
  */
-export interface ILifecycleAdapter {
+export interface LifecycleCapability {
   readonly id: string;
   readonly displayName: string;
 
@@ -15,7 +15,7 @@ export interface ILifecycleAdapter {
    * When true, the agent is omitted entirely from agent-selection UI while
    * undetected (rather than shown as "not detected"). Copilot sets this
    * because it must not appear unless its VS Code extension is installed.
-   * Absent/false for adapters that are always listed.
+   * Absent/false for providers that are always listed.
    */
   readonly hideWhenUndetected?: boolean;
 

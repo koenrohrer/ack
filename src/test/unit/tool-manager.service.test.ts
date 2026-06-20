@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import type { NormalizedTool } from '../../types/config.js';
-import type { IPlatformAdapter } from '../../types/adapter.js';
+import type { AgentProvider } from '../../types/provider.js';
 import type { ConfigService } from '../../services/config.service.js';
-import { createMockAdapter as createBaseMockAdapter } from './helpers/mock-adapter.js';
-import { AdapterRegistry } from '../../adapters/adapter.registry.js';
+import { createMockProvider as createBaseMockProvider } from './helpers/mock-provider.js';
+import { ProviderRegistry } from '../../providers/provider.registry.js';
 import { ToolManagerService } from '../../services/tool-manager.service.js';
 import {
   buildToolContextValue,
@@ -91,8 +91,8 @@ function makeCustomPromptTool(overrides: Partial<NormalizedTool> = {}): Normaliz
   });
 }
 
-function createMockAdapter(): IPlatformAdapter {
-  return createBaseMockAdapter({
+function createMockProvider(): AgentProvider {
+  return createBaseMockProvider({
     id: 'claude-code',
     displayName: 'Claude Code',
     supportedToolTypes: new Set([ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command]),
@@ -156,7 +156,7 @@ describe('tool-manager.utils', () => {
       expect(getAvailableActions(tool)).toEqual(['toggle', 'delete', 'move']);
     });
 
-    it('omits toggle and move when adapter capabilities exclude the tool type', () => {
+    it('omits toggle and move when provider capabilities exclude the tool type', () => {
       const tool = makeMcpTool({ status: ToolStatus.Enabled });
       expect(
         getAvailableActions(tool, {
@@ -203,7 +203,7 @@ describe('tool-manager.utils', () => {
       expect(getMoveTargets(tool)).toEqual([ConfigScope.User, ConfigScope.Project]);
     });
 
-    it('returns empty array when adapter capabilities exclude moves for the tool type', () => {
+    it('returns empty array when provider capabilities exclude moves for the tool type', () => {
       const tool = makeMcpTool({ scope: ConfigScope.Project });
       expect(
         getMoveTargets(tool, {
@@ -346,18 +346,18 @@ describe('tool-manager.utils', () => {
 
 describe('ToolManagerService', () => {
   let service: ToolManagerService;
-  let mockAdapter: IPlatformAdapter;
+  let mockProvider: AgentProvider;
   let mockConfigService: ConfigService;
-  let registry: AdapterRegistry;
+  let registry: ProviderRegistry;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mockAdapter = createMockAdapter();
+    mockProvider = createMockProvider();
     mockConfigService = createMockConfigService();
-    registry = new AdapterRegistry();
-    registry.register(mockAdapter);
-    registry.setActiveAdapter('claude-code');
+    registry = new ProviderRegistry();
+    registry.register(mockProvider);
+    registry.setActiveProvider('claude-code');
 
     service = new ToolManagerService(mockConfigService, registry);
   });
@@ -373,51 +373,51 @@ describe('ToolManagerService', () => {
       expect(result).toEqual({ success: false, error: 'Cannot modify managed tools' });
     });
 
-    it('delegates to adapter.toggleTool for MCP server', async () => {
+    it('delegates to provider.toggleTool for MCP server', async () => {
       const tool = makeMcpTool();
 
       const result = await service.toggleTool(tool);
 
       expect(result).toEqual({ success: true });
-      expect(mockAdapter.toggleTool).toHaveBeenCalledWith(tool);
+      expect(mockProvider.toggleTool).toHaveBeenCalledWith(tool);
     });
 
-    it('delegates to adapter.toggleTool for hook', async () => {
+    it('delegates to provider.toggleTool for hook', async () => {
       const tool = makeHookTool();
 
       const result = await service.toggleTool(tool);
 
       expect(result).toEqual({ success: true });
-      expect(mockAdapter.toggleTool).toHaveBeenCalledWith(tool);
+      expect(mockProvider.toggleTool).toHaveBeenCalledWith(tool);
     });
 
-    it('delegates to adapter.toggleTool for skill', async () => {
+    it('delegates to provider.toggleTool for skill', async () => {
       const tool = makeTool();
 
       const result = await service.toggleTool(tool);
 
       expect(result).toEqual({ success: true });
-      expect(mockAdapter.toggleTool).toHaveBeenCalledWith(tool);
+      expect(mockProvider.toggleTool).toHaveBeenCalledWith(tool);
     });
 
-    it('delegates to adapter.toggleTool for command', async () => {
+    it('delegates to provider.toggleTool for command', async () => {
       const tool = makeCommandTool();
 
       const result = await service.toggleTool(tool);
 
       expect(result).toEqual({ success: true });
-      expect(mockAdapter.toggleTool).toHaveBeenCalledWith(tool);
+      expect(mockProvider.toggleTool).toHaveBeenCalledWith(tool);
     });
 
-    it('rejects toggle when the active adapter excludes the tool type', async () => {
-      const restrictedAdapter: IPlatformAdapter = {
-        ...createMockAdapter(),
+    it('rejects toggle when the active provider excludes the tool type', async () => {
+      const restrictedProvider: AgentProvider = {
+        ...createMockProvider(),
         id: 'restricted',
         displayName: 'Restricted',
         toggleableToolTypes: new Set([ToolType.Skill]),
       };
-      registry.register(restrictedAdapter);
-      registry.setActiveAdapter('restricted');
+      registry.register(restrictedProvider);
+      registry.setActiveProvider('restricted');
       service = new ToolManagerService(mockConfigService, registry);
 
       const result = await service.toggleTool(makeMcpTool());
@@ -426,11 +426,11 @@ describe('ToolManagerService', () => {
         success: false,
         error: 'Restricted cannot toggle mcp_server tools',
       });
-      expect(restrictedAdapter.toggleTool).not.toHaveBeenCalled();
+      expect(restrictedProvider.toggleTool).not.toHaveBeenCalled();
     });
 
-    it('catches adapter error and returns failure result', async () => {
-      (mockAdapter.toggleTool as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+    it('catches provider error and returns failure result', async () => {
+      (mockProvider.toggleTool as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
         new Error('File write failed'),
       );
 
@@ -452,16 +452,16 @@ describe('ToolManagerService', () => {
       expect(result).toEqual({ success: false, error: 'Cannot modify managed tools' });
     });
 
-    it('calls adapter.removeTool with the tool', async () => {
+    it('calls provider.removeTool with the tool', async () => {
       const tool = makeTool();
       const result = await service.deleteTool(tool);
 
       expect(result).toEqual({ success: true });
-      expect(mockAdapter.removeTool).toHaveBeenCalledWith(tool);
+      expect(mockProvider.removeTool).toHaveBeenCalledWith(tool);
     });
 
-    it('catches adapter error and returns failure result', async () => {
-      (mockAdapter.removeTool as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+    it('catches provider error and returns failure result', async () => {
+      (mockProvider.removeTool as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
         new Error('Permission denied'),
       );
 
@@ -506,26 +506,26 @@ describe('ToolManagerService', () => {
       const result = await service.moveTool(tool, ConfigScope.Project);
 
       expect(result).toEqual({ success: true });
-      expect(mockAdapter.writeTool).toHaveBeenCalledWith(tool, ConfigScope.Project);
-      expect(mockAdapter.removeTool).toHaveBeenCalledWith(tool);
+      expect(mockProvider.writeTool).toHaveBeenCalledWith(tool, ConfigScope.Project);
+      expect(mockProvider.removeTool).toHaveBeenCalledWith(tool);
 
       // Verify order: writeTool was called before removeTool
-      const writeCall = (mockAdapter.writeTool as ReturnType<typeof vi.fn>).mock
+      const writeCall = (mockProvider.writeTool as ReturnType<typeof vi.fn>).mock
         .invocationCallOrder[0];
-      const removeCall = (mockAdapter.removeTool as ReturnType<typeof vi.fn>).mock
+      const removeCall = (mockProvider.removeTool as ReturnType<typeof vi.fn>).mock
         .invocationCallOrder[0];
       expect(writeCall).toBeLessThan(removeCall);
     });
 
-    it('rejects move when the active adapter excludes the tool type', async () => {
-      const restrictedAdapter: IPlatformAdapter = {
-        ...createMockAdapter(),
+    it('rejects move when the active provider excludes the tool type', async () => {
+      const restrictedProvider: AgentProvider = {
+        ...createMockProvider(),
         id: 'restricted',
         displayName: 'Restricted',
         movableToolTypes: new Set([ToolType.Skill]),
       };
-      registry.register(restrictedAdapter);
-      registry.setActiveAdapter('restricted');
+      registry.register(restrictedProvider);
+      registry.setActiveProvider('restricted');
       service = new ToolManagerService(mockConfigService, registry);
 
       const result = await service.moveTool(makeMcpTool(), ConfigScope.Project);
@@ -534,21 +534,21 @@ describe('ToolManagerService', () => {
         success: false,
         error: 'Restricted cannot move mcp_server tools',
       });
-      expect(restrictedAdapter.writeTool).not.toHaveBeenCalled();
-      expect(restrictedAdapter.removeTool).not.toHaveBeenCalled();
+      expect(restrictedProvider.writeTool).not.toHaveBeenCalled();
+      expect(restrictedProvider.removeTool).not.toHaveBeenCalled();
     });
 
-    it('permits moves when the active adapter does not declare move capabilities', async () => {
+    it('permits moves when the active provider does not declare move capabilities', async () => {
       const tool = makeMcpTool({ scope: ConfigScope.User });
 
       const result = await service.moveTool(tool, ConfigScope.Project);
 
       expect(result).toEqual({ success: true });
-      expect(mockAdapter.writeTool).toHaveBeenCalledWith(tool, ConfigScope.Project);
+      expect(mockProvider.writeTool).toHaveBeenCalledWith(tool, ConfigScope.Project);
     });
 
     it('does NOT call removeTool if writeTool fails', async () => {
-      (mockAdapter.writeTool as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      (mockProvider.writeTool as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
         new Error('Write failed'),
       );
 
@@ -556,8 +556,8 @@ describe('ToolManagerService', () => {
       const result = await service.moveTool(tool, ConfigScope.Project);
 
       expect(result).toEqual({ success: false, error: 'Write failed' });
-      expect(mockAdapter.writeTool).toHaveBeenCalledWith(tool, ConfigScope.Project);
-      expect(mockAdapter.removeTool).not.toHaveBeenCalled();
+      expect(mockProvider.writeTool).toHaveBeenCalledWith(tool, ConfigScope.Project);
+      expect(mockProvider.removeTool).not.toHaveBeenCalled();
     });
   });
 

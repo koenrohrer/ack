@@ -4,11 +4,11 @@ import type { FileIOService } from '../../services/fileio.service.js';
 import type { SchemaService } from '../../services/schema.service.js';
 import type { ConfigService } from '../../services/config.service.js';
 import type { BackupService } from '../../services/backup.service.js';
-import type { IPlatformAdapter, ProviderCapabilities } from '../../types/adapter.js';
-import type { CustomPromptInstallResult } from '../../types/adapter-install.js';
+import type { AgentProvider, ProviderCapabilities } from '../../types/provider.js';
+import type { CustomPromptInstallResult } from '../../types/provider-install.js';
 import type { NormalizedTool } from '../../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
-import { AdapterScopeError } from '../../types/adapter-errors.js';
+import { ProviderScopeError } from '../../types/provider-errors.js';
 import { CopilotPaths } from './paths.js';
 import { parseCopilotMcpFile } from './parsers/mcp.parser.js';
 import { parseCopilotInstructions } from './parsers/instructions.parser.js';
@@ -18,7 +18,7 @@ import { toggleAgentUserInvokable } from './writers/agents.writer.js';
 import { addCopilotMcpServer, removeCopilotMcpServer } from './writers/mcp.writer.js';
 
 /**
- * Platform adapter for GitHub Copilot.
+ * Platform provider for GitHub Copilot.
  *
  * This is the ONLY module that knows about Copilot file paths and formats.
  * It returns NormalizedTool[] arrays from all read methods and routes path
@@ -37,7 +37,7 @@ import { addCopilotMcpServer, removeCopilotMcpServer } from './writers/mcp.write
  * - Custom prompts live in .github/prompts/
  * - Skills/agents live in .github/agents/
  */
-export class CopilotAdapter implements IPlatformAdapter {
+export class CopilotProvider implements AgentProvider {
   readonly id = 'copilot';
   readonly displayName = 'GitHub Copilot';
   readonly hideWhenUndetected = true;
@@ -82,7 +82,7 @@ export class CopilotAdapter implements IPlatformAdapter {
 
   /**
    * Inject write-time dependencies after construction.
-   * Needed because ConfigService depends on AdapterRegistry, creating
+   * Needed because ConfigService depends on ProviderRegistry, creating
    * a circular init order. Call this once after ConfigService is created.
    */
   setWriteServices(configService: ConfigService, backupService: BackupService): void {
@@ -91,7 +91,7 @@ export class CopilotAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // ILifecycleAdapter -- detect
+  // LifecycleCapability -- detect
   // ---------------------------------------------------------------------------
 
   /**
@@ -108,7 +108,7 @@ export class CopilotAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // ILifecycleAdapter -- getWatchPaths
+  // LifecycleCapability -- getWatchPaths
   // ---------------------------------------------------------------------------
 
   /**
@@ -138,7 +138,7 @@ export class CopilotAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IToolAdapter -- readTools
+  // ToolCapability -- readTools
   // ---------------------------------------------------------------------------
 
   /**
@@ -185,7 +185,7 @@ export class CopilotAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IToolAdapter -- writeTool
+  // ToolCapability -- writeTool
   // ---------------------------------------------------------------------------
 
   /**
@@ -194,11 +194,11 @@ export class CopilotAdapter implements IPlatformAdapter {
    * **Phase 20 scaffold:** Not yet implemented.
    */
   async writeTool(_tool: NormalizedTool, _scope: ConfigScope): Promise<void> {
-    throw new Error('CopilotAdapter: write operations not yet implemented (Phase 21+)');
+    throw new Error('CopilotProvider: write operations not yet implemented (Phase 21+)');
   }
 
   // ---------------------------------------------------------------------------
-  // IToolAdapter -- removeTool
+  // ToolCapability -- removeTool
   // ---------------------------------------------------------------------------
 
   /**
@@ -227,11 +227,11 @@ export class CopilotAdapter implements IPlatformAdapter {
       await rm(tool.source.filePath);
       return;
     }
-    throw new Error(`CopilotAdapter: removeTool not implemented for ${tool.type}`);
+    throw new Error(`CopilotProvider: removeTool not implemented for ${tool.type}`);
   }
 
   // ---------------------------------------------------------------------------
-  // IToolAdapter -- toggleTool
+  // ToolCapability -- toggleTool
   // ---------------------------------------------------------------------------
 
   /**
@@ -255,7 +255,7 @@ export class CopilotAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IMcpAdapter -- installMcpServer
+  // McpCapability -- installMcpServer
   // ---------------------------------------------------------------------------
 
   /**
@@ -275,7 +275,7 @@ export class CopilotAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IInstallAdapter -- installCustomPromptFile (capabilities.customPromptFileInstall)
+  // InstallCapability -- installCustomPromptFile (capabilities.customPromptFileInstall)
   // ---------------------------------------------------------------------------
 
   /**
@@ -319,7 +319,7 @@ export class CopilotAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IMcpAdapter -- getMcpFilePath
+  // McpCapability -- getMcpFilePath
   // ---------------------------------------------------------------------------
 
   /**
@@ -335,16 +335,16 @@ export class CopilotAdapter implements IPlatformAdapter {
         return CopilotPaths.userMcpJson(this.vsCodeUserDir);
       case ConfigScope.Project:
         if (!this.workspaceRoot) {
-          throw new AdapterScopeError('GitHub Copilot', scope, 'getMcpFilePath (no workspace open)');
+          throw new ProviderScopeError('GitHub Copilot', scope, 'getMcpFilePath (no workspace open)');
         }
         return CopilotPaths.workspaceMcpJson(this.workspaceRoot);
       default:
-        throw new AdapterScopeError('GitHub Copilot', scope, 'getMcpFilePath');
+        throw new ProviderScopeError('GitHub Copilot', scope, 'getMcpFilePath');
     }
   }
 
   // ---------------------------------------------------------------------------
-  // IMcpAdapter -- getMcpSchemaKey
+  // McpCapability -- getMcpSchemaKey
   // ---------------------------------------------------------------------------
 
   /**
@@ -370,7 +370,7 @@ export class CopilotAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IPathAdapter -- getSkillsDir
+  // PathCapability -- getSkillsDir
   // ---------------------------------------------------------------------------
 
   /**
@@ -379,11 +379,11 @@ export class CopilotAdapter implements IPlatformAdapter {
    * Copilot agent/skills support is implemented in Phase 23+.
    */
   getSkillsDir(scope: ConfigScope): string {
-    throw new AdapterScopeError('GitHub Copilot', scope, 'getSkillsDir (Phase 23+)');
+    throw new ProviderScopeError('GitHub Copilot', scope, 'getSkillsDir (Phase 23+)');
   }
 
   // ---------------------------------------------------------------------------
-  // IPathAdapter -- getCommandsDir
+  // PathCapability -- getCommandsDir
   // ---------------------------------------------------------------------------
 
   /**
@@ -392,11 +392,11 @@ export class CopilotAdapter implements IPlatformAdapter {
    * Copilot has no slash commands concept — always throws.
    */
   getCommandsDir(scope: ConfigScope): string {
-    throw new AdapterScopeError('GitHub Copilot', scope, 'getCommandsDir (Copilot has no slash commands)');
+    throw new ProviderScopeError('GitHub Copilot', scope, 'getCommandsDir (Copilot has no slash commands)');
   }
 
   // ---------------------------------------------------------------------------
-  // IPathAdapter -- getSettingsPath
+  // PathCapability -- getSettingsPath
   // ---------------------------------------------------------------------------
 
   /**
@@ -405,11 +405,11 @@ export class CopilotAdapter implements IPlatformAdapter {
    * Copilot uses VS Code settings (settings.json) — not a separate agent settings file.
    */
   getSettingsPath(scope: ConfigScope): string {
-    throw new AdapterScopeError('GitHub Copilot', scope, 'getSettingsPath (Copilot uses VS Code settings)');
+    throw new ProviderScopeError('GitHub Copilot', scope, 'getSettingsPath (Copilot uses VS Code settings)');
   }
 
   // ---------------------------------------------------------------------------
-  // IInstallAdapter -- installSkill
+  // InstallCapability -- installSkill
   // ---------------------------------------------------------------------------
 
   /**
@@ -419,7 +419,7 @@ export class CopilotAdapter implements IPlatformAdapter {
    * `fileIO.writeTextFile()` creates parent directories automatically — no
    * explicit `fs.mkdir` call required.
    *
-   * Throws `AdapterScopeError` if no workspace is open (Copilot agents are
+   * Throws `ProviderScopeError` if no workspace is open (Copilot agents are
    * workspace-scoped only — there is no user-scope agents directory).
    */
   async installSkill(
@@ -428,7 +428,7 @@ export class CopilotAdapter implements IPlatformAdapter {
     files: Array<{ name: string; content: string }>,
   ): Promise<void> {
     if (!this.workspaceRoot) {
-      throw new AdapterScopeError('GitHub Copilot', scope, 'installSkill (no workspace open)');
+      throw new ProviderScopeError('GitHub Copilot', scope, 'installSkill (no workspace open)');
     }
     const agentsDir = CopilotPaths.workspaceAgentsDir(this.workspaceRoot);
     for (const file of files) {
@@ -445,37 +445,37 @@ export class CopilotAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // IInstallAdapter -- installCommand
+  // InstallCapability -- installCommand
   // ---------------------------------------------------------------------------
 
   /**
    * Install a command.
    *
-   * Copilot has no slash commands. Always throws AdapterScopeError.
+   * Copilot has no slash commands. Always throws ProviderScopeError.
    */
   async installCommand(
     scope: ConfigScope,
     _commandName: string,
     _files: Array<{ name: string; content: string }>,
   ): Promise<void> {
-    throw new AdapterScopeError('GitHub Copilot', scope, 'installCommand (Copilot has no slash commands)');
+    throw new ProviderScopeError('GitHub Copilot', scope, 'installCommand (Copilot has no slash commands)');
   }
 
   // ---------------------------------------------------------------------------
-  // IInstallAdapter -- installHook
+  // InstallCapability -- installHook
   // ---------------------------------------------------------------------------
 
   /**
    * Install a hook.
    *
-   * Copilot has no hook concept. Always throws AdapterScopeError.
+   * Copilot has no hook concept. Always throws ProviderScopeError.
    */
   async installHook(
     scope: ConfigScope,
     _eventName: string,
     _matcherGroup: { matcher: string; hooks: unknown[] },
   ): Promise<void> {
-    throw new AdapterScopeError('GitHub Copilot', scope, 'installHook (Copilot has no hook concept)');
+    throw new ProviderScopeError('GitHub Copilot', scope, 'installHook (Copilot has no hook concept)');
   }
 
   // ---------------------------------------------------------------------------
@@ -491,7 +491,7 @@ export class CopilotAdapter implements IPlatformAdapter {
    */
   private ensureWriteServices(): void {
     if (!this.configService || !this.backupService) {
-      throw new Error('CopilotAdapter: write services not initialized — call setWriteServices() first');
+      throw new Error('CopilotProvider: write services not initialized — call setWriteServices() first');
     }
   }
 }
