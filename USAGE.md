@@ -9,11 +9,10 @@ A walkthrough of every feature in ACK, from first install to advanced workflows.
 - [Installation](#installation)
 - [Switching Agents](#switching-agents)
 - [The Tool Tree](#the-tool-tree)
-- [Installing Tools from the Marketplace](#installing-tools-from-the-marketplace)
+- [Installing Tools from Local Files](#installing-tools-from-local-files)
 - [Managing Tools](#managing-tools)
 - [Profiles](#profiles)
 - [The Config Panel](#the-config-panel)
-- [Custom Registries](#custom-registries)
 - [Tips and Workflows](#tips-and-workflows)
 
 ---
@@ -45,7 +44,7 @@ ACK auto-detects which agent CLIs are installed on your machine. The status bar 
 - Click the agent name in the status bar, or
 - Run `ACK: Switch Agent` from the command palette
 
-A QuickPick lists all detected agents with their detection status. Selecting one instantly switches the sidebar, marketplace, and config panel to that agent's tools.
+A QuickPick lists all detected agents with their detection status. Selecting one instantly switches the sidebar and config panel to that agent's tools.
 
 **If you just installed Codex or Copilot** and it isn't listed yet, run `ACK: Re-detect Agents` to refresh detection without restarting VS Code.
 
@@ -118,38 +117,26 @@ Every tool has a scope badge:
 
 ---
 
-## Installing Tools from the Marketplace
+## Installing Tools from Local Files
 
-Click the **extensions icon** in the tool tree title bar (or run `ACK: Open Marketplace` from the command palette) to open the marketplace panel.
+ACK installs tools from your own disk -- there is no remote registry, and nothing is fetched over the network.
 
-<!-- Screenshot: marketplace panel with search and tool cards -->
-<p align="center">
-  <img src="https://raw.githubusercontent.com/koenrohrer/ack/master/media/screenshots/marketplace.png" alt="Marketplace panel with search bar, type tabs, and tool cards" width="800" />
-  <br/>
-  <sub>Search by name, filter by type, sort by relevance or recency.</sub>
-</p>
+### Skills and commands
 
-### Browsing
+Click the **+** on a tool group's row in the sidebar:
 
-- **Search** -- Type in the search bar to filter tools by name or description
-- **Type tabs** -- Filter by tool type; tabs are filtered to show only types the active agent supports
-- **Agent badges** -- Each tool card shows which agents it's compatible with
-- **Sort** -- Order results by relevance, name, or date
+- **Skill** -- pick a folder; ACK installs its files under the active agent's skills directory, named after the folder.
+- **Command** (Claude Code) -- choose **Single file** or **Folder (multi-file)**, pick it, and ACK installs it under the commands directory.
 
-The marketplace automatically filters out tools that aren't compatible with the active agent.
+You'll be asked for a scope -- **User** (global) or **Project** (workspace) -- when the active agent supports both. If a tool with the same name already exists, ACK asks before overwriting.
 
-### Installing
+### Custom prompts and instructions
 
-1. Click a tool card to see its full description and configuration
-2. Choose a scope -- **User** (global) or **Project** (workspace)
-3. Click **Install**
+For Codex and Copilot, the **+** on the Custom Prompts group (or `ACK: Install Custom Prompt from File`) installs a `.md` file: Codex prompts go to `~/.codex/prompts/`, and Copilot routes `*.instructions.md` / `*.prompt.md` into `.github/`.
 
-<!-- Screenshot: tool detail view with install button -->
-<p align="center">
-  <img src="https://raw.githubusercontent.com/koenrohrer/ack/master/media/screenshots/tool-detail.png" alt="Tool detail view showing description, configuration fields, and install button" width="800" />
-  <br/>
-  <sub>Review the tool's description and any required configuration before installing.</sub>
-</p>
+### MCP servers
+
+The **+** on the MCP Servers group runs a guided flow (name, scope, transport, command/URL) and writes the server to the active agent's config. This works for any agent that supports MCP.
 
 The tool appears in your tree immediately. No restart needed -- the file watcher picks up the change.
 
@@ -236,41 +223,6 @@ Run `ACK: Configure Agent` to open a visual editor for your agent's settings.
 - **MCP server settings** -- Configure server-specific parameters
 
 Changes are written directly to your agent's config files. The config panel reads and writes the same files your agent does -- ACK is not a separate config layer.
-
----
-
-## Custom Registries
-
-Beyond the default community registry, you can add your own tool sources.
-
-### Add a registry
-
-In VS Code settings, add entries to `ack.registrySources`:
-
-```jsonc
-"ack.registrySources": [
-  {
-    "id": "team-tools",
-    "name": "My Team's Tools",
-    "owner": "my-org",
-    "repo": "agent-tools"
-  }
-]
-```
-
-The registry repo should contain a `registry.json` file at its root (or at the path specified by `indexPath`).
-
-### Add individual repositories
-
-For one-off tool repos that don't have a full registry, add their URLs to `ack.userRepositories`:
-
-```jsonc
-"ack.userRepositories": [
-  "https://github.com/someone/cool-mcp-server"
-]
-```
-
-These repos are scanned for installable tools and surfaced in the marketplace.
 
 ---
 

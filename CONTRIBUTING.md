@@ -54,19 +54,19 @@ npm run lint               # ESLint across src/
 ```
 src/
 ├── extension.ts                 Extension entry point -- activation, command registration
-├── adapters/
-│   ├── adapter.registry.ts      Maps agent names to their adapters
+├── providers/
+│   ├── provider.registry.ts     Maps agent ids to their providers
 │   └── claude-code/
-│       ├── claude-code.adapter.ts   Implements the adapter interface for Claude Code
+│       ├── claude-code.provider.ts  Implements the provider interface for Claude Code
 │       ├── paths.ts                 Resolves config file locations per platform
 │       ├── schemas.ts               Zod schemas for config validation
 │       ├── parsers/                 Read config files → normalized tool models
 │       └── writers/                 Normalized tool models → write config files
-├── types/                       Shared types and enums
+├── services/                    Config, file IO, profiles, local install, etc.
+├── types/                       Shared types and enums (provider.ts + capabilities)
 ├── utils/                       JSON helpers, platform detection, markdown
 ├── views/
 │   ├── tool-tree/               Sidebar tree data provider and commands
-│   ├── marketplace/             React webview -- browse and install tools
 │   ├── config-panel/            React webview -- edit agent settings
 │   ├── file-watcher.*           Watches config files for external changes
 │   └── shared/                  Base CSS shared across webviews
@@ -82,10 +82,11 @@ dist/                            Compiled output (git-ignored)
 
 ### Key concepts
 
-- **Adapters** abstract away agent-specific config formats. The Claude Code adapter knows where files live, how to parse them, and how to write changes back. Adding a new agent means adding a new adapter.
-- **Parsers** read raw JSON/JSONC into a normalized `Tool` model. **Writers** do the reverse.
-- **Webviews** (marketplace, config panel) are React apps bundled separately by esbuild. They communicate with the extension host through `postMessage`.
-- **The tool tree** is a standard VS Code `TreeDataProvider` backed by the adapter's parsed output.
+- **Providers** abstract away agent-specific config formats. The Claude Code provider knows where files live, how to parse them, and how to write changes back. Adding a new agent means adding a new provider -- views and `extension.ts` stay untouched.
+- **Capabilities** -- each provider declares optional `capabilities` (e.g. MCP env vars, custom-prompt-file install); the UI gates affordances on these instead of branching on agent id.
+- **Parsers** read raw JSON/JSONC/TOML into a normalized `Tool` model. **Writers** do the reverse.
+- **Webviews** (config panel) are React apps bundled separately by esbuild. They communicate with the extension host through `postMessage`.
+- **The tool tree** is a standard VS Code `TreeDataProvider` backed by the provider's parsed output.
 
 ---
 
@@ -119,18 +120,19 @@ dist/                            Compiled output (git-ignored)
 
 ---
 
-## Adding a New Agent Adapter
+## Adding a New Agent Provider
 
-ACK's adapter pattern makes it straightforward to support new agents:
+ACK's provider pattern makes it straightforward to support new agents:
 
-1. Create a directory under `src/adapters/<agent-name>/`
-2. Implement the adapter interface (see `src/types/adapter.ts`)
+1. Create a directory under `src/providers/<agent-name>/`
+2. Implement the `AgentProvider` interface (see `src/types/provider.ts`)
 3. Add parsers for each tool type the agent supports
 4. Add writers for each tool type
-5. Register the adapter in `src/adapters/adapter.registry.ts`
-6. Add tests under `src/test/unit/`
+5. Declare any optional `capabilities` the agent supports
+6. Register the provider in `src/providers/provider.registry.ts`
+7. Add tests under `src/test/unit/`
 
-The Claude Code adapter (`src/adapters/claude-code/`) serves as the reference implementation.
+The Claude Code provider (`src/providers/claude-code/`) serves as the reference implementation.
 
 ---
 

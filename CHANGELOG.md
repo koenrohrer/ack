@@ -4,6 +4,28 @@ All notable changes to ACK are documented here.
 
 ---
 
+## 2.0.0
+
+Removed the community marketplace; ACK is now fully local and provider-pluggable.
+
+### Removed (breaking)
+
+- **The community tool marketplace is gone** -- the marketplace panel, the remote tool registry, and repo scanning have been removed. ACK no longer fetches anything over the network.
+- Command `ACK: Open Marketplace` and settings `ack.userRepositories` / `ack.registrySources` are removed. Existing values for those settings are ignored (no migration needed).
+- Auto-installing missing tools on profile import / workspace activation is replaced by report-and-skip: missing tools are listed so you can add them locally.
+
+### Added
+
+- **Local tool install** -- click the `+` on a tool group to install a skill (folder) or command (file or folder) from local disk, at user or project scope. Codex prompts and Copilot instructions install from a `.md` file through the same affordance.
+- Adding an MCP server now works for any MCP-capable agent (previously Codex only).
+
+### Changed
+
+- The provider seam is hardened: agent-specific behavior (MCP env vars, per-tool toggle, prompt install, config notifications, project init) now lives entirely behind provider capabilities -- adding an agent means writing one provider, with no edits to views or `extension.ts`.
+- Internal vocabulary renamed from "adapter" to "provider" throughout. No user-facing or stored-data change -- profiles and their `agentId` are unaffected.
+
+---
+
 ## 1.3.1
 
 Activity bar visibility and logo refresh.

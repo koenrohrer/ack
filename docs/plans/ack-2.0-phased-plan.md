@@ -1,6 +1,6 @@
 # ACK 2.0 — Phased Implementation Plan
 
-**Status:** Draft for review (no code written yet)
+**Status:** Phases 0–6 implemented & committed on branch `2.0-core` (2026-06-20)
 **Date:** 2026-06-20
 **Scope:** Remove the community marketplace; make provider support cleanly pluggable.
 **Baseline:** `koenrohrer/ack` v1.3.1
@@ -173,6 +173,7 @@ Profiles stay a shared, agent-agnostic service scoped by `agentId` (not pushed p
 - **Verify:** `check-types`/`lint`/`test:unit`/`compile` pass; the diff is rename-only (no logic change); `grep -riE "\badapter|marketplace" src` → 0.
 
 ### Phase 6 — Docs, manifest, version, final gate
+- **Status:** ✅ Complete (2026-06-20). `package.json` → version **2.0.0**, multi-provider description, +`codex`/`copilot` keywords. CHANGELOG 2.0 entry added (breaking marketplace removal; **history preserved** per §2). README + USAGE + CONTRIBUTING rewritten to local-install + provider vocab; dead marketplace screenshot/registry sections removed. Supply-chain (§5a): CI now installs with `npm ci --ignore-scripts` + a blocking prod gate `npm audit --omit=dev --audit-level=moderate`; added `.github/dependabot.yml` (weekly, 7-day cooldown / 14-day major). Fixed the one prod vuln surgically (smol-toml 1.6.0→1.6.1, 10 lockfile lines). `.vscodeignore` now excludes `use-cases/**`. Gate green: check-types/lint/**332** tests/compile/package; VSIX packages clean (45 files, ~357KB, no node_modules/marketplace/maps). **Cannot run headless (left to user):** `test:integration` (CI keeps it as a non-blocking probe) and VSIX install+activate runtime smoke.
 - **Goal:** Ship-ready 2.0.
 - **Work:** Update README/USAGE/CONTRIBUTING; add CHANGELOG 2.0 entry (marketplace removal = breaking); replace screenshots; finalize `package.json`. **Supply-chain (§5a):** add `npm audit` to CI and a `.github/dependabot.yml`; set a dependency-update cooldown.
 - **Verify:** full gate incl. `test:integration` + `package`; VSIX installs + activates clean; manual smoke of the four surviving capabilities; CI runs `npm audit` and Dependabot is active.
