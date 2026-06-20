@@ -141,6 +141,7 @@ Profiles stay a shared, agent-agnostic service scoped by `agentId` (not pushed p
 - **Verify:** new tests pass; F5 → local skill install into Claude Code (appears + toggles), Codex prompt + Copilot instruction install via same affordance, **command option absent for Codex/Copilot**, custom-prompt option absent for Claude Code; no network in install path.
 
 ### Phase 3 — Decouple profiles & workspace auto-activation from marketplace
+- **Status:** ✅ Complete (2026-06-20). The behavioral report-and-skip already landed in Phase 1 (both `ack.importProfile` and `handleWorkspaceAutoActivation` step 10). Phase 3 verified the profile path has **zero** network/remote references (every "registry" match is the in-memory `AdapterRegistry`; no `fetch`/`http`/`installService`/`marketplace`) and repointed the two missing-tools messages at the new local-install "+" rather than the removed marketplace. No dedicated profile test file exists, so the full unit suite covers it. Gate green (327 tests). F5 (import a profile with an absent tool → clean skip, no network) pending (user).
 - **Goal:** Profiles fully local; missing tools reported, never remotely fetched.
 - **Work:** Finalize `ack.importProfile` missing-tools as report-and-skip (optional local-install follow-up); `handleWorkspaceAutoActivation` step 10 → plain warning.
 - **Files:** `tool-tree.profile-commands.ts`, `extension.ts`.

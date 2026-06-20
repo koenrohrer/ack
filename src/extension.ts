@@ -546,7 +546,7 @@ async function handleWorkspaceAutoActivation(
   // 10. If missing tools, report them (local-only; no remote install)
   if (result.skipped > 0) {
     vscode.window.showWarningMessage(
-      `Profile "${profile.name}" has ${result.skipped} missing tool(s). Install them locally to enable.`,
+      `Profile "${profile.name}" has ${result.skipped} missing tool(s). Add them via the + on each tool group to enable.`,
     );
   }
 }

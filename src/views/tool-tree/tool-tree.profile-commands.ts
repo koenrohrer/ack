@@ -606,7 +606,7 @@ export function registerProfileCommands(
       }
 
       // Handle missing tools: report and skip (local-only; no remote install).
-      // Local install of individual tools lands in Phase 2.
+      // Users can add missing tools via the group "+" (local install).
       const skipped: string[] = [];
       for (const missing of analysis.missing) {
         skipped.push(missing.name);
@@ -635,7 +635,7 @@ export function registerProfileCommands(
 
       if (skipped.length > 0) {
         vscode.window.showWarningMessage(
-          `Import complete. Could not find: ${skipped.join(', ')}`,
+          `Import complete. ${skipped.length} tool(s) not found — add them locally via the + on each tool group: ${skipped.join(', ')}`,
         );
       }
     },
