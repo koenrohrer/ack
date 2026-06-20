@@ -63,11 +63,14 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
       await this.model.rebuild(this.configService, this.registry);
       const groups = this.model.getRootGroups();
 
-      // Set context key for welcome view visibility
+      // Set context key for the "active agent, but no tools" welcome state.
+      // Requires an active agent so it does not fire when zero/multiple agents
+      // are unselected -- those states have their own welcome views.
+      const hasActiveAgent = !!this.registry.getActiveProvider();
       await vscode.commands.executeCommand(
         'setContext',
         'ack.noTools',
-        groups.length === 0,
+        hasActiveAgent && groups.length === 0,
       );
 
       return groups;

@@ -5,6 +5,8 @@ import { SchemaService } from './services/schema.service.js';
 import { ConfigService } from './services/config.service.js';
 import { ProviderRegistry } from './providers/provider.registry.js';
 import { resolveCapabilities, DEFAULT_CAPABILITIES } from './types/provider.js';
+import type { AgentProvider } from './types/provider.js';
+import { decideStartupAgent, agentDetectedKey } from './services/agent-reconcile.utils.js';
 import { ClaudeCodeProvider } from './providers/claude-code/claude-code.provider.js';
 import { claudeCodeSchemas } from './providers/claude-code/schemas.js';
 import { CodexProvider } from './providers/codex/codex.provider.js';
@@ -197,6 +199,11 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     agentSwitcher.onDidSwitchAgent(async (provider) => {
       await vscode.commands.executeCommand('setContext', 'ack.activeProviderId', provider?.id ?? '');
+      // An active agent clears the no-agents / choose-an-agent welcome states.
+      if (provider) {
+        await vscode.commands.executeCommand('setContext', 'ack.noAgents', false);
+        await vscode.commands.executeCommand('setContext', 'ack.chooseAgent', false);
+      }
       // Capability context keys drive `when`-clauses without branching on agent id.
       const caps = provider ? resolveCapabilities(provider) : DEFAULT_CAPABILITIES;
       await vscode.commands.executeCommand('setContext', 'ack.cap.mcpEnvVars', caps.mcpEnvVars);
@@ -224,6 +231,54 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
+  // Reconcile detected agents into an active selection + welcome context keys.
+  // Shared by startup and the re-detect command so both behave identically:
+  //   (a) persisted agent still detected -> activate it;
+  //   (b) exactly one detected -> activate it;
+  //   (c) two or more detected, no usable history -> route to the chooser;
+  //   (d) none detected -> the "install an agent" welcome.
+  // Returns true iff an agent was activated.
+  const applyDetectionResult = async (detected: AgentProvider[]): Promise<boolean> => {
+    const detectedIds = detected.map((a) => a.id);
+
+    // Per-agent detection drives the chooser buttons' visibility (and preserves
+    // hideWhenUndetected -- an undetected agent never gets a button).
+    for (const p of registry.getAllProviders()) {
+      await vscode.commands.executeCommand(
+        'setContext',
+        agentDetectedKey(p.id),
+        detectedIds.includes(p.id),
+      );
+    }
+
+    const decision = decideStartupAgent({
+      persistedId: agentSwitcher.getPersistedAgentId(),
+      detectedIds,
+    });
+
+    if (decision.kind === 'activate') {
+      // switchAgent fires onDidSwitchAgent, which clears the welcome keys.
+      if (registry.getActiveProvider()?.id !== decision.id) {
+        await agentSwitcher.switchAgent(decision.id);
+      }
+      outputChannel.appendLine(`Active agent: ${registry.getProvider(decision.id)?.displayName ?? decision.id}`);
+      return true;
+    }
+
+    if (decision.kind === 'choose') {
+      await vscode.commands.executeCommand('setContext', 'ack.noAgents', false);
+      await vscode.commands.executeCommand('setContext', 'ack.chooseAgent', true);
+      outputChannel.appendLine(`Multiple agents detected, awaiting choice: ${detected.map((a) => a.displayName).join(', ')}`);
+      return false;
+    }
+
+    // none detected
+    await vscode.commands.executeCommand('setContext', 'ack.chooseAgent', false);
+    await vscode.commands.executeCommand('setContext', 'ack.noAgents', true);
+    outputChannel.appendLine('No supported agent platforms detected');
+    return false;
+  };
+
   // 15f. Re-detect agents command
   const redetectCmd = vscode.commands.registerCommand(
     'ack.redetectAgents',
@@ -231,7 +286,7 @@ export function activate(context: vscode.ExtensionContext): void {
       outputChannel.appendLine('Re-detecting agents...');
 
       // Log individual detection results and collect detected providers
-      const detected: import('./types/provider.js').AgentProvider[] = [];
+      const detected: AgentProvider[] = [];
       for (const a of registry.getAllProviders()) {
         const found = await a.detect();
         outputChannel.appendLine(`  ${a.displayName}: ${found ? 'detected' : 'not detected'}`);
@@ -240,40 +295,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }
       }
 
-      if (detected.length === 1) {
-        await agentSwitcher.switchAgent(detected[0].id);
-        outputChannel.appendLine(`Active agent: ${detected[0].displayName}`);
-        vscode.window.showInformationMessage(`Active agent: ${detected[0].displayName}`);
-      } else if (detected.length > 1) {
-        const currentId = agentSwitcher.getPersistedAgentId();
-        const currentStillDetected = currentId && detected.some((a) => a.id === currentId);
-
-        if (currentStillDetected) {
-          // Keep current selection
-          outputChannel.appendLine(`Multiple agents detected, keeping current: ${currentId}`);
-        } else {
-          // No current selection or current not detected -- prompt to switch
-          outputChannel.appendLine(`Multiple agents detected: ${detected.map((a) => a.displayName).join(', ')}`);
-        }
-
-        // Check for newly detected agents and notify
-        for (const a of detected) {
-          if (a.id !== currentId) {
-            const action = await vscode.window.showInformationMessage(
-              `${a.displayName} detected`,
-              `Switch to ${a.displayName}`,
-            );
-            if (action) {
-              await agentSwitcher.switchAgent(a.id);
-            }
-          }
-        }
-      } else {
-        outputChannel.appendLine('No agents detected');
-        vscode.window.showWarningMessage(
-          'No supported agent platforms detected. Install Claude Code, Codex, or GitHub Copilot to get started.',
-        );
-      }
+      await applyDetectionResult(detected);
       outputChannel.show();
 
       // Re-run provider configuration checks (force re-surfaces dismissed prompts).
@@ -301,7 +323,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // 16b. Startup detection and agent reconciliation
   (async () => {
     // Run detection on all providers
-    const detected: import('./types/provider.js').AgentProvider[] = [];
+    const detected: AgentProvider[] = [];
     for (const a of registry.getAllProviders()) {
       const found = await a.detect();
       outputChannel.appendLine(`${a.displayName}: ${found ? 'detected' : 'not detected'}`);
@@ -310,39 +332,8 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }
 
-    // Reconcile: persisted agent > single auto-select > multiple/zero
-    const persistedId = agentSwitcher.getPersistedAgentId();
-    let activated = false;
-
-    if (persistedId) {
-      const persisted = detected.find((a) => a.id === persistedId);
-      if (persisted) {
-        await agentSwitcher.switchAgent(persistedId);
-        outputChannel.appendLine(`Active agent (restored): ${persisted.displayName}`);
-        activated = true;
-      } else {
-        outputChannel.appendLine(`Previously active agent "${persistedId}" not detected, falling through`);
-      }
-    }
-
-    if (!activated && detected.length === 1) {
-      await agentSwitcher.switchAgent(detected[0].id);
-      outputChannel.appendLine(`Active agent: ${detected[0].displayName}`);
-      activated = true;
-    }
-
-    if (!activated && detected.length > 1) {
-      outputChannel.appendLine(`Multiple agents detected: ${detected.map((a) => a.displayName).join(', ')}`);
-      vscode.window.showInformationMessage(
-        'Multiple agents detected. Use the status bar to select one.',
-      );
-    }
-
-    if (!activated && detected.length === 0) {
-      const msg = 'No supported agent platforms detected. Install Claude Code, Codex, or GitHub Copilot to get started.';
-      outputChannel.appendLine(msg);
-      vscode.window.showInformationMessage(msg);
-    }
+    // Reconcile: last-used-first, else single auto-select, else route to chooser.
+    const activated = await applyDetectionResult(detected);
 
     // Auto-activate workspace profile after successful agent selection
     if (activated && workspaceRoot) {
