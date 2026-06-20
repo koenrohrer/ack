@@ -1,6 +1,20 @@
 import type { ConfigScope } from './enums.js';
 
 /**
+ * Outcome of installing a custom prompt / instruction from a local file.
+ *
+ * - `installed`: written; `name` is the installed identity for messaging.
+ * - `conflict`: a file already exists at the target and `overwrite` was not set;
+ *   the caller confirms and re-invokes with `{ overwrite: true }`.
+ * - `rejected`: cannot install (wrong extension, no workspace, unreadable);
+ *   `reason` is a user-facing message.
+ */
+export type CustomPromptInstallResult =
+  | { status: 'installed'; name: string }
+  | { status: 'conflict'; name: string }
+  | { status: 'rejected'; reason: string };
+
+/**
  * Tool installation capability interface.
  *
  * Handles writing tool content (skills, commands, hooks) to the
@@ -42,4 +56,17 @@ export interface IInstallAdapter {
     eventName: string,
     matcherGroup: { matcher: string; hooks: unknown[] },
   ): Promise<void>;
+
+  /**
+   * Install a custom prompt / instruction from a local file.
+   *
+   * Present iff `capabilities.customPromptFileInstall`. The adapter validates the
+   * file, resolves its own target path, and copies it — the view only picks the
+   * file and surfaces the result. Returns `conflict` when a file already exists
+   * and `options.overwrite` is not set.
+   */
+  installCustomPromptFile?(
+    sourcePath: string,
+    options?: { overwrite?: boolean },
+  ): Promise<CustomPromptInstallResult>;
 }

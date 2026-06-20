@@ -1,9 +1,11 @@
+import type * as vscode from 'vscode';
 import * as path from 'path';
 import type { FileIOService } from '../../services/fileio.service.js';
 import type { SchemaService } from '../../services/schema.service.js';
 import type { ConfigService } from '../../services/config.service.js';
 import type { BackupService } from '../../services/backup.service.js';
-import type { IPlatformAdapter } from '../../types/adapter.js';
+import type { IPlatformAdapter, ProviderCapabilities } from '../../types/adapter.js';
+import type { CustomPromptInstallResult } from '../../types/adapter-install.js';
 import type { NormalizedTool } from '../../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { CodexPaths } from './paths.js';
@@ -16,6 +18,9 @@ import {
   addCodexMcpServer,
   removeCodexMcpServer,
   toggleCodexMcpServer,
+  setEnvVar,
+  removeEnvVar,
+  setToolEnabled,
 } from './writers/config.writer.js';
 
 /**
@@ -51,6 +56,11 @@ export class CodexAdapter implements IPlatformAdapter {
     ToolType.Skill,
     ToolType.McpServer,
   ]);
+  readonly capabilities: ProviderCapabilities = {
+    mcpEnvVars: true,
+    mcpServerToolToggle: true,
+    customPromptFileInstall: true,
+  };
 
   constructor(
     private readonly fileIO: FileIOService,
@@ -260,6 +270,74 @@ export class CodexAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
+  // ILifecycleAdapter -- provider-owned commands + config checks (Phase 4d)
+  // ---------------------------------------------------------------------------
+
+  getCommands(): ReadonlyArray<{ id: string; handler: () => void | Promise<void> }> {
+    return [{ id: 'ack.initCodexProject', handler: () => this.initProject() }];
+  }
+
+  async checkConfiguration(context: vscode.ExtensionContext, force = false): Promise<void> {
+    if (!(await this.detect())) {
+      return;
+    }
+    if (force) {
+      await context.globalState.update('ack.codexConfigDismissed', false);
+    }
+    const vscodeApi = await import('vscode');
+
+    const configExists = await this.fileIO.fileExists(CodexPaths.userConfigToml);
+    if (!configExists) {
+      if (context.globalState.get<boolean>('ack.codexConfigDismissed', false)) {
+        return;
+      }
+      const action = await vscodeApi.window.showInformationMessage(
+        'Codex detected but no config.toml found. Create one?',
+        'Create Config',
+        'Dismiss',
+      );
+      if (action === 'Create Config') {
+        await this.fileIO.writeTextFile(CodexPaths.userConfigToml, '# Codex user configuration\n');
+      } else if (action === 'Dismiss') {
+        await context.globalState.update('ack.codexConfigDismissed', true);
+      }
+      return;
+    }
+
+    const readResult = await this.fileIO.readTomlFile(CodexPaths.userConfigToml);
+    if (!readResult.success) {
+      const action = await vscodeApi.window.showWarningMessage(
+        `Codex config.toml has syntax errors: ${readResult.error}`,
+        'Open File',
+      );
+      if (action === 'Open File') {
+        const doc = await vscodeApi.workspace.openTextDocument(
+          vscodeApi.Uri.file(CodexPaths.userConfigToml),
+        );
+        await vscodeApi.window.showTextDocument(doc);
+      }
+    }
+  }
+
+  private async initProject(): Promise<void> {
+    const vscodeApi = await import('vscode');
+    if (!this.workspaceRoot) {
+      vscodeApi.window.showWarningMessage('No workspace folder open');
+      return;
+    }
+    const codexDir = CodexPaths.projectCodexDir(this.workspaceRoot);
+    const configPath = CodexPaths.projectConfigToml(this.workspaceRoot);
+    const skillsDir = CodexPaths.projectSkillsDir(this.workspaceRoot);
+
+    const { mkdir } = await import('fs/promises');
+    await mkdir(skillsDir, { recursive: true });
+    if (!(await this.fileIO.fileExists(configPath))) {
+      await this.fileIO.writeTextFile(configPath, '# Codex project configuration\n');
+    }
+    vscodeApi.window.showInformationMessage(`Initialized Codex project: ${codexDir}`);
+  }
+
+  // ---------------------------------------------------------------------------
   // IMcpAdapter -- installMcpServer
   // ---------------------------------------------------------------------------
 
@@ -328,6 +406,31 @@ export class CodexAdapter implements IPlatformAdapter {
 
   getMcpConfigFormat(): 'toml' | 'json' {
     return 'toml';
+  }
+
+  // ---------------------------------------------------------------------------
+  // IMcpAdapter -- optional capability methods (capabilities.mcpEnvVars /
+  // mcpServerToolToggle). Delegate to the config.writer TOML mutations so the
+  // view never touches Codex's file format.
+  // ---------------------------------------------------------------------------
+
+  async setMcpEnvVar(server: NormalizedTool, key: string, value: string): Promise<void> {
+    this.ensureWriteServices();
+    await setEnvVar(this.configService!, server.source.filePath, server.name, key, value);
+  }
+
+  async removeMcpEnvVar(server: NormalizedTool, key: string): Promise<void> {
+    this.ensureWriteServices();
+    await removeEnvVar(this.configService!, server.source.filePath, server.name, key);
+  }
+
+  async toggleMcpServerTool(
+    server: NormalizedTool,
+    toolName: string,
+    enable: boolean,
+  ): Promise<void> {
+    this.ensureWriteServices();
+    await setToolEnabled(this.configService!, server.source.filePath, server.name, toolName, enable);
   }
 
   // ---------------------------------------------------------------------------
@@ -442,42 +545,33 @@ export class CodexAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // Codex-specific -- custom prompt install
+  // IInstallAdapter -- installCustomPromptFile (capabilities.customPromptFileInstall)
   // ---------------------------------------------------------------------------
 
   /**
-   * Scope where Codex custom prompts are installed.
-   *
-   * Codex prompts are user-scoped markdown files under ~/.codex/prompts,
-   * regardless of the requested scope.
+   * Install a Codex custom prompt from a local `.md` file into
+   * ~/.codex/prompts/<name>.md. Owns Codex's path + validation so the view
+   * stays provider-agnostic.
    */
-  getCustomPromptInstallScope(): ConfigScope {
-    return ConfigScope.User;
-  }
-
-  /**
-   * Derive the installed identity of a custom prompt from its manifest name.
-   *
-   * Codex prompt files are `<name>.md`; the displayed name strips the
-   * trailing `.md` so it matches the parsed prompt name.
-   */
-  getCustomPromptInstallName(manifestName: string): string {
-    return manifestName.endsWith('.md')
-      ? manifestName.slice(0, -'.md'.length)
-      : manifestName;
-  }
-
-  /**
-   * Write custom prompt content to ~/.codex/prompts/<name>.md.
-   */
-  async installCustomPrompt(manifestName: string, content: string): Promise<void> {
-    const fileName = manifestName.endsWith('.md')
-      ? manifestName
-      : `${manifestName}.md`;
-    await this.fileIO.writeTextFile(
-      path.join(CodexPaths.userPromptsDir, fileName),
-      content,
-    );
+  async installCustomPromptFile(
+    sourcePath: string,
+    options?: { overwrite?: boolean },
+  ): Promise<CustomPromptInstallResult> {
+    const filename = path.basename(sourcePath);
+    if (!filename.endsWith('.md')) {
+      return { status: 'rejected', reason: `Codex prompts must be .md files. Got: '${filename}'` };
+    }
+    const name = filename.slice(0, -'.md'.length);
+    const targetPath = path.join(CodexPaths.userPromptsDir, filename);
+    if ((await this.fileIO.fileExists(targetPath)) && !options?.overwrite) {
+      return { status: 'conflict', name };
+    }
+    const content = await this.fileIO.readTextFile(sourcePath);
+    if (content === null) {
+      return { status: 'rejected', reason: `Could not read '${filename}'.` };
+    }
+    await this.fileIO.writeTextFile(targetPath, content);
+    return { status: 'installed', name };
   }
 
   // ---------------------------------------------------------------------------

@@ -4,13 +4,13 @@ import { BackupService } from './services/backup.service.js';
 import { SchemaService } from './services/schema.service.js';
 import { ConfigService } from './services/config.service.js';
 import { AdapterRegistry } from './adapters/adapter.registry.js';
+import { resolveCapabilities, DEFAULT_CAPABILITIES } from './types/adapter.js';
 import { ClaudeCodeAdapter } from './adapters/claude-code/claude-code.adapter.js';
 import { claudeCodeSchemas } from './adapters/claude-code/schemas.js';
 import { CodexAdapter } from './adapters/codex/codex.adapter.js';
 import { codexSchemas } from './adapters/codex/schemas.js';
 import { CopilotAdapter } from './adapters/copilot/copilot.adapter.js';
 import { copilotSchemas } from './adapters/copilot/schemas.js';
-import { CodexPaths } from './adapters/codex/paths.js';
 import { ToolTreeProvider } from './views/tool-tree/tool-tree.provider.js';
 import { registerToolTreeCommands } from './views/tool-tree/tool-tree.commands.js';
 import { registerManagementCommands } from './views/tool-tree/tool-tree.management.js';
@@ -94,8 +94,12 @@ export function activate(context: vscode.ExtensionContext): void {
     registry.register(adapter);
   }
 
-  // Codex needs an individual reference later for Codex-specific notifications.
-  const codexAdapter = adapters.find((a): a is CodexAdapter => a instanceof CodexAdapter)!;
+  // Register each provider's own commands (the host owns registerCommand).
+  for (const a of registry.getAllAdapters()) {
+    for (const cmd of a.getCommands?.() ?? []) {
+      context.subscriptions.push(vscode.commands.registerCommand(cmd.id, cmd.handler));
+    }
+  }
 
   // 6. Config service (the main API for reading/writing tool configs)
   const configService = new ConfigService(fileIO, backup, schemas, registry);
@@ -177,34 +181,6 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(openConfigPanel);
 
-  // 15c. Initialize Codex project command
-  const initCodexCmd = vscode.commands.registerCommand(
-    'ack.initCodexProject',
-    async () => {
-      if (!workspaceRoot) {
-        vscode.window.showWarningMessage('No workspace folder open');
-        return;
-      }
-
-      const codexDir = CodexPaths.projectCodexDir(workspaceRoot);
-      const configPath = CodexPaths.projectConfigToml(workspaceRoot);
-      const skillsDir = CodexPaths.projectSkillsDir(workspaceRoot);
-
-      const { mkdir } = await import('fs/promises');
-      await mkdir(skillsDir, { recursive: true });
-
-      // Create config.toml only if it doesn't exist
-      const configExists = await fileIO.fileExists(configPath);
-      if (!configExists) {
-        await fileIO.writeTextFile(configPath, '# Codex project configuration\n');
-      }
-
-      outputChannel.appendLine(`Initialized Codex project at ${codexDir}`);
-      vscode.window.showInformationMessage(`Initialized Codex project: ${codexDir}`);
-    },
-  );
-  context.subscriptions.push(initCodexCmd);
-
   // 15d. Switch agent command (status bar click or command palette)
   const switchAgentCmd = vscode.commands.registerCommand(
     'ack.switchAgent',
@@ -221,6 +197,11 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     agentSwitcher.onDidSwitchAgent(async (adapter) => {
       await vscode.commands.executeCommand('setContext', 'ack.activeAdapterId', adapter?.id ?? '');
+      // Capability context keys drive `when`-clauses without branching on agent id.
+      const caps = adapter ? resolveCapabilities(adapter) : DEFAULT_CAPABILITIES;
+      await vscode.commands.executeCommand('setContext', 'ack.cap.mcpEnvVars', caps.mcpEnvVars);
+      await vscode.commands.executeCommand('setContext', 'ack.cap.mcpServerToolToggle', caps.mcpServerToolToggle);
+      await vscode.commands.executeCommand('setContext', 'ack.cap.customPromptFileInstall', caps.customPromptFileInstall);
       updateAgentStatusBar(agentStatusBar, adapter);
       treeProvider.setAgentName(adapter?.displayName);
       ConfigPanel.notifyAgentChanged(adapter?.displayName ?? 'No Agent');
@@ -295,11 +276,10 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       outputChannel.show();
 
-      // Reset codex config dismissal so re-detection re-checks
-      await context.globalState.update('ack.codexConfigDismissed', false);
-
-      // Re-run Codex notifications
-      await handleCodexNotifications(context, codexAdapter, fileIO, outputChannel);
+      // Re-run provider configuration checks (force re-surfaces dismissed prompts).
+      for (const a of registry.getAllAdapters()) {
+        await a.checkConfiguration?.(context, true);
+      }
     },
   );
   context.subscriptions.push(redetectCmd);
@@ -376,8 +356,10 @@ export function activate(context: vscode.ExtensionContext): void {
       );
     }
 
-    // Run Codex-specific notifications regardless of which adapter won
-    await handleCodexNotifications(context, codexAdapter, fileIO, outputChannel);
+    // Run provider configuration checks (each provider self-gates on detection).
+    for (const a of registry.getAllAdapters()) {
+      await a.checkConfiguration?.(context);
+    }
   })().catch((err: unknown) => {
     outputChannel.appendLine(`Platform detection error: ${err}`);
   });
@@ -406,63 +388,6 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(testCmd);
 
   outputChannel.appendLine('ACK activated');
-}
-
-/**
- * Handle Codex-specific notifications after detection.
- *
- * When Codex is detected but has no config.toml, offers to create one
- * (with dismissal memory via globalState). When config.toml exists but
- * has TOML parse errors, shows a warning with an "Open File" action.
- */
-async function handleCodexNotifications(
-  context: vscode.ExtensionContext,
-  codexAdapter: CodexAdapter,
-  fileIO: FileIOService,
-  outputChannel: vscode.OutputChannel,
-): Promise<void> {
-  const detected = await codexAdapter.detect();
-  if (!detected) {
-    return;
-  }
-
-  // Check if user config.toml exists
-  const configExists = await fileIO.fileExists(CodexPaths.userConfigToml);
-
-  if (!configExists) {
-    // Check dismissal state
-    const dismissed = context.globalState.get<boolean>('ack.codexConfigDismissed', false);
-    if (dismissed) {
-      return;
-    }
-
-    const action = await vscode.window.showInformationMessage(
-      'Codex detected but no config.toml found. Create one?',
-      'Create Config',
-      'Dismiss',
-    );
-
-    if (action === 'Create Config') {
-      await fileIO.writeTextFile(CodexPaths.userConfigToml, '# Codex user configuration\n');
-      outputChannel.appendLine('Created ~/.codex/config.toml');
-    } else if (action === 'Dismiss') {
-      await context.globalState.update('ack.codexConfigDismissed', true);
-    }
-    return;
-  }
-
-  // Config exists -- check if it's valid TOML
-  const readResult = await fileIO.readTomlFile(CodexPaths.userConfigToml);
-  if (!readResult.success) {
-    const action = await vscode.window.showWarningMessage(
-      `Codex config.toml has syntax errors: ${readResult.error}`,
-      'Open File',
-    );
-    if (action === 'Open File') {
-      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(CodexPaths.userConfigToml));
-      await vscode.window.showTextDocument(doc);
-    }
-  }
 }
 
 /**

@@ -79,6 +79,13 @@ export function createMockAdapter(overrides: MockAdapterOverrides = {}): IPlatfo
     async installSkill(): Promise<void> {},
     async installCommand(): Promise<void> {},
     async installHook(): Promise<void> {},
+
+    // Capabilities (Phase 4) — off by default; override per test.
+    capabilities: {
+      mcpEnvVars: false,
+      mcpServerToolToggle: false,
+      customPromptFileInstall: false,
+    },
   };
 
   return { ...base, ...rest };

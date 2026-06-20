@@ -4,7 +4,8 @@ import type { FileIOService } from '../../services/fileio.service.js';
 import type { SchemaService } from '../../services/schema.service.js';
 import type { ConfigService } from '../../services/config.service.js';
 import type { BackupService } from '../../services/backup.service.js';
-import type { IPlatformAdapter } from '../../types/adapter.js';
+import type { IPlatformAdapter, ProviderCapabilities } from '../../types/adapter.js';
+import type { CustomPromptInstallResult } from '../../types/adapter-install.js';
 import type { NormalizedTool } from '../../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { AdapterScopeError } from '../../types/adapter-errors.js';
@@ -51,6 +52,11 @@ export class CopilotAdapter implements IPlatformAdapter {
     // CustomPrompt: instructions and prompts have no enable/disable concept.
   ]);
   readonly movableToolTypes: ReadonlySet<ToolType> = new Set();
+  readonly capabilities: ProviderCapabilities = {
+    mcpEnvVars: false,
+    mcpServerToolToggle: false,
+    customPromptFileInstall: true,
+  };
 
   /**
    * VS Code user directory derived from context.globalStorageUri at construction.
@@ -269,41 +275,47 @@ export class CopilotAdapter implements IPlatformAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // Copilot-specific -- installInstruction
+  // IInstallAdapter -- installCustomPromptFile (capabilities.customPromptFileInstall)
   // ---------------------------------------------------------------------------
 
   /**
-   * Install an instruction or prompt file to the correct .github/ subdirectory.
+   * Install a Copilot instruction or prompt from a local file, routed by
+   * extension to the correct .github/ subdirectory:
+   * - `*.instructions.md` -> .github/instructions/<filename>
+   * - `*.prompt.md`       -> .github/prompts/<filename>
    *
-   * Routes by filename extension:
-   * - 'copilot-instructions.md'  -> .github/copilot-instructions.md
-   * - '*.instructions.md'        -> .github/instructions/<filename>
-   * - '*.prompt.md'              -> .github/prompts/<filename>
-   *
-   * Uses fileIO.writeTextFile() for atomic write with auto-mkdir.
+   * Owns Copilot's path + validation so the view stays provider-agnostic.
+   * fileIO.writeTextFile() creates parent directories automatically.
    */
-  async installInstruction(
-    _scope: ConfigScope,
-    filename: string,
-    content: string,
-  ): Promise<void> {
+  async installCustomPromptFile(
+    sourcePath: string,
+    options?: { overwrite?: boolean },
+  ): Promise<CustomPromptInstallResult> {
     if (!this.workspaceRoot) {
-      throw new AdapterScopeError('GitHub Copilot', _scope, 'installInstruction (no workspace open)');
+      return { status: 'rejected', reason: 'No workspace folder open. Cannot install instruction.' };
     }
-    let targetPath: string;
-    if (filename === 'copilot-instructions.md') {
-      targetPath = CopilotPaths.workspaceCopilotInstructionsFile(this.workspaceRoot);
-    } else if (filename.endsWith('.instructions.md')) {
-      targetPath = path.join(CopilotPaths.workspaceInstructionsDir(this.workspaceRoot), filename);
-    } else if (filename.endsWith('.prompt.md')) {
-      targetPath = path.join(CopilotPaths.workspacePromptsDir(this.workspaceRoot), filename);
-    } else {
-      throw new Error(
-        `CopilotAdapter: unrecognized instruction/prompt filename: '${filename}'. ` +
-        `Expected 'copilot-instructions.md', '*.instructions.md', or '*.prompt.md'.`,
-      );
+    const filename = path.basename(sourcePath);
+    const targetDir = filename.endsWith('.instructions.md')
+      ? CopilotPaths.workspaceInstructionsDir(this.workspaceRoot)
+      : filename.endsWith('.prompt.md')
+        ? CopilotPaths.workspacePromptsDir(this.workspaceRoot)
+        : null;
+    if (targetDir === null) {
+      return {
+        status: 'rejected',
+        reason: `File must end in .instructions.md or .prompt.md. Got: '${filename}'`,
+      };
+    }
+    const targetPath = path.join(targetDir, filename);
+    if ((await this.fileIO.fileExists(targetPath)) && !options?.overwrite) {
+      return { status: 'conflict', name: filename };
+    }
+    const content = await this.fileIO.readTextFile(sourcePath);
+    if (content === null) {
+      return { status: 'rejected', reason: `Could not read '${filename}'.` };
     }
     await this.fileIO.writeTextFile(targetPath, content);
+    return { status: 'installed', name: filename };
   }
 
   // ---------------------------------------------------------------------------

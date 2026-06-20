@@ -10,6 +10,7 @@ import { CodexAdapter } from '../../adapters/codex/codex.adapter.js';
 import { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { AdapterScopeError } from '../../types/adapter-errors.js';
+import { resolveCapabilities } from '../../types/adapter.js';
 import type { NormalizedTool } from '../../types/config.js';
 import { ConfigService } from '../../services/config.service.js';
 import { BackupService } from '../../services/backup.service.js';
@@ -731,5 +732,59 @@ describe('CodexAdapter capabilities', () => {
     expect(adapter.movableToolTypes?.has(ToolType.Skill)).toBe(true);
     expect(adapter.movableToolTypes?.has(ToolType.McpServer)).toBe(true);
     expect(adapter.movableToolTypes?.has(ToolType.CustomPrompt)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Provider capabilities (Phase 4 seam)
+// ---------------------------------------------------------------------------
+
+describe('provider capabilities', () => {
+  it('Claude Code declares no optional capabilities', () => {
+    const adapter = new ClaudeCodeAdapter(fileIO, schemaService);
+    expect(adapter.capabilities).toEqual({
+      mcpEnvVars: false,
+      mcpServerToolToggle: false,
+      customPromptFileInstall: false,
+    });
+  });
+
+  it('Codex declares MCP env/toggle + custom-prompt-file, with matching methods', () => {
+    const adapter = new CodexAdapter(fileIO, schemaService);
+    expect(adapter.capabilities).toEqual({
+      mcpEnvVars: true,
+      mcpServerToolToggle: true,
+      customPromptFileInstall: true,
+    });
+    expect(typeof adapter.setMcpEnvVar).toBe('function');
+    expect(typeof adapter.removeMcpEnvVar).toBe('function');
+    expect(typeof adapter.toggleMcpServerTool).toBe('function');
+    expect(typeof adapter.installCustomPromptFile).toBe('function');
+  });
+
+  it('Codex exposes its init command via getCommands', () => {
+    const adapter = new CodexAdapter(fileIO, schemaService);
+    const ids = (adapter.getCommands?.() ?? []).map((c) => c.id);
+    expect(ids).toContain('ack.initCodexProject');
+  });
+
+  it('resolveCapabilities fills absent flags with false', () => {
+    const mock = createMockAdapter({ capabilities: undefined });
+    expect(resolveCapabilities(mock)).toEqual({
+      mcpEnvVars: false,
+      mcpServerToolToggle: false,
+      customPromptFileInstall: false,
+    });
+  });
+
+  it('resolveCapabilities preserves declared flags', () => {
+    const mock = createMockAdapter({
+      capabilities: { mcpEnvVars: true, mcpServerToolToggle: false, customPromptFileInstall: true },
+    });
+    expect(resolveCapabilities(mock)).toEqual({
+      mcpEnvVars: true,
+      mcpServerToolToggle: false,
+      customPromptFileInstall: true,
+    });
   });
 });

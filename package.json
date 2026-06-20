@@ -178,13 +178,8 @@
         "icon": "$(trash)"
       },
       {
-        "command": "ack.installPromptFromFile",
+        "command": "ack.installCustomPromptFile",
         "title": "ACK: Install Custom Prompt from File",
-        "icon": "$(file-add)"
-      },
-      {
-        "command": "ack.installInstructionFromFile",
-        "title": "ACK: Install Instruction or Prompt from File",
         "icon": "$(file-add)"
       },
       {
@@ -248,27 +243,27 @@
         },
         {
           "command": "ack.addMcpServer",
-          "when": "view == ack.toolTree && viewItem == group:mcp_server && ack.activeAdapterId == codex",
+          "when": "view == ack.toolTree && viewItem == group:mcp_server",
           "group": "inline"
         },
         {
           "command": "ack.addMcpServer",
-          "when": "view == ack.toolTree && viewItem == group:mcp_server && ack.activeAdapterId == codex",
-          "group": "2_codex"
+          "when": "view == ack.toolTree && viewItem == group:mcp_server",
+          "group": "1_install"
         },
         {
           "command": "ack.toggleMcpTool",
-          "when": "view == ack.toolTree && viewItem =~ /^subtool:mcp-tool:/ && ack.activeAdapterId == codex",
+          "when": "view == ack.toolTree && viewItem =~ /^subtool:mcp-tool:/ && ack.cap.mcpServerToolToggle",
           "group": "inline"
         },
         {
           "command": "ack.addEnvVar",
-          "when": "view == ack.toolTree && viewItem =~ /^tool:mcp_server:/ && viewItem =~ /:(?:user|project)$/ && ack.activeAdapterId == codex",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:mcp_server:/ && viewItem =~ /:(?:user|project)$/ && ack.cap.mcpEnvVars",
           "group": "2_envvar"
         },
         {
           "command": "ack.editEnvVar",
-          "when": "view == ack.toolTree && viewItem == subtool:env-var && ack.activeAdapterId == codex",
+          "when": "view == ack.toolTree && viewItem == subtool:env-var && ack.cap.mcpEnvVars",
           "group": "inline"
         },
         {
@@ -278,27 +273,17 @@
         },
         {
           "command": "ack.removeEnvVar",
-          "when": "view == ack.toolTree && viewItem == subtool:env-var && ack.activeAdapterId == codex",
+          "when": "view == ack.toolTree && viewItem == subtool:env-var && ack.cap.mcpEnvVars",
           "group": "3_envvar"
         },
         {
-          "command": "ack.installPromptFromFile",
-          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.activeAdapterId == codex",
+          "command": "ack.installCustomPromptFile",
+          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.cap.customPromptFileInstall",
           "group": "inline"
         },
         {
-          "command": "ack.installPromptFromFile",
-          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.activeAdapterId == codex",
-          "group": "1_install"
-        },
-        {
-          "command": "ack.installInstructionFromFile",
-          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.activeAdapterId == copilot",
-          "group": "inline"
-        },
-        {
-          "command": "ack.installInstructionFromFile",
-          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.activeAdapterId == copilot",
+          "command": "ack.installCustomPromptFile",
+          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.cap.customPromptFileInstall",
           "group": "1_install"
         },
         {

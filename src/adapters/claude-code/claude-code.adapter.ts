@@ -3,7 +3,7 @@ import type { FileIOService } from '../../services/fileio.service.js';
 import type { SchemaService } from '../../services/schema.service.js';
 import type { ConfigService } from '../../services/config.service.js';
 import type { BackupService } from '../../services/backup.service.js';
-import type { IPlatformAdapter } from '../../types/adapter.js';
+import type { IPlatformAdapter, ProviderCapabilities } from '../../types/adapter.js';
 import type { NormalizedTool } from '../../types/config.js';
 import { ToolType, ConfigScope } from '../../types/enums.js';
 import { ClaudeCodePaths } from './paths.js';
@@ -34,6 +34,11 @@ export class ClaudeCodeAdapter implements IPlatformAdapter {
     ToolType.Hook,
     ToolType.Command,
   ]);
+  readonly capabilities: ProviderCapabilities = {
+    mcpEnvVars: false,
+    mcpServerToolToggle: false,
+    customPromptFileInstall: false,
+  };
 
   constructor(
     private readonly fileIO: FileIOService,

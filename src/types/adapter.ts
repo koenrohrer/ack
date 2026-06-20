@@ -12,6 +12,36 @@ export type { IInstallAdapter } from './adapter-install.js';
 export type { ILifecycleAdapter } from './adapter-lifecycle.js';
 
 /**
+ * Optional, provider-declared capabilities that gate UI affordances and
+ * behavior without callers branching on `adapter.id`.
+ *
+ * Each flag has a matching optional method on a sub-interface (present iff the
+ * flag is set) and a `ack.cap.*` context key derived from it for `when`-clauses.
+ */
+export interface ProviderCapabilities {
+  /** Add / edit / remove environment variables on an MCP server. */
+  mcpEnvVars: boolean;
+  /** Enable / disable individual tools within an MCP server. */
+  mcpServerToolToggle: boolean;
+  /** Install a custom prompt / instruction from a local file. */
+  customPromptFileInstall: boolean;
+}
+
+/** Capability defaults — every flag off — used when a provider omits `capabilities`. */
+export const DEFAULT_CAPABILITIES: ProviderCapabilities = {
+  mcpEnvVars: false,
+  mcpServerToolToggle: false,
+  customPromptFileInstall: false,
+};
+
+/** Resolve a provider's capabilities, filling absent flags with the off default. */
+export function resolveCapabilities(
+  adapter: Pick<IPlatformAdapter, 'capabilities'>,
+): ProviderCapabilities {
+  return { ...DEFAULT_CAPABILITIES, ...adapter.capabilities };
+}
+
+/**
  * Platform adapter interface.
  *
  * Each agent platform (Claude Code, Codex, etc.) implements this interface.
@@ -26,4 +56,10 @@ export interface IPlatformAdapter extends
   IMcpAdapter,
   IPathAdapter,
   IInstallAdapter,
-  ILifecycleAdapter {}
+  ILifecycleAdapter {
+  /**
+   * Declared capabilities. Optional for backward compatibility (mocks/older
+   * adapters) — absent flags default off via {@link resolveCapabilities}.
+   */
+  readonly capabilities?: ProviderCapabilities;
+}

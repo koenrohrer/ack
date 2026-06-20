@@ -1,4 +1,5 @@
 import type { ConfigScope } from './enums.js';
+import type { NormalizedTool } from './config.js';
 
 /**
  * MCP server management capability interface.
@@ -56,4 +57,30 @@ export interface IMcpAdapter {
    * writer without branching on adapter id.
    */
   getMcpConfigFormat(): 'toml' | 'json';
+
+  // ---------------------------------------------------------------------------
+  // Optional capability methods (present iff the matching capabilities flag set)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Set an environment variable on an MCP server (add or overwrite).
+   *
+   * Present iff `capabilities.mcpEnvVars`. `server` is the MCP server tool; the
+   * adapter resolves its own config file and format.
+   */
+  setMcpEnvVar?(server: NormalizedTool, key: string, value: string): Promise<void>;
+
+  /**
+   * Remove an environment variable from an MCP server.
+   *
+   * Present iff `capabilities.mcpEnvVars`.
+   */
+  removeMcpEnvVar?(server: NormalizedTool, key: string): Promise<void>;
+
+  /**
+   * Enable or disable an individual tool within an MCP server.
+   *
+   * Present iff `capabilities.mcpServerToolToggle`.
+   */
+  toggleMcpServerTool?(server: NormalizedTool, toolName: string, enable: boolean): Promise<void>;
 }

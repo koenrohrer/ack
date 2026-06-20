@@ -1,3 +1,4 @@
+import type * as vscode from 'vscode';
 import type { ConfigScope } from './enums.js';
 
 /**
@@ -27,4 +28,24 @@ export interface ILifecycleAdapter {
    * Return filesystem paths that should be watched for changes in a scope.
    */
   getWatchPaths(scope: ConfigScope): string[];
+
+  // ---------------------------------------------------------------------------
+  // Optional provider-owned lifecycle hooks (keep provider specifics out of
+  // extension.ts — see Phase 4d).
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Provider-specific commands to register at activation. Returned as
+   * descriptors so the host owns `registerCommand` — this keeps `vscode` out of
+   * the provider's import graph (it stays unit-testable); handlers run lazily at
+   * invocation time and may `await import('vscode')` internally.
+   */
+  getCommands?(): ReadonlyArray<{ id: string; handler: () => void | Promise<void> }>;
+
+  /**
+   * Run detection-time configuration checks/notifications (the provider
+   * self-gates on its own `detect()`). Called after startup detection and on
+   * re-detect. `force` re-surfaces checks the user previously dismissed.
+   */
+  checkConfiguration?(context: vscode.ExtensionContext, force?: boolean): Promise<void>;
 }
