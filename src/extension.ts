@@ -18,12 +18,8 @@ import { registerProfileCommands } from './views/tool-tree/tool-tree.profile-com
 import { ToolManagerService } from './services/tool-manager.service.js';
 import { ProfileService } from './services/profile.service.js';
 import { FileWatcherManager } from './views/file-watcher.manager.js';
-import { MarketplacePanel } from './views/marketplace/marketplace.panel.js';
 import { ConfigPanel } from './views/config-panel/config-panel.panel.js';
-import { RegistryService } from './services/registry.service.js';
-import { InstallService } from './services/install.service.js';
 import { WorkspaceProfileService } from './services/workspace-profile.service.js';
-import { RepoScannerService } from './services/repo-scanner.service.js';
 import { AgentSwitcherService } from './services/agent-switcher.service.js';
 import { showAgentQuickPick } from './views/agent-switcher/agent-switcher.quickpick.js';
 import { createAgentStatusBar, updateAgentStatusBar } from './views/agent-switcher/agent-switcher.statusbar.js';
@@ -39,7 +35,6 @@ let services:
       configService: ConfigService;
       registry: AdapterRegistry;
       toolManager: ToolManagerService;
-      registryService: RegistryService;
       workspaceProfileService: WorkspaceProfileService;
       agentSwitcherService: AgentSwitcherService;
       outputChannel: vscode.OutputChannel;
@@ -57,7 +52,6 @@ export function getServices(): {
   configService: ConfigService;
   registry: AdapterRegistry;
   toolManager: ToolManagerService;
-  registryService: RegistryService;
   workspaceProfileService: WorkspaceProfileService;
   agentSwitcherService: AgentSwitcherService;
   outputChannel: vscode.OutputChannel;
@@ -114,17 +108,6 @@ export function activate(context: vscode.ExtensionContext): void {
   // 7. Tool management service
   const toolManager = new ToolManagerService(configService, registry);
 
-  // 8. Registry service for marketplace data
-  const registryService = new RegistryService(context);
-
-  // 9. Install service for one-click marketplace installs
-  const installService = new InstallService(
-    registryService, configService, registry, workspaceRoot,
-  );
-
-  // 9b. Repo scanner service for marketplace discovery
-  const repoScannerService = new RepoScannerService(context.globalState);
-
   // 9c. Profile service for named tool presets
   const profileService = new ProfileService(context.globalState, configService, toolManager, registry, fileIO, outputChannel);
 
@@ -146,7 +129,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(agentStatusBar);
 
   // 10. Store services for cross-module access
-  services = { configService, registry, toolManager, registryService, workspaceProfileService, agentSwitcherService: agentSwitcher, outputChannel };
+  services = { configService, registry, toolManager, workspaceProfileService, agentSwitcherService: agentSwitcher, outputChannel };
 
   // 11. Tree view provider
   const treeProvider = new ToolTreeProvider(configService, registry, context.extensionUri);
@@ -161,16 +144,13 @@ export function activate(context: vscode.ExtensionContext): void {
     toolManager,
     treeProvider,
     profileService,
-    registryService,
     configService,
     outputChannel,
-    installService,
-    repoScannerService,
     registry,
   );
 
   // 14. Profile commands (create, switch, edit, delete, save-as, export, import, associate, clone-to-agent)
-  registerProfileCommands(context, profileService, configService, treeProvider, registryService, installService, workspaceProfileService, registry);
+  registerProfileCommands(context, profileService, configService, treeProvider, workspaceProfileService, registry);
 
   // 14b. Restore active profile name in sidebar header on startup
   const activeId = profileService.getActiveProfileId();
@@ -178,25 +158,6 @@ export function activate(context: vscode.ExtensionContext): void {
     const activeProfile = profileService.getProfile(activeId);
     treeProvider.setActiveProfile(activeProfile?.name ?? null);
   }
-
-  // 15. Marketplace panel command
-  const openMarketplace = vscode.commands.registerCommand(
-    'ack.openMarketplace',
-    () =>
-      MarketplacePanel.createOrShow(
-        context.extensionUri,
-        registryService,
-        configService,
-        outputChannel,
-        installService,
-        toolManager,
-        repoScannerService,
-        registry,
-        undefined, // initialTypeFilter
-        registry.getActiveAdapter()?.displayName,
-      ),
-  );
-  context.subscriptions.push(openMarketplace);
 
   // 15b. Config panel command
   const openConfigPanel = vscode.commands.registerCommand(
@@ -262,7 +223,6 @@ export function activate(context: vscode.ExtensionContext): void {
       await vscode.commands.executeCommand('setContext', 'ack.activeAdapterId', adapter?.id ?? '');
       updateAgentStatusBar(agentStatusBar, adapter);
       treeProvider.setAgentName(adapter?.displayName);
-      MarketplacePanel.notifyAgentChanged(adapter?.displayName ?? 'No Agent');
       ConfigPanel.notifyAgentChanged(adapter?.displayName ?? 'No Agent');
       if (adapter) {
         fileWatcher.setupWatchers(adapter);
@@ -511,7 +471,7 @@ async function handleCodexNotifications(
  * Checks the global setting, reads `.vscode/agent-profile.json` filtered by
  * the active agent, validates that no manual override exists, then switches
  * to the associated profile. Partial activation occurs when some tools are
- * missing (user is prompted to install them from the marketplace).
+ * missing (those tools are reported and skipped).
  *
  * Agent-scoped: Only activates if the workspace association matches the
  * active agent. Legacy associations (no agentId) are treated as Claude Code.
@@ -583,15 +543,11 @@ async function handleWorkspaceAutoActivation(
   // 9. Show info notification
   vscode.window.showInformationMessage(`Switched to profile: ${profile.name}`);
 
-  // 10. If missing tools, prompt to install
+  // 10. If missing tools, report them (local-only; no remote install)
   if (result.skipped > 0) {
-    const action = await vscode.window.showWarningMessage(
-      `Profile "${profile.name}" has ${result.skipped} missing tool(s).`,
-      'Open Marketplace',
+    vscode.window.showWarningMessage(
+      `Profile "${profile.name}" has ${result.skipped} missing tool(s). Install them locally to enable.`,
     );
-    if (action === 'Open Marketplace') {
-      await vscode.commands.executeCommand('ack.openMarketplace');
-    }
   }
 }
 

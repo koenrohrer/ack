@@ -6,8 +6,6 @@ import type { ProfileService } from '../../services/profile.service.js';
 import type { Profile, ProfileExportBundle } from '../../services/profile.types.js';
 import { ProfileExportBundleSchema } from '../../services/profile.types.js';
 import type { ConfigService } from '../../services/config.service.js';
-import type { RegistryService } from '../../services/registry.service.js';
-import type { InstallService } from '../../services/install.service.js';
 import type { WorkspaceProfileService } from '../../services/workspace-profile.service.js';
 import type { ToolTreeProvider } from './tool-tree.provider.js';
 import type { ProfileToolEntry } from '../../services/profile.types.js';
@@ -62,8 +60,6 @@ export function registerProfileCommands(
   profileService: ProfileService,
   configService: ConfigService,
   treeProvider: ToolTreeProvider,
-  registryService: RegistryService,
-  installService: InstallService,
   workspaceProfileService: WorkspaceProfileService,
   registry: AdapterRegistry,
 ): void {
@@ -609,58 +605,11 @@ export function registerProfileCommands(
         }
       }
 
-      // Handle missing tools
+      // Handle missing tools: report and skip (local-only; no remote install).
+      // Local install of individual tools lands in Phase 2.
       const skipped: string[] = [];
-      if (analysis.missing.length > 0) {
-        const missingNames = analysis.missing.map((t) => t.name).join(', ');
-        const install = await vscode.window.showWarningMessage(
-          `Missing tools: ${missingNames}. Try to install from marketplace?`,
-          'Yes',
-          'No',
-        );
-
-        if (install === 'Yes') {
-          try {
-            const indexes = await registryService.fetchAllIndexes(false);
-            for (const missing of analysis.missing) {
-              let found = false;
-              for (const { source, index } of indexes.values()) {
-                const entry = index.tools.find(
-                  (t) => t.name === missing.name && t.type === missing.type,
-                );
-                if (entry) {
-                  try {
-                    const manifest = await installService.getToolManifest(source, entry.contentPath);
-                    const result = await installService.install({
-                      manifest,
-                      scope: ConfigScope.User,
-                      source,
-                      contentPath: entry.contentPath,
-                    });
-                    if (result.success) {
-                      found = true;
-                      break;
-                    }
-                  } catch {
-                    // Install failed -- add to skipped
-                  }
-                }
-              }
-              if (!found) {
-                skipped.push(missing.name);
-              }
-            }
-          } catch {
-            // Registry fetch failed -- all missing become skipped
-            for (const missing of analysis.missing) {
-              skipped.push(missing.name);
-            }
-          }
-        } else {
-          for (const missing of analysis.missing) {
-            skipped.push(missing.name);
-          }
-        }
+      for (const missing of analysis.missing) {
+        skipped.push(missing.name);
       }
 
       // Create the profile with resolved tool entries

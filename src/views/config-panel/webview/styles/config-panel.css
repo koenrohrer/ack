@@ -545,3 +545,25 @@
   font-size: 13px;
   padding: 4px 0;
 }
+
+/* Banner action button (agent-changed / success banners) */
+.config-panel__banner-btn {
+  padding: var(--ack-space-sm) var(--ack-space-lg);
+  border-radius: var(--ack-radius-md);
+  border: 1px solid var(--vscode-panel-border);
+  background: transparent;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  font-size: var(--ack-font-sm);
+  font-family: var(--vscode-font-family);
+  transition: background-color var(--ack-transition-normal), border-color var(--ack-transition-normal);
+}
+
+.config-panel__banner-btn:hover {
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.config-panel__banner-btn:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}

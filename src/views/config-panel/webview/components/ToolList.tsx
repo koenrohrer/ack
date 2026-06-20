@@ -60,7 +60,7 @@ export function ToolList({ tools, selectedToolKey, onSelectTool }: ToolListProps
     return (
       <div className="tool-list">
         <p className="tool-list__empty">
-          No tools installed. Visit the Marketplace to discover tools.
+          No tools installed yet.
         </p>
       </div>
     );

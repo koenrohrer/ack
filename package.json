@@ -97,11 +97,6 @@
         "icon": "$(add)"
       },
       {
-        "command": "ack.openMarketplace",
-        "title": "ACK: Open Marketplace",
-        "icon": "$(extensions)"
-      },
-      {
         "command": "ack.createProfile",
         "title": "ACK: Create Profile"
       },
@@ -211,11 +206,6 @@
       "view/title": [
         {
           "command": "ack.switchProfile",
-          "when": "view == ack.toolTree",
-          "group": "navigation"
-        },
-        {
-          "command": "ack.openMarketplace",
           "when": "view == ack.toolTree",
           "group": "navigation"
         },
@@ -345,56 +335,6 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically activate the associated profile when opening a workspace"
-        },
-        "ack.userRepositories": {
-          "type": "array",
-          "default": [],
-          "description": "GitHub repository URLs to scan for installable tools",
-          "items": {
-            "type": "string"
-          }
-        },
-        "ack.registrySources": {
-          "type": "array",
-          "default": [],
-          "description": "Additional tool registry sources (GitHub repositories). The default community registry is always included.",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "description": "Unique identifier for this source"
-              },
-              "name": {
-                "type": "string",
-                "description": "Display name"
-              },
-              "owner": {
-                "type": "string",
-                "description": "GitHub repository owner"
-              },
-              "repo": {
-                "type": "string",
-                "description": "GitHub repository name"
-              },
-              "branch": {
-                "type": "string",
-                "default": "main",
-                "description": "Git branch"
-              },
-              "indexPath": {
-                "type": "string",
-                "default": "registry.json",
-                "description": "Path to registry.json in repo"
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "owner",
-              "repo"
-            ]
-          }
         }
       }
     },
@@ -450,9 +390,7 @@
   },
   "dependencies": {
     "@vscode-elements/elements": "^2.4.0",
-    "dompurify": "^3.3.1",
     "jsonc-parser": "^3.3.1",
-    "marked": "^17.0.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "smol-toml": "^1.6.0",
@@ -461,7 +399,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0",
-    "@types/dompurify": "^3.0.5",
     "@types/node": "^22",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",

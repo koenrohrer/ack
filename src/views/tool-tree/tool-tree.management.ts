@@ -4,16 +4,12 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import type { ToolManagerService } from '../../services/tool-manager.service.js';
 import type { ProfileService } from '../../services/profile.service.js';
-import type { RegistryService } from '../../services/registry.service.js';
 import type { ConfigService } from '../../services/config.service.js';
-import type { InstallService } from '../../services/install.service.js';
-import type { RepoScannerService } from '../../services/repo-scanner.service.js';
 import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
 import { ConfigScope, ToolStatus, ToolType } from '../../types/enums.js';
 import { buildDeleteDescription } from '../../services/tool-manager.utils.js';
 import type { ToolTreeProvider } from './tool-tree.provider.js';
-import type { ToolNode, GroupNode, SubToolNode, TreeNode } from './tool-tree.nodes.js';
-import { MarketplacePanel } from '../marketplace/marketplace.panel.js';
+import type { ToolNode, SubToolNode, TreeNode } from './tool-tree.nodes.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -35,7 +31,7 @@ interface CodexConfig {
  * - deleteTool: Delete with confirmation (+ "don't ask again" option)
  * - moveToolToUser: Move tool to global/user scope
  * - moveToolToProject: Move tool to project scope
- * - installTool: Placeholder for marketplace install (Phase 4)
+ * - installTool: Placeholder for local install (Phase 2)
  * - addMcpServer: Multi-step guided flow to add a Codex MCP server
  * - toggleMcpTool: Toggle individual tool enabled/disabled within an MCP server
  * - addEnvVar: Add environment variable to an MCP server
@@ -51,11 +47,8 @@ export function registerManagementCommands(
   toolManager: ToolManagerService,
   treeProvider: ToolTreeProvider,
   profileService: ProfileService,
-  registryService: RegistryService,
   configService: ConfigService,
   outputChannel: vscode.OutputChannel,
-  installService: InstallService,
-  repoScannerService: RepoScannerService,
   registry: AdapterRegistry,
 ): void {
   // ---------------------------------------------------------------------------
@@ -199,27 +192,19 @@ export function registerManagementCommands(
   );
 
   // ---------------------------------------------------------------------------
-  // Install via Marketplace (filtered by tool type)
+  // Install Tool (placeholder -- local install lands in Phase 2)
   // ---------------------------------------------------------------------------
 
   const installCmd = vscode.commands.registerCommand(
     'ack.installTool',
-    async (node: TreeNode) => {
+    (node: TreeNode) => {
+      // Placeholder keeps the group "+" affordance registered so the menu
+      // contribution stays valid. Local install is implemented in Phase 2.
       if (!node || node.kind !== 'group') {
         return;
       }
-      const groupNode = node as GroupNode;
-      MarketplacePanel.createOrShow(
-        context.extensionUri,
-        registryService,
-        configService,
-        outputChannel,
-        installService,
-        toolManager,
-        repoScannerService,
-        registry,
-        groupNode.toolType,
-      );
+      outputChannel.appendLine('ack.installTool invoked (local install lands in Phase 2)');
+      vscode.window.showInformationMessage('Local tool install is coming soon.');
     },
   );
 
