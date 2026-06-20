@@ -195,6 +195,17 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(switchAgentCmd);
 
+  // 15d.1 Activate a specific agent by id (used by the chooser welcome buttons).
+  const activateAgentCmd = vscode.commands.registerCommand(
+    'ack.activateAgent',
+    async (agentId: string) => {
+      if (typeof agentId === 'string' && registry.getProvider(agentId)) {
+        await agentSwitcher.switchAgent(agentId);
+      }
+    },
+  );
+  context.subscriptions.push(activateAgentCmd);
+
   // 15e. React to agent switches (status bar, file watchers, tree, panels, workspace profiles)
   context.subscriptions.push(
     agentSwitcher.onDidSwitchAgent(async (provider) => {

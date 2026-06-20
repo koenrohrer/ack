@@ -58,7 +58,32 @@
     "viewsWelcome": [
       {
         "view": "ack.toolTree",
-        "contents": "No agent tools found.\n\nInstall a supported agent (Claude Code or Codex) to get started.\n[Claude Code](https://docs.anthropic.com/en/docs/claude-code) | [Codex](https://openai.com/index/codex/)",
+        "contents": "No agent tools found.\n\nInstall a supported agent to get started.\n[Claude Code](https://docs.anthropic.com/en/docs/claude-code) | [Codex](https://openai.com/index/codex/)",
+        "when": "ack.noAgents"
+      },
+      {
+        "view": "ack.toolTree",
+        "contents": "Multiple agents detected — choose one:",
+        "when": "ack.chooseAgent"
+      },
+      {
+        "view": "ack.toolTree",
+        "contents": "[Activate Claude Code](command:ack.activateAgent?%5B%22claude-code%22%5D)",
+        "when": "ack.chooseAgent && ack.agentDetected.claudecode"
+      },
+      {
+        "view": "ack.toolTree",
+        "contents": "[Activate Codex](command:ack.activateAgent?%5B%22codex%22%5D)",
+        "when": "ack.chooseAgent && ack.agentDetected.codex"
+      },
+      {
+        "view": "ack.toolTree",
+        "contents": "[Activate GitHub Copilot](command:ack.activateAgent?%5B%22copilot%22%5D)",
+        "when": "ack.chooseAgent && ack.agentDetected.copilot"
+      },
+      {
+        "view": "ack.toolTree",
+        "contents": "No tools configured for the active agent yet.\n\nUse the + on a tool group (Skills, Commands, MCP) to install one from a local file or folder.",
         "when": "ack.noTools"
       }
     ],
@@ -148,6 +173,10 @@
         "command": "ack.switchAgent",
         "title": "ACK: Switch Agent",
         "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "ack.activateAgent",
+        "title": "ACK: Activate Agent"
       },
       {
         "command": "ack.addMcpServer",
