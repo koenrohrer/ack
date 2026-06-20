@@ -1,8 +1,8 @@
 # ACK — Multi-Agent Startup UX + Codex Detection Fix — Phased Plan
 
-**Status:** 📋 Plan — awaiting review (not started)
+**Status:** ✅ All phases implemented & committed on branch `multi-agent-ux` (2026-06-20). Gate green throughout; **349** unit tests (+17). F5 smoke pending (user).
 **Date:** 2026-06-20
-**Branch:** off `2.0-core` (do NOT commit to `master`)
+**Branch:** `multi-agent-ux` off `2.0-core` (do NOT commit to `master`)
 **Baseline:** `2.0-core` @ `010a97d`; gate green — check-types/lint/compile/package, **332** unit tests.
 **Scope:** Three changes — (1) tighten Codex detection, (2) last-used-first startup activation, (3) a state-aware sidebar welcome view that lets the user pick when several agents are detected.
 
@@ -59,6 +59,7 @@
 ---
 
 ### Phase 1 — Tighten Codex detection
+- **Status:** ✅ Complete (`3e6dbce`). New pure `isCodexInstalled()` + `detect()` rewrite (parallel `fileExists` of config.toml/prompts/skills); 9 new tests. Gate green (341 tests).
 - **Goal:** `detect()` rejects a `~/.codex` directory-name collision while still detecting a real install (incl. one with no `config.toml` yet).
 - **Work:**
   - New pure module `src/providers/codex/codex.detect.utils.ts` exporting `isCodexInstalled(markers: { configToml: boolean; promptsDir: boolean; skillsDir: boolean }): boolean` → `configToml || promptsDir || skillsDir`. Pure, no vscode, no fs.
@@ -72,6 +73,7 @@
 ---
 
 ### Phase 2 — Last-used-first reconcile + welcome context-key plumbing  *(change A)*
+- **Status:** ✅ Complete (`33c7ea9`). Pure `decideStartupAgent()`/`agentDetectedKey()` + 8 tests; shared `applyDetectionResult()` drives startup **and** re-detect; `onDidSwitchAgent` clears `ack.noAgents`/`ack.chooseAgent`; `ack.noTools` redefined to require an active agent. Old multi-detect toasts removed. Gate green (349 tests).
 - **Goal:** Startup activates the persisted agent if still detected; else the single detected agent; else (≥2, no usable history) does **not** auto-pick — it routes to the chooser. Replace the passive "multiple detected" toast. Wire the context keys the Phase 3 views consume.
 - **Work:**
   - New pure module `src/services/agent-reconcile.utils.ts`:
@@ -102,6 +104,7 @@
 ---
 
 ### Phase 3 — State-aware welcome view + chooser command  *(change C)*
+- **Status:** ✅ Complete (`4510e4a`). New `ack.activateAgent` command (id via URI-encoded arg, registry-guarded); `viewsWelcome` split into no-agents / choose-header / per-agent buttons / active-empty. Gate green (349 tests; package.json + thin command are unit-test-exempt — the pure mapping is covered in Phase 2).
 - **Goal:** Replace the single misleading welcome with three states; let the user activate a detected agent in one click.
 - **Work:**
   - New command `ack.activateAgent` (registered in `extension.ts`): `(agentId: string) => agentSwitcher.switchAgent(agentId)`. Declare it in `package.json` `commands` (no menu entry; invoked only from welcome links).
