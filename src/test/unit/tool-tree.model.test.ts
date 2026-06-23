@@ -98,13 +98,21 @@ describe('ToolTreeModel', () => {
     expect(model.getRootGroups()).toEqual([]);
   });
 
-  it('returns empty groups when all tool types have zero tools', async () => {
+  it('shows all supported groups even when every type has zero tools', async () => {
     const configService = createMockConfigService({});
     const registry = createMockRegistry();
 
     await model.rebuild(configService, registry);
 
-    expect(model.getRootGroups()).toEqual([]);
+    const groups = model.getRootGroups();
+    expect(groups.map((g) => g.toolType)).toEqual([
+      ToolType.Skill,
+      ToolType.McpServer,
+      ToolType.Hook,
+      ToolType.Command,
+    ]);
+    expect(groups.every((g) => g.children.length === 0)).toBe(true);
+    expect(groups[0].label).toBe('Skills (0)');
   });
 
   // -----------------------------------------------------------------------
@@ -123,12 +131,12 @@ describe('ToolTreeModel', () => {
 
     await model.rebuild(configService, registry);
 
-    const groups = model.getRootGroups();
-    expect(groups).toHaveLength(1);
-    expect(groups[0].label).toBe('Skills (2)');
-    expect(groups[0].toolType).toBe(ToolType.Skill);
+    const skills = model
+      .getRootGroups()
+      .find((g) => g.toolType === ToolType.Skill)!;
+    expect(skills.label).toBe('Skills (2)');
 
-    const children = groups[0].children as ToolNode[];
+    const children = skills.children as ToolNode[];
     expect(children).toHaveLength(2);
     expect(children[0].tool.name).toBe('Alpha Skill');
     expect(children[1].tool.name).toBe('Zebra Skill');
@@ -169,10 +177,10 @@ describe('ToolTreeModel', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Empty groups hidden
+  // Empty groups shown alongside populated ones
   // -----------------------------------------------------------------------
 
-  it('hides groups with zero tools', async () => {
+  it('shows empty supported groups alongside populated ones', async () => {
     const tools: Record<string, NormalizedTool[]> = {
       [`${ToolType.Skill}:${ConfigScope.User}`]: [
         makeTool({ name: 'Some Skill', scope: ConfigScope.User }),
@@ -185,8 +193,19 @@ describe('ToolTreeModel', () => {
     await model.rebuild(configService, registry);
 
     const groups = model.getRootGroups();
-    expect(groups).toHaveLength(1);
-    expect(groups[0].toolType).toBe(ToolType.Skill);
+    expect(groups.map((g) => g.toolType)).toEqual([
+      ToolType.Skill,
+      ToolType.McpServer,
+      ToolType.Hook,
+      ToolType.Command,
+    ]);
+
+    const skills = groups.find((g) => g.toolType === ToolType.Skill)!;
+    expect(skills.children).toHaveLength(1);
+
+    const mcp = groups.find((g) => g.toolType === ToolType.McpServer)!;
+    expect(mcp.label).toBe('MCP Servers (0)');
+    expect(mcp.children).toHaveLength(0);
   });
 
   // -----------------------------------------------------------------------
@@ -221,11 +240,12 @@ describe('ToolTreeModel', () => {
 
     await model.rebuild(configService, registry);
 
-    const groups = model.getRootGroups();
-    expect(groups).toHaveLength(1);
-    expect(groups[0].label).toBe('Hooks (3)');
+    const hooks = model
+      .getRootGroups()
+      .find((g) => g.toolType === ToolType.Hook)!;
+    expect(hooks.label).toBe('Hooks (3)');
 
-    const eventGroups = groups[0].children as EventGroupNode[];
+    const eventGroups = hooks.children as EventGroupNode[];
     expect(eventGroups).toHaveLength(2);
 
     // PreToolUse group
@@ -257,8 +277,10 @@ describe('ToolTreeModel', () => {
 
     await model.rebuild(configService, registry);
 
-    const groups = model.getRootGroups();
-    const eventGroups = groups[0].children as EventGroupNode[];
+    const hooks = model
+      .getRootGroups()
+      .find((g) => g.toolType === ToolType.Hook)!;
+    const eventGroups = hooks.children as EventGroupNode[];
     expect(eventGroups[0].label).toBe('CustomEvent');
   });
 
@@ -286,8 +308,10 @@ describe('ToolTreeModel', () => {
 
     await model.rebuild(configService, registry);
 
-    const groups = model.getRootGroups();
-    const mcpNode = groups[0].children[0] as ToolNode;
+    const mcp = model
+      .getRootGroups()
+      .find((g) => g.toolType === ToolType.McpServer)!;
+    const mcpNode = mcp.children[0] as ToolNode;
     expect(mcpNode.children).toBeDefined();
     expect(mcpNode.children).toHaveLength(2);
 
@@ -324,8 +348,10 @@ describe('ToolTreeModel', () => {
 
     await model.rebuild(configService, registry);
 
-    const groups = model.getRootGroups();
-    const mcpNode = groups[0].children[0] as ToolNode;
+    const mcp = model
+      .getRootGroups()
+      .find((g) => g.toolType === ToolType.McpServer)!;
+    const mcpNode = mcp.children[0] as ToolNode;
     expect(mcpNode.children).toHaveLength(1);
 
     const urlNode = mcpNode.children![0] as SubToolNode;
@@ -351,11 +377,12 @@ describe('ToolTreeModel', () => {
 
     await model.rebuild(configService, registry);
 
-    const groups = model.getRootGroups();
-    expect(groups).toHaveLength(1);
-    expect(groups[0].label).toBe('Skills (2)');
+    const skills = model
+      .getRootGroups()
+      .find((g) => g.toolType === ToolType.Skill)!;
+    expect(skills.label).toBe('Skills (2)');
 
-    const children = groups[0].children as ToolNode[];
+    const children = skills.children as ToolNode[];
     expect(children).toHaveLength(2);
 
     // Both have the same name but different scopes
@@ -421,8 +448,10 @@ describe('ToolTreeModel', () => {
 
     await model.rebuild(configService, registry);
 
-    const groups = model.getRootGroups();
-    expect(groups[0].label).toBe('Commands (3)');
+    const commands = model
+      .getRootGroups()
+      .find((g) => g.toolType === ToolType.Command)!;
+    expect(commands.label).toBe('Commands (3)');
   });
 
   // -----------------------------------------------------------------------
@@ -580,8 +609,10 @@ describe('ToolTreeModel', () => {
 
     await model.rebuild(configService, registry);
 
-    const groups = model.getRootGroups();
-    const mcpNode = groups[0].children[0] as ToolNode;
+    const mcp = model
+      .getRootGroups()
+      .find((g) => g.toolType === ToolType.McpServer)!;
+    const mcpNode = mcp.children[0] as ToolNode;
     expect(mcpNode.children).toBeUndefined();
   });
 });

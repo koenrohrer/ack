@@ -59,21 +59,11 @@ export class ToolTreeProvider implements vscode.TreeDataProvider<TreeNode> {
 
   async getChildren(element?: TreeNode): Promise<TreeNode[]> {
     if (!element) {
-      // Root: rebuild and return top-level groups
+      // Root: rebuild and return top-level groups. Every supported group renders
+      // even when empty so its inline "+" install button stays reachable, so
+      // there is no "active agent but no tools" empty state to signal here.
       await this.model.rebuild(this.configService, this.registry);
-      const groups = this.model.getRootGroups();
-
-      // Set context key for the "active agent, but no tools" welcome state.
-      // Requires an active agent so it does not fire when zero/multiple agents
-      // are unselected -- those states have their own welcome views.
-      const hasActiveAgent = !!this.registry.getActiveProvider();
-      await vscode.commands.executeCommand(
-        'setContext',
-        'ack.noTools',
-        hasActiveAgent && groups.length === 0,
-      );
-
-      return groups;
+      return this.model.getRootGroups();
     }
 
     switch (element.kind) {

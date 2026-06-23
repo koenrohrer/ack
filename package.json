@@ -80,11 +80,6 @@
         "view": "ack.toolTree",
         "contents": "[Activate GitHub Copilot](command:ack.activateAgent?%5B%22copilot%22%5D)",
         "when": "ack.chooseAgent && ack.agentDetected.copilot"
-      },
-      {
-        "view": "ack.toolTree",
-        "contents": "No tools configured for the active agent yet.\n\nUse the + on a tool group (Skills, Commands, MCP) to install one from a local file or folder.",
-        "when": "ack.noTools"
       }
     ],
     "commands": [

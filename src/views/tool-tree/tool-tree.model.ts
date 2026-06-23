@@ -125,9 +125,8 @@ export class ToolTreeModel {
         }
       }
 
-      if (allTools.length === 0 && type !== ToolType.CustomPrompt) {
-        continue; // Hide empty groups (except Custom Prompts -- needs install button)
-      }
+      // Empty groups are intentionally kept: every supported group renders even
+      // with zero tools so its inline "+" install button stays reachable.
 
       // Mark effective entries for dual-scope tools
       const effectiveKeys = this.findEffectiveKeys(allTools);
