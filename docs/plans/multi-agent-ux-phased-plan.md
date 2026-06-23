@@ -1,6 +1,6 @@
 # ACK — Multi-Agent Startup UX + Codex Detection Fix — Phased Plan
 
-**Status:** ✅ All phases implemented & committed on branch `multi-agent-ux` (2026-06-20). Gate green throughout; **349** unit tests (+17). F5 smoke pending (user).
+**Status:** ✅ All three phases implemented & committed on branch `multi-agent-ux` (2026-06-20); plus one out-of-plan follow-up (skill-disable mechanism, see §2.4). Gate green throughout; **353** unit tests (349 from the three phases, +4 from the follow-up). F5 smoke pending (user).
 **Date:** 2026-06-20
 **Branch:** `multi-agent-ux` off `2.0-core` (do NOT commit to `master`)
 **Baseline:** `2.0-core` @ `010a97d`; gate green — check-types/lint/compile/package, **332** unit tests.
@@ -116,6 +116,15 @@
 - **Files:** `package.json` (`commands` + `viewsWelcome`), `src/extension.ts`.
 - **Verify:** GATE green (package.json `viewsWelcome`/command are not unit-tested; the pure mapping is covered in Phase 2). F5 (user): with ≥2 detected and none active → "Multiple agents detected — choose one" + a button per **detected** agent (Copilot only if its extension is present); clicking a button activates that agent and the tree populates; uninstall/disable all agents → "install an agent" + links; an active agent with no tools → the local-install hint.
 - **Commit:** `feat(welcome): state-aware sidebar (no-agents / choose / empty)`
+
+---
+
+### 2.4 Follow-up (out of plan) — Skill disable disabled by renaming `SKILL.md`, not the directory
+- **Status:** ✅ Complete (`9d26f8f`, 2026-06-20). Found and fixed on this branch after Phase 3; **not** part of the original three-change scope. Gate green (353 tests, +4).
+- **Why it was needed:** Disabling a skill renamed its **directory** to `<name>.disabled`, which did not actually disable it. Claude Code (and Codex) discover skills by scanning subdirectories for a `SKILL.md` and identify them by frontmatter `name`, so the renamed directory's `SKILL.md` was still found and the skill stayed active. (Commands were never affected — a suffixed command file no longer ends in `.md`.)
+- **Fix:** Disable now renames the inner `SKILL.md → SKILL.md.disabled` (directory name unchanged), mirroring the command mechanism, so discovery skips the folder. Supporting changes: the parser reads `SKILL.md.disabled` so a disabled skill still surfaces in the tree; `isToggleDisable` uses the parsed status for skills (the dir no longer carries the suffix); re-enabling a skill disabled the legacy whole-directory way still works; `removeSkill` backs up whichever `SKILL.md` variant exists.
+- **Files:** `src/providers/claude-code/claude-code.provider.ts`, `src/providers/claude-code/parsers/skill.parser.ts`, `src/providers/claude-code/writers/skill.writer.ts`, `src/providers/codex/codex.provider.ts`, `src/services/tool-manager.utils.ts`, `src/types/provider-tool.ts`; tests in `src/test/unit/parsers.test.ts`, `provider.test.ts`, `tool-manager.service.test.ts`.
+- **Commit:** `fix(skills): disable by renaming SKILL.md, not the directory`
 
 ---
 
