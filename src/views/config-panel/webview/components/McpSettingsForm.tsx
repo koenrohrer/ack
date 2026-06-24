@@ -40,7 +40,7 @@ function makeEnvEntries(env: Record<string, string>): EnvEntry[] {
  * Displays read-only server info (command, args, transport) at the top,
  * an enabled/disabled toggle when supported, and an editable env var section with
  * add/remove capability. Uses ref-based native event binding for
- * web component textfields (same pattern as ConfigForm in marketplace).
+ * web component textfields (same pattern as ConfigForm).
  */
 export function McpSettingsForm({ tool, settings, saving, onBeginSave, postMessage, onBack }: McpSettingsFormProps) {
   const serverName = tool.name;

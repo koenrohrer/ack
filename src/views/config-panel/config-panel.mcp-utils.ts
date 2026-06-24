@@ -1,10 +1,10 @@
 /**
- * Apply config-panel MCP environment edits to the active adapter's config shape.
+ * Apply config-panel MCP environment edits to the active provider's config shape.
  *
  * The container key (e.g. `mcpServers`, `servers`, `mcp_servers`) and the
- * disabled-state field are supplied by the adapter's MCP capabilities rather
- * than branched on adapter id here. A `disableField` of `undefined` means the
- * adapter cannot persist a disabled state (e.g. Copilot).
+ * disabled-state field are supplied by the provider's MCP capabilities rather
+ * than branched on provider id here. A `disableField` of `undefined` means the
+ * provider cannot persist a disabled state (e.g. Copilot).
  */
 export interface McpDisableField {
   field: string;

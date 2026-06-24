@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import type { IPlatformAdapter } from '../types/adapter.js';
+import type { AgentProvider } from '../types/provider.js';
 import { collectWatchDirs } from './file-watcher.utils.js';
 
 /**
  * Manages file system watchers for config change detection.
  *
- * Watches all config file directories reported by the active platform adapter,
+ * Watches all config file directories reported by the active platform provider,
  * using vscode.RelativePattern for paths outside the workspace (required for
  * external directory watching -- plain string globs do not work).
  *
@@ -24,16 +24,16 @@ export class FileWatcherManager implements vscode.Disposable {
   ) {}
 
   /**
-   * Set up file watchers for all config directories from the adapter.
+   * Set up file watchers for all config directories from the provider.
    *
    * Disposes any existing watchers first, then creates new ones for
    * each unique directory. Uses RelativePattern with Uri.file() to
    * support paths outside the workspace.
    */
-  setupWatchers(adapter: IPlatformAdapter): void {
+  setupWatchers(provider: AgentProvider): void {
     this.disposeWatchers();
 
-    const dirs = collectWatchDirs(adapter);
+    const dirs = collectWatchDirs(provider);
 
     for (const { dir, recursive } of dirs) {
       const base = vscode.Uri.file(dir);

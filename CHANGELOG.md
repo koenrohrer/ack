@@ -4,6 +4,43 @@ All notable changes to ACK are documented here.
 
 ---
 
+## 2.0.0
+
+A major release: the community marketplace is gone and ACK is now fully local and provider-pluggable, with two new agents -- **Pi** and **Hermes** -- joining Claude Code, Codex, and GitHub Copilot, plus multi-agent detection, startup activation, and a state-aware welcome.
+
+### Removed (breaking)
+
+- **The community tool marketplace is gone** -- the marketplace panel, the remote tool registry, and repo scanning have been removed. ACK no longer fetches anything over the network.
+- Command `ACK: Open Marketplace` and settings `ack.userRepositories` / `ack.registrySources` are removed. Existing values for those settings are ignored (no migration needed).
+- Auto-installing missing tools on profile import / workspace activation is replaced by report-and-skip: missing tools are listed so you can add them locally.
+
+### Added
+
+- **Two new agents.** **Pi** (`~/.pi/agent`, JSON) and **Hermes** (`~/.hermes`, YAML; honors `$HERMES_HOME` and `$HERMES_MANAGED_DIR`) join Claude Code, Codex, and GitHub Copilot -- five supported agents in total.
+- **Multi-agent startup and switching.** ACK detects every installed agent and reconciles on startup: it auto-activates the only one, re-activates your last-used agent when several are present, or shows a chooser when there is no history to go on. New commands `ACK: Re-detect Agents` and `ACK: Switch Agent`.
+- **State-aware welcome sidebar** with three mutually-exclusive states -- no agents detected, choose-an-agent, and no-tools-yet -- so the sidebar always tells you what to do next, with one-click activation per detected agent.
+- **Local tool install** -- click the `+` on a tool group to install a skill (folder) or command (file or folder) from local disk, at user or project scope. Codex prompts and Copilot instructions install from a `.md` file through the same affordance.
+- **Add an MCP server for any MCP-capable agent** (previously Codex only), written in the right on-disk format per agent -- JSON for Claude Code and Pi, TOML for Codex, YAML for Hermes -- with environment variables where the agent supports them.
+- **Profiles as tool-selection presets.** Build a profile by picking exactly which tools to enable; it becomes a complete preset, so switching to it turns every other tool off. An **Edit Tools** flow re-captures tools added after the profile was created, you can clone a profile to another agent (filtered to compatible tools), associate it with a workspace for auto-activation, and export/import profiles as portable bundles.
+
+### Changed
+
+- **Codex detection tightened** -- `~/.codex` is recognized only when it contains a Codex-owned marker (`config.toml`, a `prompts/` directory, or a `skills/` directory), so a stray or empty `.codex` folder no longer counts.
+- Tool groups (Skills, Commands, MCP Servers, ...) always render even when empty, so the `+` install affordance is always reachable.
+- The provider seam is hardened: agent-specific behavior (MCP env vars, per-tool toggle, prompt install, config notifications, project init) now lives entirely behind provider capabilities -- adding an agent means writing one provider, with no edits to views or `extension.ts`.
+- Internal vocabulary renamed from "adapter" to "provider" throughout. No user-facing or stored-data change -- profiles and their `agentId` are unaffected.
+
+### Fixed
+
+- Disabling a skill now renames its `SKILL.md` to `SKILL.md.disabled` rather than renaming the whole directory, so the skill keeps its name while the agent stops discovering it; skills disabled the old way (renamed directory) are still re-enabled correctly.
+- Claude Code HTTP/SSE MCP servers (defined by `url`, with no `command`) now save and load correctly. Previously the schema required `command`, so adding one failed and any config file containing one failed to read.
+
+### Under the hood
+
+- Added a headless VS Code integration test suite (`@vscode/test-electron`) covering the extension host layer end to end (activation, detection, install, MCP, profiles, config panel, file watching), wired in as a **blocking** CI and release gate. Resolved npm audit findings in the dev toolchain.
+
+---
+
 ## 1.3.1
 
 Activity bar visibility and logo refresh.

@@ -5,11 +5,11 @@ import * as os from 'os';
 import { FileIOService } from '../../services/fileio.service.js';
 import { SchemaService } from '../../services/schema.service.js';
 import { BackupService } from '../../services/backup.service.js';
-import { AdapterRegistry } from '../../adapters/adapter.registry.js';
+import { ProviderRegistry } from '../../providers/provider.registry.js';
 import { ConfigService } from '../../services/config.service.js';
-import { copilotSchemas } from '../../adapters/copilot/schemas.js';
-import { parseCopilotMcpFile } from '../../adapters/copilot/parsers/mcp.parser.js';
-import { addCopilotMcpServer, removeCopilotMcpServer } from '../../adapters/copilot/writers/mcp.writer.js';
+import { copilotSchemas } from '../../providers/copilot/schemas.js';
+import { parseCopilotMcpFile } from '../../providers/copilot/parsers/mcp.parser.js';
+import { addCopilotMcpServer, removeCopilotMcpServer } from '../../providers/copilot/writers/mcp.writer.js';
 import { ConfigScope, ToolStatus, ToolType } from '../../types/enums.js';
 
 // ---------------------------------------------------------------------------
@@ -20,7 +20,7 @@ let tmpDir: string;
 let fileIO: FileIOService;
 let schemaService: SchemaService;
 let backup: BackupService;
-let registry: AdapterRegistry;
+let registry: ProviderRegistry;
 let configService: ConfigService;
 
 beforeEach(async () => {
@@ -29,7 +29,7 @@ beforeEach(async () => {
   schemaService = new SchemaService();
   schemaService.registerSchemas(copilotSchemas);
   backup = new BackupService(fileIO);
-  registry = new AdapterRegistry();
+  registry = new ProviderRegistry();
   configService = new ConfigService(fileIO, backup, schemaService, registry);
 });
 

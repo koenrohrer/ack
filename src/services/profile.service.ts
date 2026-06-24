@@ -24,7 +24,7 @@ import type {
   ExportedToolConfig,
   ImportAnalysis,
 } from './profile.types.js';
-import type { AdapterRegistry } from '../adapters/adapter.registry.js';
+import type { ProviderRegistry } from '../providers/provider.registry.js';
 
 /**
  * Manages named profiles -- preset collections of tool enabled/disabled states.
@@ -44,7 +44,7 @@ export class ProfileService {
     private readonly globalState: vscode.Memento,
     private readonly configService: ConfigService,
     private readonly toolManager: ToolManagerService,
-    private readonly registry: AdapterRegistry,
+    private readonly registry: ProviderRegistry,
     private readonly fileIO: FileIOService,
     private readonly outputChannel?: vscode.OutputChannel,
   ) {}
@@ -57,7 +57,7 @@ export class ProfileService {
    * Get the ID of the currently active agent, or undefined if none.
    */
   private getActiveAgentId(): string | undefined {
-    return this.registry.getActiveAdapter()?.id;
+    return this.registry.getActiveProvider()?.id;
   }
 
   // ---------------------------------------------------------------------------
@@ -160,23 +160,51 @@ export class ProfileService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Create a new profile by snapshotting the current tool inventory.
+   * Create a new profile.
    *
-   * Reads all tools across every type (Skill, McpServer, Hook, Command),
-   * filters out managed-scope tools, and maps each to a ProfileToolEntry
-   * with its canonical key and current enabled/disabled state.
+   * When `entries` is provided (the curated "pick your tools" flow), the
+   * profile records exactly those entries — selected tools enabled, the rest
+   * disabled — so switching to it applies a complete preset. When omitted, the
+   * profile snapshots the current tool inventory (each tool's present state).
    *
    * The new profile is automatically associated with the active agent.
    * Throws if no agent is active (cannot create profile without agent context).
    */
-  async createProfile(name: string): Promise<Profile> {
+  async createProfile(name: string, entries?: ProfileToolEntry[]): Promise<Profile> {
     const agentId = this.getActiveAgentId();
     if (!agentId) {
       throw new Error('Cannot create profile: no agent is active');
     }
 
-    const entries: ProfileToolEntry[] = [];
+    const tools = entries ?? (await this.snapshotCurrentEntries());
 
+    const now = new Date().toISOString();
+    const profile: Profile = {
+      id: crypto.randomUUID(),
+      name,
+      agentId,
+      tools,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const store = this.loadStore();
+    store.profiles.push(profile);
+    await this.saveStore(store);
+
+    return profile;
+  }
+
+  /**
+   * Snapshot the current tool inventory into profile entries.
+   *
+   * Reads all tools across every type, filters out managed-scope tools, and
+   * maps each to a ProfileToolEntry with its current enabled/disabled state.
+   * Used by {@link createProfile} when the caller does not supply an explicit
+   * tool selection.
+   */
+  private async snapshotCurrentEntries(): Promise<ProfileToolEntry[]> {
+    const entries: ProfileToolEntry[] = [];
     // Include all tool types (Skills, MCP Servers, Hooks, Commands, Custom Prompts)
     for (const type of [ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command, ToolType.CustomPrompt]) {
       const tools = await this.configService.readAllTools(type);
@@ -190,22 +218,7 @@ export class ProfileService {
         });
       }
     }
-
-    const now = new Date().toISOString();
-    const profile: Profile = {
-      id: crypto.randomUUID(),
-      name,
-      agentId,
-      tools: entries,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    const store = this.loadStore();
-    store.profiles.push(profile);
-    await this.saveStore(store);
-
-    return profile;
+    return entries;
   }
 
   /**
@@ -434,13 +447,13 @@ export class ProfileService {
       return { success: false, toggled: 0, skipped: 0, failed: 0, errors: ['Profile not found'], incompatibleSkipped: [], nonToggleableSkipped: 0 };
     }
 
-    // Get active adapter's supported tool types for compatibility filtering
-    const activeAdapter = this.registry.getActiveAdapter();
-    const supportedTypes = activeAdapter?.supportedToolTypes ?? new Set();
-    // toggleableTypes may be a subset of supportedTypes for adapters that can
+    // Get active provider's supported tool types for compatibility filtering
+    const activeProvider = this.registry.getActiveProvider();
+    const supportedTypes = activeProvider?.supportedToolTypes ?? new Set();
+    // toggleableTypes may be a subset of supportedTypes for providers that can
     // read/install some types but cannot toggle them (e.g. Copilot: reads McpServer
     // but cannot toggle it). If undefined, all supportedTypes are toggleable.
-    const toggleableTypes = activeAdapter?.toggleableToolTypes;
+    const toggleableTypes = activeProvider?.toggleableToolTypes;
 
     // Read current tool states across all types (including CustomPrompt)
     const currentTools: NormalizedTool[] = [];
@@ -478,7 +491,7 @@ export class ProfileService {
         continue;
       }
 
-      // Skip types that are readable/installable but NOT toggleable for this adapter.
+      // Skip types that are readable/installable but NOT toggleable for this provider.
       // These are silently skipped — they exist in the profile snapshot but
       // cannot be applied as toggle operations (e.g. Copilot MCP servers).
       if (toggleableTypes && toolType && !toggleableTypes.has(toolType)) {
@@ -697,9 +710,9 @@ export class ProfileService {
     bundle: ProfileExportBundle;
     stats: { compatible: number; skipped: number; skippedTools: string[] };
   } {
-    const targetAdapter = this.registry.getAdapter(targetAgentId);
-    if (!targetAdapter) {
-      // No adapter found - return bundle unchanged with all tools marked as skipped
+    const targetProvider = this.registry.getProvider(targetAgentId);
+    if (!targetProvider) {
+      // No provider found - return bundle unchanged with all tools marked as skipped
       return {
         bundle: { ...bundle, agentId: targetAgentId, tools: [] },
         stats: {
@@ -710,7 +723,7 @@ export class ProfileService {
       };
     }
 
-    const supportedTypes = targetAdapter.supportedToolTypes;
+    const supportedTypes = targetProvider.supportedToolTypes;
     const compatibleTools: ExportedTool[] = [];
     const skippedTools: string[] = [];
 

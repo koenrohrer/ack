@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { makeMcpErrorTool } from '../../adapters/shared/mcp-error-tool.js';
-import { extractMcpServers } from '../../adapters/shared/mcp-extract.js';
+import { makeMcpErrorTool } from '../../providers/shared/mcp-error-tool.js';
+import { extractMcpServers } from '../../providers/shared/mcp-extract.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 
 describe('makeMcpErrorTool', () => {
@@ -70,7 +70,7 @@ describe('extractMcpServers', () => {
     ]);
   });
 
-  it('applies an id segment for adapters that need a distinct namespace', () => {
+  it('applies an id segment for providers that need a distinct namespace', () => {
     const tools = extractMcpServers(
       { srv: {} },
       ConfigScope.Project,

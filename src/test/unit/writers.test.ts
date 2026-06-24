@@ -5,21 +5,21 @@ import * as os from 'os';
 import { FileIOService } from '../../services/fileio.service.js';
 import { BackupService } from '../../services/backup.service.js';
 import { SchemaService } from '../../services/schema.service.js';
-import { AdapterRegistry } from '../../adapters/adapter.registry.js';
+import { ProviderRegistry } from '../../providers/provider.registry.js';
 import { ConfigService } from '../../services/config.service.js';
-import { claudeCodeSchemas } from '../../adapters/claude-code/schemas.js';
+import { claudeCodeSchemas } from '../../providers/claude-code/schemas.js';
 
 // MCP writer
-import { toggleMcpServer, removeMcpServer, addMcpServer } from '../../adapters/claude-code/writers/mcp.writer.js';
+import { toggleMcpServer, removeMcpServer, addMcpServer } from '../../providers/claude-code/writers/mcp.writer.js';
 
 // Settings writer
-import { toggleHook, removeHook, addHook } from '../../adapters/claude-code/writers/settings.writer.js';
+import { toggleHook, removeHook, addHook } from '../../providers/claude-code/writers/settings.writer.js';
 
 // Skill writer
-import { removeSkill, copySkill, renameSkill } from '../../adapters/claude-code/writers/skill.writer.js';
+import { removeSkill, copySkill, renameSkill } from '../../providers/claude-code/writers/skill.writer.js';
 
 // Command writer
-import { removeCommand, copyCommand, renameCommand } from '../../adapters/claude-code/writers/command.writer.js';
+import { removeCommand, copyCommand, renameCommand } from '../../providers/claude-code/writers/command.writer.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -29,7 +29,7 @@ let tmpDir: string;
 let fileIO: FileIOService;
 let backup: BackupService;
 let schemas: SchemaService;
-let registry: AdapterRegistry;
+let registry: ProviderRegistry;
 let configService: ConfigService;
 
 beforeEach(async () => {
@@ -38,7 +38,7 @@ beforeEach(async () => {
   backup = new BackupService(fileIO);
   schemas = new SchemaService();
   schemas.registerSchemas(claudeCodeSchemas);
-  registry = new AdapterRegistry();
+  registry = new ProviderRegistry();
   configService = new ConfigService(fileIO, backup, schemas, registry);
 });
 

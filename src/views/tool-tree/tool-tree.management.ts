@@ -1,31 +1,17 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import type { ToolManagerService } from '../../services/tool-manager.service.js';
 import type { ProfileService } from '../../services/profile.service.js';
-import type { RegistryService } from '../../services/registry.service.js';
 import type { ConfigService } from '../../services/config.service.js';
-import type { InstallService } from '../../services/install.service.js';
-import type { RepoScannerService } from '../../services/repo-scanner.service.js';
-import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
+import type { ProviderRegistry } from '../../providers/provider.registry.js';
 import { ConfigScope, ToolStatus, ToolType } from '../../types/enums.js';
 import { buildDeleteDescription } from '../../services/tool-manager.utils.js';
+import { LocalInstallService } from '../../services/local-install.service.js';
 import type { ToolTreeProvider } from './tool-tree.provider.js';
 import type { ToolNode, GroupNode, SubToolNode, TreeNode } from './tool-tree.nodes.js';
-import { MarketplacePanel } from '../marketplace/marketplace.panel.js';
 
 const execFileAsync = promisify(execFile);
-
-/**
- * Codex config shape used for writeTomlConfigFile mutations.
- * Mirrors the shape in config.writer.ts but defined locally
- * to avoid crossing the adapter boundary.
- */
-interface CodexConfig {
-  mcp_servers?: Record<string, Record<string, unknown>>;
-  [key: string]: unknown;
-}
 
 /**
  * Register all management command handlers for the tool tree.
@@ -35,7 +21,7 @@ interface CodexConfig {
  * - deleteTool: Delete with confirmation (+ "don't ask again" option)
  * - moveToolToUser: Move tool to global/user scope
  * - moveToolToProject: Move tool to project scope
- * - installTool: Placeholder for marketplace install (Phase 4)
+ * - installTool: Install a skill or command from local disk (by group type)
  * - addMcpServer: Multi-step guided flow to add a Codex MCP server
  * - toggleMcpTool: Toggle individual tool enabled/disabled within an MCP server
  * - addEnvVar: Add environment variable to an MCP server
@@ -51,12 +37,9 @@ export function registerManagementCommands(
   toolManager: ToolManagerService,
   treeProvider: ToolTreeProvider,
   profileService: ProfileService,
-  registryService: RegistryService,
   configService: ConfigService,
   outputChannel: vscode.OutputChannel,
-  installService: InstallService,
-  repoScannerService: RepoScannerService,
-  registry: AdapterRegistry,
+  registry: ProviderRegistry,
 ): void {
   // ---------------------------------------------------------------------------
   // Toggle Enable/Disable
@@ -199,9 +182,10 @@ export function registerManagementCommands(
   );
 
   // ---------------------------------------------------------------------------
-  // Install via Marketplace (filtered by tool type)
+  // Install Tool (local skill/command install, by group tool type)
   // ---------------------------------------------------------------------------
 
+  const localInstall = new LocalInstallService();
   const installCmd = vscode.commands.registerCommand(
     'ack.installTool',
     async (node: TreeNode) => {
@@ -209,31 +193,37 @@ export function registerManagementCommands(
         return;
       }
       const groupNode = node as GroupNode;
-      MarketplacePanel.createOrShow(
-        context.extensionUri,
-        registryService,
-        configService,
-        outputChannel,
-        installService,
-        toolManager,
-        repoScannerService,
-        registry,
-        groupNode.toolType,
-      );
+      const provider = registry.getActiveProvider();
+      if (!provider) {
+        vscode.window.showErrorMessage('No active agent.');
+        return;
+      }
+      try {
+        const installed = await localInstall.install(provider, groupNode.toolType);
+        if (installed) {
+          outputChannel.appendLine(
+            `Local install: ${groupNode.toolType} for ${provider.displayName}`,
+          );
+          await treeProvider.refresh();
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Install failed: ${msg}`);
+      }
     },
   );
 
   // ---------------------------------------------------------------------------
-  // Add MCP Server (Codex -- multi-step guided input flow)
+  // Add MCP Server (multi-step guided input flow, any MCP-capable provider)
   // ---------------------------------------------------------------------------
 
   const addMcpServerCmd = vscode.commands.registerCommand(
     'ack.addMcpServer',
     async () => {
       try {
-        const adapter = registry.getActiveAdapter();
-        if (!adapter || adapter.id !== 'codex') {
-          vscode.window.showErrorMessage('Add MCP Server is only available for Codex.');
+        const provider = registry.getActiveProvider();
+        if (!provider || !provider.supportedToolTypes.has(ToolType.McpServer)) {
+          vscode.window.showErrorMessage('Add MCP Server is not supported by the active agent.');
           return;
         }
 
@@ -256,13 +246,30 @@ export function registerManagementCommands(
           return;
         }
 
-        // Step 2: Scope selection
+        // Step 2: Scope selection (only scopes the provider supports for MCP)
         const hasWorkspace = (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
-        const scopeItems: vscode.QuickPickItem[] = [
-          { label: 'User (~/.codex/)', description: 'Global configuration' },
-        ];
-        if (hasWorkspace) {
-          scopeItems.push({ label: 'Project (.codex/)', description: 'Workspace-local configuration' });
+        interface ScopePickItem extends vscode.QuickPickItem {
+          scope: ConfigScope;
+        }
+        const scopeItems: ScopePickItem[] = (
+          hasWorkspace ? [ConfigScope.User, ConfigScope.Project] : [ConfigScope.User]
+        )
+          .filter((s) => {
+            try {
+              provider.getMcpFilePath(s);
+              return true;
+            } catch {
+              return false;
+            }
+          })
+          .map((s) => ({
+            label: s === ConfigScope.User ? 'User (Global)' : 'Project (Workspace)',
+            description: s === ConfigScope.User ? 'Global configuration' : 'Workspace-local configuration',
+            scope: s,
+          }));
+        if (scopeItems.length === 0) {
+          vscode.window.showErrorMessage('No MCP config location available for the active agent.');
+          return;
         }
 
         const scopePick = await vscode.window.showQuickPick(scopeItems, {
@@ -272,7 +279,7 @@ export function registerManagementCommands(
         if (!scopePick) {
           return;
         }
-        const scope = scopePick.label.startsWith('User') ? ConfigScope.User : ConfigScope.Project;
+        const scope = scopePick.scope;
 
         // Step 3: Transport type
         const transportPick = await vscode.window.showQuickPick(
@@ -336,7 +343,7 @@ export function registerManagementCommands(
             }
           }
 
-          serverConfig = { command, enabled: true };
+          serverConfig = { command };
           if (parsedArgs.length > 0) {
             serverConfig.args = parsedArgs;
           }
@@ -357,11 +364,11 @@ export function registerManagementCommands(
             return;
           }
 
-          serverConfig = { url, enabled: true };
+          serverConfig = { url };
         }
 
-        // Write to config via adapter (respects boundary)
-        await adapter.installMcpServer(scope, serverName, serverConfig);
+        // Write to config via provider (respects boundary)
+        await provider.installMcpServer(scope, serverName, serverConfig);
         await treeProvider.refresh();
         vscode.window.showInformationMessage(`MCP server '${serverName}' added.`);
       } catch (err: unknown) {
@@ -387,70 +394,16 @@ export function registerManagementCommands(
           return;
         }
 
+        const provider = registry.getActiveProvider();
+        if (!provider?.toggleMcpServerTool) {
+          vscode.window.showErrorMessage('The active agent does not support toggling MCP tools.');
+          return;
+        }
+
         const toolName = subNode.label;
-        const serverName = subNode.parentTool.name;
-        const filePath = subNode.parentTool.source.filePath;
-        const currentlyEnabled = subNode.detail === 'enabled';
+        const shouldEnable = subNode.detail !== 'enabled';
 
-        // Toggle: if currently enabled, disable; if disabled, enable
-        const shouldEnable = !currentlyEnabled;
-
-        await configService.writeTomlConfigFile<CodexConfig>(
-          filePath,
-          'codex-config',
-          (current) => {
-            const servers = { ...(current.mcp_servers ?? {}) };
-            const server = servers[serverName];
-            if (!server) {
-              return current;
-            }
-
-            const updated = { ...server };
-            let enabledTools = updated.enabled_tools
-              ? [...(updated.enabled_tools as string[])]
-              : undefined;
-            let disabledTools = updated.disabled_tools
-              ? [...(updated.disabled_tools as string[])]
-              : undefined;
-
-            if (shouldEnable) {
-              if (disabledTools) {
-                disabledTools = disabledTools.filter((t) => t !== toolName);
-                if (disabledTools.length === 0) {
-                  disabledTools = undefined;
-                }
-              }
-              if (enabledTools && !enabledTools.includes(toolName)) {
-                enabledTools.push(toolName);
-              }
-            } else {
-              if (!disabledTools) {
-                disabledTools = [toolName];
-              } else if (!disabledTools.includes(toolName)) {
-                disabledTools.push(toolName);
-              }
-              if (enabledTools) {
-                enabledTools = enabledTools.filter((t) => t !== toolName);
-                if (enabledTools.length === 0) {
-                  enabledTools = undefined;
-                }
-              }
-            }
-
-            updated.enabled_tools = enabledTools;
-            updated.disabled_tools = disabledTools;
-            if (updated.enabled_tools === undefined) {
-              delete updated.enabled_tools;
-            }
-            if (updated.disabled_tools === undefined) {
-              delete updated.disabled_tools;
-            }
-
-            servers[serverName] = updated;
-            return { ...current, mcp_servers: servers };
-          },
-        );
-
+        await provider.toggleMcpServerTool(subNode.parentTool, toolName, shouldEnable);
         await treeProvider.refresh();
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -472,6 +425,12 @@ export function registerManagementCommands(
         }
         const toolNode = node as ToolNode;
         if (toolNode.tool.type !== ToolType.McpServer) {
+          return;
+        }
+
+        const provider = registry.getActiveProvider();
+        if (!provider?.setMcpEnvVar) {
+          vscode.window.showErrorMessage('The active agent does not support MCP environment variables.');
           return;
         }
 
@@ -505,31 +464,10 @@ export function registerManagementCommands(
           return;
         }
 
-        const serverName = toolNode.tool.name;
-        const filePath = toolNode.tool.source.filePath;
-
-        await configService.writeTomlConfigFile<CodexConfig>(
-          filePath,
-          'codex-config',
-          (current) => {
-            const servers = { ...(current.mcp_servers ?? {}) };
-            const server = servers[serverName];
-            if (!server) {
-              return current;
-            }
-
-            const updated = { ...server };
-            const env = { ...((updated.env as Record<string, string>) ?? {}) };
-            env[key] = value;
-            updated.env = env;
-
-            servers[serverName] = updated;
-            return { ...current, mcp_servers: servers };
-          },
-        );
+        await provider.setMcpEnvVar(toolNode.tool, key, value);
 
         await treeProvider.refresh();
-        vscode.window.showInformationMessage(`Environment variable '${key}' added to ${serverName}.`);
+        vscode.window.showInformationMessage(`Environment variable '${key}' added to ${toolNode.tool.name}.`);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         vscode.window.showErrorMessage(`Failed to add env var: ${msg}`);
@@ -553,9 +491,13 @@ export function registerManagementCommands(
           return;
         }
 
+        const provider = registry.getActiveProvider();
+        if (!provider?.setMcpEnvVar) {
+          vscode.window.showErrorMessage('The active agent does not support MCP environment variables.');
+          return;
+        }
+
         const key = subNode.label;
-        const serverName = subNode.parentTool.name;
-        const filePath = subNode.parentTool.source.filePath;
 
         const newValue = await vscode.window.showInputBox({
           title: 'Edit Environment Variable',
@@ -572,25 +514,7 @@ export function registerManagementCommands(
           return;
         }
 
-        await configService.writeTomlConfigFile<CodexConfig>(
-          filePath,
-          'codex-config',
-          (current) => {
-            const servers = { ...(current.mcp_servers ?? {}) };
-            const server = servers[serverName];
-            if (!server) {
-              return current;
-            }
-
-            const updated = { ...server };
-            const env = { ...((updated.env as Record<string, string>) ?? {}) };
-            env[key] = newValue;
-            updated.env = env;
-
-            servers[serverName] = updated;
-            return { ...current, mcp_servers: servers };
-          },
-        );
+        await provider.setMcpEnvVar(subNode.parentTool, key, newValue);
 
         await treeProvider.refresh();
         vscode.window.showInformationMessage(`Environment variable '${key}' updated.`);
@@ -661,9 +585,14 @@ export function registerManagementCommands(
           return;
         }
 
+        const provider = registry.getActiveProvider();
+        if (!provider?.removeMcpEnvVar) {
+          vscode.window.showErrorMessage('The active agent does not support MCP environment variables.');
+          return;
+        }
+
         const key = subNode.label;
         const serverName = subNode.parentTool.name;
-        const filePath = subNode.parentTool.source.filePath;
 
         const confirm = await vscode.window.showWarningMessage(
           `Remove env var '${key}' from ${serverName}?`,
@@ -674,30 +603,7 @@ export function registerManagementCommands(
           return;
         }
 
-        await configService.writeTomlConfigFile<CodexConfig>(
-          filePath,
-          'codex-config',
-          (current) => {
-            const servers = { ...(current.mcp_servers ?? {}) };
-            const server = servers[serverName];
-            if (!server) {
-              return current;
-            }
-
-            const updated = { ...server };
-            const env = { ...((updated.env as Record<string, string>) ?? {}) };
-            delete env[key];
-
-            if (Object.keys(env).length === 0) {
-              delete updated.env;
-            } else {
-              updated.env = env;
-            }
-
-            servers[serverName] = updated;
-            return { ...current, mcp_servers: servers };
-          },
-        );
+        await provider.removeMcpEnvVar(subNode.parentTool, key);
 
         await treeProvider.refresh();
         vscode.window.showInformationMessage(`Environment variable '${key}' removed from ${serverName}.`);
@@ -709,16 +615,18 @@ export function registerManagementCommands(
   );
 
   // ---------------------------------------------------------------------------
-  // Install Custom Prompt from File (Codex only)
+  // Install Custom Prompt / Instruction from File (provider capability)
   // ---------------------------------------------------------------------------
 
-  const installPromptCmd = vscode.commands.registerCommand(
-    'ack.installPromptFromFile',
+  const installCustomPromptFileCmd = vscode.commands.registerCommand(
+    'ack.installCustomPromptFile',
     async () => {
       try {
-        const adapter = registry.getActiveAdapter();
-        if (!adapter || adapter.id !== 'codex') {
-          vscode.window.showErrorMessage('Install prompt is only available for Codex.');
+        const provider = registry.getActiveProvider();
+        if (!provider?.installCustomPromptFile) {
+          vscode.window.showErrorMessage(
+            'The active agent does not support installing custom prompts from a file.',
+          );
           return;
         }
 
@@ -726,51 +634,38 @@ export function registerManagementCommands(
           canSelectMany: false,
           canSelectFolders: false,
           filters: { 'Markdown': ['md'] },
-          title: 'Install Custom Prompt',
+          title: 'Install Custom Prompt / Instruction',
         });
-
         if (!uris || uris.length === 0) {
           return;
         }
+        const sourcePath = uris[0].fsPath;
 
-        const sourceFile = uris[0].fsPath;
-        const filename = path.basename(sourceFile);
-        const promptName = path.basename(filename, '.md');
-
-        // Import CodexPaths locally to avoid adapter boundary violation
-        const { CodexPaths } = await import('../../adapters/codex/paths.js');
-        const targetPath = path.join(CodexPaths.userPromptsDir, filename);
-
-        // Check for conflict per CONTEXT.md
-        const { access, mkdir, copyFile } = await import('fs/promises');
-        let exists = false;
-        try {
-          await access(targetPath);
-          exists = true;
-        } catch {
-          // File doesn't exist
-        }
-
-        if (exists) {
+        // The provider owns path resolution, validation, and the write; the view
+        // only picks the file and resolves the overwrite prompt on conflict.
+        let result = await provider.installCustomPromptFile(sourcePath);
+        if (result.status === 'conflict') {
           const choice = await vscode.window.showWarningMessage(
-            `A prompt named '${promptName}' already exists. Overwrite?`,
+            `'${result.name}' already exists. Overwrite?`,
             { modal: true },
             'Overwrite',
           );
           if (choice !== 'Overwrite') {
             return;
           }
+          result = await provider.installCustomPromptFile(sourcePath, { overwrite: true });
         }
 
-        // Auto-create directory per CONTEXT.md
-        await mkdir(path.dirname(targetPath), { recursive: true });
-        await copyFile(sourceFile, targetPath);
+        if (result.status === 'rejected') {
+          vscode.window.showErrorMessage(result.reason);
+          return;
+        }
 
         await treeProvider.refresh();
-        vscode.window.showInformationMessage(`Custom prompt '${promptName}' installed.`);
+        vscode.window.showInformationMessage(`Installed '${result.name}'.`);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        vscode.window.showErrorMessage(`Failed to install prompt: ${msg}`);
+        vscode.window.showErrorMessage(`Failed to install: ${msg}`);
       }
     },
   );
@@ -816,89 +711,6 @@ export function registerManagementCommands(
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // Install Instruction or Prompt from File (Copilot only)
-  // ---------------------------------------------------------------------------
-
-  const installInstructionCmd = vscode.commands.registerCommand(
-    'ack.installInstructionFromFile',
-    async () => {
-      try {
-        const adapter = registry.getActiveAdapter();
-        if (!adapter || adapter.id !== 'copilot') {
-          vscode.window.showErrorMessage('Install instruction is only available for Copilot.');
-          return;
-        }
-
-        const uris = await vscode.window.showOpenDialog({
-          canSelectMany: false,
-          canSelectFolders: false,
-          filters: { 'Markdown': ['md'] },
-          title: 'Install Copilot Instruction or Prompt',
-        });
-
-        if (!uris || uris.length === 0) {
-          return;
-        }
-
-        const sourcePath = uris[0].fsPath;
-        const filename = path.basename(sourcePath);
-
-        // Validate extension — must be .instructions.md or .prompt.md
-        if (!filename.endsWith('.instructions.md') && !filename.endsWith('.prompt.md')) {
-          vscode.window.showErrorMessage(
-            `File must end in .instructions.md or .prompt.md. Got: '${filename}'`,
-          );
-          return;
-        }
-
-        // Import CopilotPaths locally to avoid adapter boundary violation
-        const { CopilotPaths } = await import('../../adapters/copilot/paths.js');
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        if (!workspaceRoot) {
-          vscode.window.showErrorMessage('No workspace folder open. Cannot install instruction.');
-          return;
-        }
-
-        const targetDir = filename.endsWith('.instructions.md')
-          ? CopilotPaths.workspaceInstructionsDir(workspaceRoot)
-          : CopilotPaths.workspacePromptsDir(workspaceRoot);
-
-        const targetPath = path.join(targetDir, filename);
-        const { access, mkdir, copyFile } = await import('fs/promises');
-
-        // Check for existing file
-        let exists = false;
-        try {
-          await access(targetPath);
-          exists = true;
-        } catch {
-          // File doesn't exist
-        }
-
-        if (exists) {
-          const choice = await vscode.window.showWarningMessage(
-            `'${filename}' already exists. Overwrite?`,
-            { modal: true },
-            'Overwrite',
-          );
-          if (choice !== 'Overwrite') {
-            return;
-          }
-        }
-
-        await mkdir(targetDir, { recursive: true });
-        await copyFile(sourcePath, targetPath);
-
-        await treeProvider.refresh();
-        vscode.window.showInformationMessage(`Installed '${filename}'.`);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        vscode.window.showErrorMessage(`Failed to install instruction: ${msg}`);
-      }
-    },
-  );
-
   context.subscriptions.push(
     toggleCmd,
     deleteCmd,
@@ -911,8 +723,7 @@ export function registerManagementCommands(
     editEnvVarCmd,
     revealEnvVarCmd,
     removeEnvVarCmd,
-    installPromptCmd,
+    installCustomPromptFileCmd,
     deletePromptCmd,
-    installInstructionCmd,
   );
 }

@@ -3,14 +3,20 @@ import { FileIOService } from './services/fileio.service.js';
 import { BackupService } from './services/backup.service.js';
 import { SchemaService } from './services/schema.service.js';
 import { ConfigService } from './services/config.service.js';
-import { AdapterRegistry } from './adapters/adapter.registry.js';
-import { ClaudeCodeAdapter } from './adapters/claude-code/claude-code.adapter.js';
-import { claudeCodeSchemas } from './adapters/claude-code/schemas.js';
-import { CodexAdapter } from './adapters/codex/codex.adapter.js';
-import { codexSchemas } from './adapters/codex/schemas.js';
-import { CopilotAdapter } from './adapters/copilot/copilot.adapter.js';
-import { copilotSchemas } from './adapters/copilot/schemas.js';
-import { CodexPaths } from './adapters/codex/paths.js';
+import { ProviderRegistry } from './providers/provider.registry.js';
+import { resolveCapabilities, DEFAULT_CAPABILITIES } from './types/provider.js';
+import type { AgentProvider } from './types/provider.js';
+import { decideStartupAgent, agentDetectedKey } from './services/agent-reconcile.utils.js';
+import { ClaudeCodeProvider } from './providers/claude-code/claude-code.provider.js';
+import { claudeCodeSchemas } from './providers/claude-code/schemas.js';
+import { CodexProvider } from './providers/codex/codex.provider.js';
+import { codexSchemas } from './providers/codex/schemas.js';
+import { CopilotProvider } from './providers/copilot/copilot.provider.js';
+import { copilotSchemas } from './providers/copilot/schemas.js';
+import { PiProvider } from './providers/pi/pi.provider.js';
+import { piSchemas } from './providers/pi/schemas.js';
+import { HermesProvider } from './providers/hermes/hermes.provider.js';
+import { hermesSchemas } from './providers/hermes/schemas.js';
 import { ToolTreeProvider } from './views/tool-tree/tool-tree.provider.js';
 import { registerToolTreeCommands } from './views/tool-tree/tool-tree.commands.js';
 import { registerManagementCommands } from './views/tool-tree/tool-tree.management.js';
@@ -18,12 +24,8 @@ import { registerProfileCommands } from './views/tool-tree/tool-tree.profile-com
 import { ToolManagerService } from './services/tool-manager.service.js';
 import { ProfileService } from './services/profile.service.js';
 import { FileWatcherManager } from './views/file-watcher.manager.js';
-import { MarketplacePanel } from './views/marketplace/marketplace.panel.js';
 import { ConfigPanel } from './views/config-panel/config-panel.panel.js';
-import { RegistryService } from './services/registry.service.js';
-import { InstallService } from './services/install.service.js';
 import { WorkspaceProfileService } from './services/workspace-profile.service.js';
-import { RepoScannerService } from './services/repo-scanner.service.js';
 import { AgentSwitcherService } from './services/agent-switcher.service.js';
 import { showAgentQuickPick } from './views/agent-switcher/agent-switcher.quickpick.js';
 import { createAgentStatusBar, updateAgentStatusBar } from './views/agent-switcher/agent-switcher.statusbar.js';
@@ -37,9 +39,8 @@ import { createAgentStatusBar, updateAgentStatusBar } from './views/agent-switch
 let services:
   | {
       configService: ConfigService;
-      registry: AdapterRegistry;
+      registry: ProviderRegistry;
       toolManager: ToolManagerService;
-      registryService: RegistryService;
       workspaceProfileService: WorkspaceProfileService;
       agentSwitcherService: AgentSwitcherService;
       outputChannel: vscode.OutputChannel;
@@ -55,9 +56,8 @@ let services:
  */
 export function getServices(): {
   configService: ConfigService;
-  registry: AdapterRegistry;
+  registry: ProviderRegistry;
   toolManager: ToolManagerService;
-  registryService: RegistryService;
   workspaceProfileService: WorkspaceProfileService;
   agentSwitcherService: AgentSwitcherService;
   outputChannel: vscode.OutputChannel;
@@ -82,48 +82,46 @@ export function activate(context: vscode.ExtensionContext): void {
   schemas.registerSchemas(claudeCodeSchemas);
   schemas.registerSchemas(codexSchemas);
   schemas.registerSchemas(copilotSchemas);
+  schemas.registerSchemas(piSchemas);
+  schemas.registerSchemas(hermesSchemas);
 
   // 4. Workspace root (undefined when no folder is open)
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
-  // 5. Adapter setup
-  // Register all adapters by iterating a single list. Adding a new adapter
+  // 5. Provider setup
+  // Register all providers by iterating a single list. Adding a new provider
   // is one array entry — construction, registration, and write-service
   // injection are all driven from here.
-  const registry = new AdapterRegistry();
-  const adapters = [
-    new ClaudeCodeAdapter(fileIO, schemas, workspaceRoot),
-    new CodexAdapter(fileIO, schemas, workspaceRoot),
-    new CopilotAdapter(fileIO, schemas, workspaceRoot, context),
+  const registry = new ProviderRegistry();
+  const providers = [
+    new ClaudeCodeProvider(fileIO, schemas, workspaceRoot),
+    new CodexProvider(fileIO, schemas, workspaceRoot),
+    new CopilotProvider(fileIO, schemas, workspaceRoot, context),
+    new PiProvider(fileIO, schemas, workspaceRoot),
+    // Hermes keeps all config in a single user/managed home dir -- no project scope.
+    new HermesProvider(fileIO, schemas),
   ];
-  for (const adapter of adapters) {
-    registry.register(adapter);
+  for (const provider of providers) {
+    registry.register(provider);
   }
 
-  // Codex needs an individual reference later for Codex-specific notifications.
-  const codexAdapter = adapters.find((a): a is CodexAdapter => a instanceof CodexAdapter)!;
+  // Register each provider's own commands (the host owns registerCommand).
+  for (const a of registry.getAllProviders()) {
+    for (const cmd of a.getCommands?.() ?? []) {
+      context.subscriptions.push(vscode.commands.registerCommand(cmd.id, cmd.handler));
+    }
+  }
 
   // 6. Config service (the main API for reading/writing tool configs)
   const configService = new ConfigService(fileIO, backup, schemas, registry);
 
-  // 6b. Inject write services into adapters now that configService exists
-  for (const adapter of adapters) {
-    adapter.setWriteServices(configService, backup);
+  // 6b. Inject write services into providers now that configService exists
+  for (const provider of providers) {
+    provider.setWriteServices(configService, backup);
   }
 
   // 7. Tool management service
   const toolManager = new ToolManagerService(configService, registry);
-
-  // 8. Registry service for marketplace data
-  const registryService = new RegistryService(context);
-
-  // 9. Install service for one-click marketplace installs
-  const installService = new InstallService(
-    registryService, configService, registry, workspaceRoot,
-  );
-
-  // 9b. Repo scanner service for marketplace discovery
-  const repoScannerService = new RepoScannerService(context.globalState);
 
   // 9c. Profile service for named tool presets
   const profileService = new ProfileService(context.globalState, configService, toolManager, registry, fileIO, outputChannel);
@@ -146,7 +144,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(agentStatusBar);
 
   // 10. Store services for cross-module access
-  services = { configService, registry, toolManager, registryService, workspaceProfileService, agentSwitcherService: agentSwitcher, outputChannel };
+  services = { configService, registry, toolManager, workspaceProfileService, agentSwitcherService: agentSwitcher, outputChannel };
 
   // 11. Tree view provider
   const treeProvider = new ToolTreeProvider(configService, registry, context.extensionUri);
@@ -161,16 +159,13 @@ export function activate(context: vscode.ExtensionContext): void {
     toolManager,
     treeProvider,
     profileService,
-    registryService,
     configService,
     outputChannel,
-    installService,
-    repoScannerService,
     registry,
   );
 
   // 14. Profile commands (create, switch, edit, delete, save-as, export, import, associate, clone-to-agent)
-  registerProfileCommands(context, profileService, configService, treeProvider, registryService, installService, workspaceProfileService, registry);
+  registerProfileCommands(context, profileService, configService, treeProvider, workspaceProfileService, registry);
 
   // 14b. Restore active profile name in sidebar header on startup
   const activeId = profileService.getActiveProfileId();
@@ -178,25 +173,6 @@ export function activate(context: vscode.ExtensionContext): void {
     const activeProfile = profileService.getProfile(activeId);
     treeProvider.setActiveProfile(activeProfile?.name ?? null);
   }
-
-  // 15. Marketplace panel command
-  const openMarketplace = vscode.commands.registerCommand(
-    'ack.openMarketplace',
-    () =>
-      MarketplacePanel.createOrShow(
-        context.extensionUri,
-        registryService,
-        configService,
-        outputChannel,
-        installService,
-        toolManager,
-        repoScannerService,
-        registry,
-        undefined, // initialTypeFilter
-        registry.getActiveAdapter()?.displayName,
-      ),
-  );
-  context.subscriptions.push(openMarketplace);
 
   // 15b. Config panel command
   const openConfigPanel = vscode.commands.registerCommand(
@@ -211,38 +187,10 @@ export function activate(context: vscode.ExtensionContext): void {
         outputChannel,
         workspaceProfileService,
         registry,
-        registry.getActiveAdapter()?.displayName,
+        registry.getActiveProvider()?.displayName,
       ),
   );
   context.subscriptions.push(openConfigPanel);
-
-  // 15c. Initialize Codex project command
-  const initCodexCmd = vscode.commands.registerCommand(
-    'ack.initCodexProject',
-    async () => {
-      if (!workspaceRoot) {
-        vscode.window.showWarningMessage('No workspace folder open');
-        return;
-      }
-
-      const codexDir = CodexPaths.projectCodexDir(workspaceRoot);
-      const configPath = CodexPaths.projectConfigToml(workspaceRoot);
-      const skillsDir = CodexPaths.projectSkillsDir(workspaceRoot);
-
-      const { mkdir } = await import('fs/promises');
-      await mkdir(skillsDir, { recursive: true });
-
-      // Create config.toml only if it doesn't exist
-      const configExists = await fileIO.fileExists(configPath);
-      if (!configExists) {
-        await fileIO.writeTextFile(configPath, '# Codex project configuration\n');
-      }
-
-      outputChannel.appendLine(`Initialized Codex project at ${codexDir}`);
-      vscode.window.showInformationMessage(`Initialized Codex project: ${codexDir}`);
-    },
-  );
-  context.subscriptions.push(initCodexCmd);
 
   // 15d. Switch agent command (status bar click or command palette)
   const switchAgentCmd = vscode.commands.registerCommand(
@@ -256,16 +204,36 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(switchAgentCmd);
 
+  // 15d.1 Activate a specific agent by id (used by the chooser welcome buttons).
+  const activateAgentCmd = vscode.commands.registerCommand(
+    'ack.activateAgent',
+    async (agentId: string) => {
+      if (typeof agentId === 'string' && registry.getProvider(agentId)) {
+        await agentSwitcher.switchAgent(agentId);
+      }
+    },
+  );
+  context.subscriptions.push(activateAgentCmd);
+
   // 15e. React to agent switches (status bar, file watchers, tree, panels, workspace profiles)
   context.subscriptions.push(
-    agentSwitcher.onDidSwitchAgent(async (adapter) => {
-      await vscode.commands.executeCommand('setContext', 'ack.activeAdapterId', adapter?.id ?? '');
-      updateAgentStatusBar(agentStatusBar, adapter);
-      treeProvider.setAgentName(adapter?.displayName);
-      MarketplacePanel.notifyAgentChanged(adapter?.displayName ?? 'No Agent');
-      ConfigPanel.notifyAgentChanged(adapter?.displayName ?? 'No Agent');
-      if (adapter) {
-        fileWatcher.setupWatchers(adapter);
+    agentSwitcher.onDidSwitchAgent(async (provider) => {
+      await vscode.commands.executeCommand('setContext', 'ack.activeProviderId', provider?.id ?? '');
+      // An active agent clears the no-agents / choose-an-agent welcome states.
+      if (provider) {
+        await vscode.commands.executeCommand('setContext', 'ack.noAgents', false);
+        await vscode.commands.executeCommand('setContext', 'ack.chooseAgent', false);
+      }
+      // Capability context keys drive `when`-clauses without branching on agent id.
+      const caps = provider ? resolveCapabilities(provider) : DEFAULT_CAPABILITIES;
+      await vscode.commands.executeCommand('setContext', 'ack.cap.mcpEnvVars', caps.mcpEnvVars);
+      await vscode.commands.executeCommand('setContext', 'ack.cap.mcpServerToolToggle', caps.mcpServerToolToggle);
+      await vscode.commands.executeCommand('setContext', 'ack.cap.customPromptFileInstall', caps.customPromptFileInstall);
+      updateAgentStatusBar(agentStatusBar, provider);
+      treeProvider.setAgentName(provider?.displayName);
+      ConfigPanel.notifyAgentChanged(provider?.displayName ?? 'No Agent');
+      if (provider) {
+        fileWatcher.setupWatchers(provider);
         treeProvider.refresh();
 
         // Re-check workspace profile association for the new agent
@@ -283,15 +251,63 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
+  // Reconcile detected agents into an active selection + welcome context keys.
+  // Shared by startup and the re-detect command so both behave identically:
+  //   (a) persisted agent still detected -> activate it;
+  //   (b) exactly one detected -> activate it;
+  //   (c) two or more detected, no usable history -> route to the chooser;
+  //   (d) none detected -> the "install an agent" welcome.
+  // Returns true iff an agent was activated.
+  const applyDetectionResult = async (detected: AgentProvider[]): Promise<boolean> => {
+    const detectedIds = detected.map((a) => a.id);
+
+    // Per-agent detection drives the chooser buttons' visibility (and preserves
+    // hideWhenUndetected -- an undetected agent never gets a button).
+    for (const p of registry.getAllProviders()) {
+      await vscode.commands.executeCommand(
+        'setContext',
+        agentDetectedKey(p.id),
+        detectedIds.includes(p.id),
+      );
+    }
+
+    const decision = decideStartupAgent({
+      persistedId: agentSwitcher.getPersistedAgentId(),
+      detectedIds,
+    });
+
+    if (decision.kind === 'activate') {
+      // switchAgent fires onDidSwitchAgent, which clears the welcome keys.
+      if (registry.getActiveProvider()?.id !== decision.id) {
+        await agentSwitcher.switchAgent(decision.id);
+      }
+      outputChannel.appendLine(`Active agent: ${registry.getProvider(decision.id)?.displayName ?? decision.id}`);
+      return true;
+    }
+
+    if (decision.kind === 'choose') {
+      await vscode.commands.executeCommand('setContext', 'ack.noAgents', false);
+      await vscode.commands.executeCommand('setContext', 'ack.chooseAgent', true);
+      outputChannel.appendLine(`Multiple agents detected, awaiting choice: ${detected.map((a) => a.displayName).join(', ')}`);
+      return false;
+    }
+
+    // none detected
+    await vscode.commands.executeCommand('setContext', 'ack.chooseAgent', false);
+    await vscode.commands.executeCommand('setContext', 'ack.noAgents', true);
+    outputChannel.appendLine('No supported agent platforms detected');
+    return false;
+  };
+
   // 15f. Re-detect agents command
   const redetectCmd = vscode.commands.registerCommand(
     'ack.redetectAgents',
     async () => {
       outputChannel.appendLine('Re-detecting agents...');
 
-      // Log individual detection results and collect detected adapters
-      const detected: import('./types/adapter.js').IPlatformAdapter[] = [];
-      for (const a of registry.getAllAdapters()) {
+      // Log individual detection results and collect detected providers
+      const detected: AgentProvider[] = [];
+      for (const a of registry.getAllProviders()) {
         const found = await a.detect();
         outputChannel.appendLine(`  ${a.displayName}: ${found ? 'detected' : 'not detected'}`);
         if (found) {
@@ -299,47 +315,13 @@ export function activate(context: vscode.ExtensionContext): void {
         }
       }
 
-      if (detected.length === 1) {
-        await agentSwitcher.switchAgent(detected[0].id);
-        outputChannel.appendLine(`Active agent: ${detected[0].displayName}`);
-        vscode.window.showInformationMessage(`Active agent: ${detected[0].displayName}`);
-      } else if (detected.length > 1) {
-        const currentId = agentSwitcher.getPersistedAgentId();
-        const currentStillDetected = currentId && detected.some((a) => a.id === currentId);
-
-        if (currentStillDetected) {
-          // Keep current selection
-          outputChannel.appendLine(`Multiple agents detected, keeping current: ${currentId}`);
-        } else {
-          // No current selection or current not detected -- prompt to switch
-          outputChannel.appendLine(`Multiple agents detected: ${detected.map((a) => a.displayName).join(', ')}`);
-        }
-
-        // Check for newly detected agents and notify
-        for (const a of detected) {
-          if (a.id !== currentId) {
-            const action = await vscode.window.showInformationMessage(
-              `${a.displayName} detected`,
-              `Switch to ${a.displayName}`,
-            );
-            if (action) {
-              await agentSwitcher.switchAgent(a.id);
-            }
-          }
-        }
-      } else {
-        outputChannel.appendLine('No agents detected');
-        vscode.window.showWarningMessage(
-          'No supported agent platforms detected. Install Claude Code, Codex, or GitHub Copilot to get started.',
-        );
-      }
+      await applyDetectionResult(detected);
       outputChannel.show();
 
-      // Reset codex config dismissal so re-detection re-checks
-      await context.globalState.update('ack.codexConfigDismissed', false);
-
-      // Re-run Codex notifications
-      await handleCodexNotifications(context, codexAdapter, fileIO, outputChannel);
+      // Re-run provider configuration checks (force re-surfaces dismissed prompts).
+      for (const a of registry.getAllProviders()) {
+        await a.checkConfiguration?.(context, true);
+      }
     },
   );
   context.subscriptions.push(redetectCmd);
@@ -360,9 +342,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // 16b. Startup detection and agent reconciliation
   (async () => {
-    // Run detection on all adapters
-    const detected: import('./types/adapter.js').IPlatformAdapter[] = [];
-    for (const a of registry.getAllAdapters()) {
+    // Run detection on all providers
+    const detected: AgentProvider[] = [];
+    for (const a of registry.getAllProviders()) {
       const found = await a.detect();
       outputChannel.appendLine(`${a.displayName}: ${found ? 'detected' : 'not detected'}`);
       if (found) {
@@ -370,39 +352,8 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }
 
-    // Reconcile: persisted agent > single auto-select > multiple/zero
-    const persistedId = agentSwitcher.getPersistedAgentId();
-    let activated = false;
-
-    if (persistedId) {
-      const persisted = detected.find((a) => a.id === persistedId);
-      if (persisted) {
-        await agentSwitcher.switchAgent(persistedId);
-        outputChannel.appendLine(`Active agent (restored): ${persisted.displayName}`);
-        activated = true;
-      } else {
-        outputChannel.appendLine(`Previously active agent "${persistedId}" not detected, falling through`);
-      }
-    }
-
-    if (!activated && detected.length === 1) {
-      await agentSwitcher.switchAgent(detected[0].id);
-      outputChannel.appendLine(`Active agent: ${detected[0].displayName}`);
-      activated = true;
-    }
-
-    if (!activated && detected.length > 1) {
-      outputChannel.appendLine(`Multiple agents detected: ${detected.map((a) => a.displayName).join(', ')}`);
-      vscode.window.showInformationMessage(
-        'Multiple agents detected. Use the status bar to select one.',
-      );
-    }
-
-    if (!activated && detected.length === 0) {
-      const msg = 'No supported agent platforms detected. Install Claude Code, Codex, or GitHub Copilot to get started.';
-      outputChannel.appendLine(msg);
-      vscode.window.showInformationMessage(msg);
-    }
+    // Reconcile: last-used-first, else single auto-select, else route to chooser.
+    const activated = await applyDetectionResult(detected);
 
     // Auto-activate workspace profile after successful agent selection
     if (activated && workspaceRoot) {
@@ -416,8 +367,10 @@ export function activate(context: vscode.ExtensionContext): void {
       );
     }
 
-    // Run Codex-specific notifications regardless of which adapter won
-    await handleCodexNotifications(context, codexAdapter, fileIO, outputChannel);
+    // Run provider configuration checks (each provider self-gates on detection).
+    for (const a of registry.getAllProviders()) {
+      await a.checkConfiguration?.(context);
+    }
   })().catch((err: unknown) => {
     outputChannel.appendLine(`Platform detection error: ${err}`);
   });
@@ -426,12 +379,12 @@ export function activate(context: vscode.ExtensionContext): void {
   const testCmd = vscode.commands.registerCommand(
     'ack.testReadAll',
     async () => {
-      const adapter = registry.getActiveAdapter();
-      if (!adapter) {
+      const provider = registry.getActiveProvider();
+      if (!provider) {
         vscode.window.showWarningMessage('No agent platform detected');
         return;
       }
-      for (const type of adapter.supportedToolTypes) {
+      for (const type of provider.supportedToolTypes) {
         const tools = await configService.readAllTools(type);
         outputChannel.appendLine(`${type}: ${tools.length} tools found`);
         for (const tool of tools) {
@@ -449,69 +402,12 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 /**
- * Handle Codex-specific notifications after detection.
- *
- * When Codex is detected but has no config.toml, offers to create one
- * (with dismissal memory via globalState). When config.toml exists but
- * has TOML parse errors, shows a warning with an "Open File" action.
- */
-async function handleCodexNotifications(
-  context: vscode.ExtensionContext,
-  codexAdapter: CodexAdapter,
-  fileIO: FileIOService,
-  outputChannel: vscode.OutputChannel,
-): Promise<void> {
-  const detected = await codexAdapter.detect();
-  if (!detected) {
-    return;
-  }
-
-  // Check if user config.toml exists
-  const configExists = await fileIO.fileExists(CodexPaths.userConfigToml);
-
-  if (!configExists) {
-    // Check dismissal state
-    const dismissed = context.globalState.get<boolean>('ack.codexConfigDismissed', false);
-    if (dismissed) {
-      return;
-    }
-
-    const action = await vscode.window.showInformationMessage(
-      'Codex detected but no config.toml found. Create one?',
-      'Create Config',
-      'Dismiss',
-    );
-
-    if (action === 'Create Config') {
-      await fileIO.writeTextFile(CodexPaths.userConfigToml, '# Codex user configuration\n');
-      outputChannel.appendLine('Created ~/.codex/config.toml');
-    } else if (action === 'Dismiss') {
-      await context.globalState.update('ack.codexConfigDismissed', true);
-    }
-    return;
-  }
-
-  // Config exists -- check if it's valid TOML
-  const readResult = await fileIO.readTomlFile(CodexPaths.userConfigToml);
-  if (!readResult.success) {
-    const action = await vscode.window.showWarningMessage(
-      `Codex config.toml has syntax errors: ${readResult.error}`,
-      'Open File',
-    );
-    if (action === 'Open File') {
-      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(CodexPaths.userConfigToml));
-      await vscode.window.showTextDocument(doc);
-    }
-  }
-}
-
-/**
  * Auto-activate the workspace's associated profile after platform detection.
  *
  * Checks the global setting, reads `.vscode/agent-profile.json` filtered by
  * the active agent, validates that no manual override exists, then switches
  * to the associated profile. Partial activation occurs when some tools are
- * missing (user is prompted to install them from the marketplace).
+ * missing (those tools are reported and skipped).
  *
  * Agent-scoped: Only activates if the workspace association matches the
  * active agent. Legacy associations (no agentId) are treated as Claude Code.
@@ -522,7 +418,7 @@ async function handleWorkspaceAutoActivation(
   workspaceProfileService: WorkspaceProfileService,
   treeProvider: ToolTreeProvider,
   outputChannel: vscode.OutputChannel,
-  registry: AdapterRegistry,
+  registry: ProviderRegistry,
 ): Promise<void> {
   // 1. Check global setting -- is auto-activation enabled?
   const autoActivate = vscode.workspace
@@ -533,7 +429,7 @@ async function handleWorkspaceAutoActivation(
   }
 
   // 2. Get active agent ID
-  const activeAgentId = registry.getActiveAdapter()?.id;
+  const activeAgentId = registry.getActiveProvider()?.id;
   if (!activeAgentId) {
     outputChannel.appendLine('Workspace profile auto-activation skipped: no active agent');
     return;
@@ -583,15 +479,11 @@ async function handleWorkspaceAutoActivation(
   // 9. Show info notification
   vscode.window.showInformationMessage(`Switched to profile: ${profile.name}`);
 
-  // 10. If missing tools, prompt to install
+  // 10. If missing tools, report them (local-only; no remote install)
   if (result.skipped > 0) {
-    const action = await vscode.window.showWarningMessage(
-      `Profile "${profile.name}" has ${result.skipped} missing tool(s).`,
-      'Open Marketplace',
+    vscode.window.showWarningMessage(
+      `Profile "${profile.name}" has ${result.skipped} missing tool(s). Add them via the + on each tool group to enable.`,
     );
-    if (action === 'Open Marketplace') {
-      await vscode.commands.executeCommand('ack.openMarketplace');
-    }
   }
 }
 

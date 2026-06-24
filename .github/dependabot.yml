@@ -1,0 +1,22 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    # Version cooldown: don't auto-adopt brand-new releases. Most supply-chain
+    # compromises are caught within days, so wait before opening update PRs.
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    groups:
+      dev-dependencies:
+        dependency-type: development
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

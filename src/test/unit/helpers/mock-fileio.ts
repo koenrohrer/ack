@@ -34,5 +34,9 @@ export function createMockFileIO(overrides: Partial<FileIOService> = {}): FileIO
       return { success: true as const, data: null };
     },
     async writeTomlFile() {},
+    async readYamlFile() {
+      return { success: true as const, data: null };
+    },
+    async writeYamlFile() {},
   } satisfies Partial<FileIOService>, overrides);
 }

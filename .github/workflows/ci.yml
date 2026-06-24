@@ -25,7 +25,10 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=moderate
 
       - name: Check types
         run: npm run check-types
@@ -39,20 +42,8 @@ jobs:
       - name: Build production package
         run: npm run package
 
-      - name: Probe integration tests
-        id: integration
-        continue-on-error: true
+      - name: Run integration tests
         run: xvfb-run -a npm run test:integration
-
-      - name: Record integration test gap
-        if: steps.integration.outcome == 'failure'
-        run: |
-          {
-            echo "### Integration tests"
-            echo ""
-            echo "\`npm run test:integration\` is currently a non-blocking CI probe because the repo does not have a \`.vscode-test\` config yet."
-            echo "Make this step blocking after adding CI-ready VS Code extension-host tests."
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Package VSIX
         run: npx @vscode/vsce package --out ack.vsix

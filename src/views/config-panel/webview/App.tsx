@@ -119,7 +119,7 @@ export function App() {
     >
       <span>Agent changed to <strong>{agentChangedName}</strong>. Data shown may be outdated.</span>
       <button
-        className="marketplace-filters__tab"
+        className="config-panel__banner-btn"
         onClick={handleRefreshAfterAgentChange}
         style={{ whiteSpace: 'nowrap' }}
       >
@@ -146,7 +146,7 @@ export function App() {
     >
       <span>{successMessage}</span>
       <button
-        className="marketplace-filters__tab"
+        className="config-panel__banner-btn"
         onClick={clearSuccess}
         style={{ whiteSpace: 'nowrap' }}
       >

@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     include: [
       'src/test/unit/**/*.test.ts',
-      'src/adapters/**/*.test.ts',
+      'src/providers/**/*.test.ts',
     ],
   },
 });

@@ -6,7 +6,7 @@ import type { ToolManagerService } from '../../services/tool-manager.service.js'
 import type { ToolTreeProvider } from '../tool-tree/tool-tree.provider.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { canonicalKey } from '../../utils/tool-key.utils.js';
-import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
+import type { ProviderRegistry } from '../../providers/provider.registry.js';
 import type { WorkspaceProfileService } from '../../services/workspace-profile.service.js';
 import {
   applyMcpEnvUpdate,
@@ -39,7 +39,7 @@ export class ConfigPanel {
   private readonly configService: ConfigService;
   private readonly toolManager: ToolManagerService;
   private readonly treeProvider: ToolTreeProvider;
-  private readonly registry: AdapterRegistry;
+  private readonly registry: ProviderRegistry;
   private readonly outputChannel: vscode.OutputChannel;
   private readonly workspaceProfileService: WorkspaceProfileService;
 
@@ -69,7 +69,7 @@ export class ConfigPanel {
     treeProvider: ToolTreeProvider,
     outputChannel: vscode.OutputChannel,
     workspaceProfileService: WorkspaceProfileService,
-    registry: AdapterRegistry,
+    registry: ProviderRegistry,
     agentName?: string,
   ): void {
     // If panel already exists, reveal it
@@ -113,7 +113,7 @@ export class ConfigPanel {
     treeProvider: ToolTreeProvider,
     outputChannel: vscode.OutputChannel,
     workspaceProfileService: WorkspaceProfileService,
-    registry: AdapterRegistry,
+    registry: ProviderRegistry,
   ) {
     this.panel = panel;
     this.extensionUri = extensionUri;
@@ -312,7 +312,7 @@ export class ConfigPanel {
       );
 
       if (result.nonToggleableSkipped > 0) {
-        const activeAgent = this.registry.getActiveAdapter()?.displayName ?? 'active agent';
+        const activeAgent = this.registry.getActiveProvider()?.displayName ?? 'active agent';
         vscode.window.showInformationMessage(
           `${result.nonToggleableSkipped} item(s) in this profile were skipped — ` +
           `${activeAgent} doesn't support toggling them (e.g. MCP servers).`,
@@ -483,7 +483,7 @@ export class ConfigPanel {
           this.postMessage({ type: 'operationError', op: 'associateProfile', error: 'Profile not found' });
           return;
         }
-        const activeAgentId = this.registry.getActiveAdapter()?.id;
+        const activeAgentId = this.registry.getActiveProvider()?.id;
         if (!activeAgentId) {
           this.postMessage({ type: 'operationError', op: 'associateProfile', error: 'No agent is active' });
           return;
@@ -548,8 +548,8 @@ export class ConfigPanel {
         transport: (tool.metadata.transport as string) ?? undefined,
         url: (tool.metadata.url as string) ?? undefined,
         disabled: tool.status === ToolStatus.Disabled,
-        canToggle: this.getAdapter()
-          ? canToggleMcpStatus(this.getAdapter()!.getMcpDisableField())
+        canToggle: this.getProvider()
+          ? canToggleMcpStatus(this.getProvider()!.getMcpDisableField())
           : true,
       };
 
@@ -581,22 +581,21 @@ export class ConfigPanel {
       }
 
       const { schemaKey } = this.getMcpSchemaKey(scope);
-      const adapter = this.getAdapter();
-      const containerKey = adapter?.getMcpContainerKey() ?? 'mcpServers';
-      const disableField = adapter?.getMcpDisableField();
+      const provider = this.getProvider();
+      const containerKey = provider?.getMcpContainerKey() ?? 'mcpServers';
+      const disableField = provider?.getMcpDisableField();
 
-      // Codex stores MCP servers in config.toml; all other adapters use JSON.
-      if (adapter?.getMcpConfigFormat() === 'toml') {
-        await this.configService.writeTomlConfigFile(
-          filePath,
-          schemaKey,
-          (current: Record<string, unknown>) =>
-            applyMcpEnvUpdate(current, containerKey, disableField, serverName, env, disabled),
-        );
+      // Codex stores MCP servers in config.toml; Hermes in config.yaml; the
+      // rest use JSON. Route to the matching write pipeline by format.
+      const mcpFormat = provider?.getMcpConfigFormat();
+      const mutate = (current: Record<string, unknown>) =>
+        applyMcpEnvUpdate(current, containerKey, disableField, serverName, env, disabled);
+      if (mcpFormat === 'toml') {
+        await this.configService.writeTomlConfigFile(filePath, schemaKey, mutate);
+      } else if (mcpFormat === 'yaml') {
+        await this.configService.writeYamlConfigFile(filePath, schemaKey, mutate);
       } else {
-        await this.configService.writeConfigFile(filePath, schemaKey, (current: Record<string, unknown>) =>
-          applyMcpEnvUpdate(current, containerKey, disableField, serverName, env, disabled),
-        );
+        await this.configService.writeConfigFile(filePath, schemaKey, mutate);
       }
 
       this.outputChannel.appendLine(`[ConfigPanel] Updated MCP env for "${serverName}" (${scope})`);
@@ -633,38 +632,38 @@ export class ConfigPanel {
   }
 
   /**
-   * Get the active adapter from the registry.
-   * Returns undefined if no adapter is active.
+   * Get the active provider from the registry.
+   * Returns undefined if no provider is active.
    */
-  private getAdapter() {
-    return this.registry.getActiveAdapter();
+  private getProvider() {
+    return this.registry.getActiveProvider();
   }
 
   /**
-   * Determine the MCP config file path for a given scope via the adapter.
+   * Determine the MCP config file path for a given scope via the provider.
    */
   private getMcpFilePath(scope: string): string | null {
-    const adapter = this.getAdapter();
-    if (!adapter) {
+    const provider = this.getProvider();
+    if (!provider) {
       return null;
     }
     try {
-      return adapter.getMcpFilePath(scope as ConfigScope);
+      return provider.getMcpFilePath(scope as ConfigScope);
     } catch {
       return null;
     }
   }
 
   /**
-   * Determine the schema key for an MCP config file based on scope via the adapter.
+   * Determine the schema key for an MCP config file based on scope via the provider.
    */
   private getMcpSchemaKey(scope: string): { schemaKey: string } {
-    const adapter = this.getAdapter();
-    if (!adapter) {
+    const provider = this.getProvider();
+    if (!provider) {
       return { schemaKey: 'claude-json' };
     }
     try {
-      return { schemaKey: adapter.getMcpSchemaKey(scope as ConfigScope) };
+      return { schemaKey: provider.getMcpSchemaKey(scope as ConfigScope) };
     } catch {
       return { schemaKey: 'claude-json' };
     }

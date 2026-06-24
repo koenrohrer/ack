@@ -1,17 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { collectWatchDirs } from '../../views/file-watcher.utils.js';
 import { ConfigScope, ToolType } from '../../types/enums.js';
-import type { IPlatformAdapter } from '../../types/adapter.js';
-import { createMockAdapter } from './helpers/mock-adapter.js';
+import type { AgentProvider } from '../../types/provider.js';
+import { createMockProvider } from './helpers/mock-provider.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeAdapter(
+function makeProvider(
   watchPaths: Partial<Record<ConfigScope, string[]>>,
-): IPlatformAdapter {
-  return createMockAdapter({
+): AgentProvider {
+  return createMockProvider({
     id: 'test',
     displayName: 'Test',
     supportedToolTypes: new Set([ToolType.Skill]),
@@ -60,23 +60,23 @@ class DebounceHarness {
 
 describe('collectWatchDirs', () => {
   it('collects parent directories of config file paths', () => {
-    const adapter = makeAdapter({
+    const provider = makeProvider({
       [ConfigScope.User]: ['/home/.claude/settings.json'],
     });
 
-    const dirs = collectWatchDirs(adapter);
+    const dirs = collectWatchDirs(provider);
 
     expect(dirs).toEqual([{ dir: '/home/.claude', recursive: false }]);
   });
 
   it('deduplicates directories from different scopes', () => {
-    const adapter = makeAdapter({
+    const provider = makeProvider({
       [ConfigScope.User]: ['/home/.claude/settings.json'],
       // Local scope also has a file in /home/.claude/ -- should deduplicate
       [ConfigScope.Local]: ['/home/.claude/settings.local.json'],
     });
 
-    const dirs = collectWatchDirs(adapter);
+    const dirs = collectWatchDirs(provider);
     const uniqueDirs = dirs.map((d) => d.dir);
 
     // Both files share /home/.claude as parent
@@ -84,14 +84,14 @@ describe('collectWatchDirs', () => {
   });
 
   it('keeps skills/commands directories separate from file parent dirs', () => {
-    const adapter = makeAdapter({
+    const provider = makeProvider({
       [ConfigScope.User]: [
         '/home/.claude/settings.json',
         '/home/.claude/skills',
       ],
     });
 
-    const dirs = collectWatchDirs(adapter);
+    const dirs = collectWatchDirs(provider);
 
     // /home/.claude from file parent + /home/.claude/skills as recursive dir
     expect(dirs).toHaveLength(2);
@@ -103,11 +103,11 @@ describe('collectWatchDirs', () => {
   });
 
   it('marks skills directories as recursive', () => {
-    const adapter = makeAdapter({
+    const provider = makeProvider({
       [ConfigScope.User]: ['/home/.claude/skills'],
     });
 
-    const dirs = collectWatchDirs(adapter);
+    const dirs = collectWatchDirs(provider);
 
     expect(dirs).toEqual([
       { dir: '/home/.claude/skills', recursive: true },
@@ -115,11 +115,11 @@ describe('collectWatchDirs', () => {
   });
 
   it('marks commands directories as recursive', () => {
-    const adapter = makeAdapter({
+    const provider = makeProvider({
       [ConfigScope.User]: ['/home/.claude/commands'],
     });
 
-    const dirs = collectWatchDirs(adapter);
+    const dirs = collectWatchDirs(provider);
 
     expect(dirs).toEqual([
       { dir: '/home/.claude/commands', recursive: true },
@@ -127,21 +127,21 @@ describe('collectWatchDirs', () => {
   });
 
   it('handles empty watch paths gracefully', () => {
-    const adapter = makeAdapter({});
+    const provider = makeProvider({});
 
-    const dirs = collectWatchDirs(adapter);
+    const dirs = collectWatchDirs(provider);
 
     expect(dirs).toEqual([]);
   });
 
   it('collects paths from all scopes', () => {
-    const adapter = makeAdapter({
+    const provider = makeProvider({
       [ConfigScope.User]: ['/home/.claude/settings.json'],
       [ConfigScope.Project]: ['/workspace/.claude/settings.json'],
       [ConfigScope.Managed]: ['/etc/claude/managed-settings.json'],
     });
 
-    const dirs = collectWatchDirs(adapter);
+    const dirs = collectWatchDirs(provider);
     const dirPaths = dirs.map((d) => d.dir);
 
     expect(dirPaths).toContain('/home/.claude');

@@ -19,7 +19,7 @@
 
 Agent tools are scattered across JSON files in hidden directories. You add an MCP server here, a slash command there, tweak a permission somewhere else -- and none of it is visible until something breaks.
 
-**ACK puts it all in one place.** Browse, install, toggle, and organize every tool your AI agent uses -- without ever opening a config file. Switch between Claude Code, Codex, and GitHub Copilot with a single click.
+**ACK puts it all in one place.** See, install, toggle, and organize every tool your AI agent uses -- without ever opening a config file. Switch between Claude Code, Codex, GitHub Copilot, Pi, and Hermes with a single click.
 
 <!-- Screenshot: sidebar tool tree showing MCP servers, commands, and hooks -->
 <p align="center">
@@ -34,29 +34,23 @@ Agent tools are scattered across JSON files in hidden directories. You add an MC
 
 ### Switch between agents
 
-ACK detects your installed agents (Claude Code, Codex, and GitHub Copilot) and lets you switch between them from the status bar or command palette. The sidebar, marketplace, and config panel all context-switch to show the active agent's tools.
+ACK detects your installed agents -- Claude Code, Codex, GitHub Copilot, Pi, and Hermes -- and reconciles them on startup: it auto-activates a single agent, re-activates your last-used one when several are present, or shows a chooser when there's no history to go on. Switch anytime from the status bar or command palette; the sidebar and config panel both context-switch to show the active agent's tools.
 
 ### See everything at a glance
 
 The sidebar tree discovers your full agent configuration automatically. MCP servers, slash commands, hooks, and skills are grouped by type and labeled by scope (user vs. project) so you always know what's active and where it lives.
 
-### Install tools without leaving the editor
+### Install tools from local files
 
-<!-- Screenshot: marketplace panel with tool cards and install buttons -->
-<p align="center">
-  <img src="https://raw.githubusercontent.com/koenrohrer/ack/master/media/screenshots/marketplace.png" alt="ACK marketplace panel browsing community tools" width="800" />
-  <br/>
-  <sub>Browse the community registry, read descriptions, and install to user or project scope in one click.</sub>
-</p>
-
-The built-in marketplace connects to a community tool registry. Search, filter by type, read details, and install -- all from a webview panel inside VS Code. No terminal, no manual JSON editing.
+Click the **+** on a tool group in the sidebar to install from your own disk -- pick a skill folder or a command file (single- or multi-file) and ACK writes it to the right location for the active agent, at user or project scope. Codex prompts and Copilot instructions install from a `.md` file the same way. No terminal, no manual JSON editing, no network.
 
 ### Switch contexts with profiles
 
-Different projects need different tool setups. Profiles let you snapshot your current configuration and restore it later with a single command. Profiles are scoped per agent -- each agent maintains its own profile set. If no profiles exist yet, switching profiles prompts you to create one right away.
+Different projects need different tool setups. A profile is a **complete preset**: you pick exactly which tools it enables, and switching to it turns every other tool off. Profiles are scoped per agent -- each agent maintains its own set. If no profiles exist yet, switching profiles prompts you to create one right away.
 
-- **Save as profile** -- Freeze your current tools, servers, and settings into a named snapshot
-- **Import / Export** -- Share configurations as portable JSON files with agent compatibility metadata
+- **Pick your tools** -- Choose which skills, servers, and commands a profile enables; everything else is turned off when you switch to it
+- **Edit tools** -- Re-open the picker to add tools installed after the profile was created (it pre-checks what's already enabled)
+- **Import / Export** -- Share configurations as portable bundles with agent compatibility metadata
 - **Workspace association** -- Bind a profile to a workspace so it activates the moment you open it
 - **Clone to agent** -- Copy a profile from one agent to another, filtering to compatible tools
 
@@ -93,10 +87,10 @@ Right-click any tool for the full context menu.
 ## Quick Start
 
 ```
-1.  Install from the marketplace        code --install-extension koenrohrer.ack
+1.  Install the extension               code --install-extension koenrohrer.ack
 2.  Open the ACK sidebar                Click the ACK icon in the activity bar
 3.  Browse your tools                   The tree auto-discovers your config
-4.  Install something new               Click the marketplace icon in the title bar
+4.  Install something new               Click the + on a tool group to add from a local file
 ```
 
 ---
@@ -107,22 +101,20 @@ All commands are available from the command palette (`Ctrl+Shift+P` / `Cmd+Shift
 
 | Command | Description |
 |---------|-------------|
-| `ACK: Open Marketplace` | Browse and install tools from the community registry |
 | `ACK: Configure Agent` | Open the visual config panel |
-| `ACK: Switch Agent` | Switch the active agent (Claude Code / Codex / Copilot) |
+| `ACK: Switch Agent` | Switch the active agent (Claude Code / Codex / Copilot / Pi / Hermes) |
 | `ACK: Initialize Codex for This Project` | Scaffold `.codex/config.toml` and `skills/` |
 | `ACK: Re-detect Agents` | Re-run agent detection after installing a new CLI |
 | `ACK: Switch Profile` | Switch to a saved profile |
-| `ACK: Create Profile` | Create a new empty profile |
-| `ACK: Save Current State as Profile` | Snapshot current tools as a profile |
+| `ACK: Create Profile` | Create a profile by picking which tools to enable |
+| `ACK: Save Tools as Profile` | Pick tools to enable as a new profile |
 | `ACK: Edit Profile` | Modify an existing profile |
 | `ACK: Delete Profile` | Remove a profile |
 | `ACK: Export Profile` | Export a profile to a `.ackprofile` file |
 | `ACK: Import Profile` | Import a profile from a `.ackprofile` file |
 | `ACK: Clone Profile to Agent` | Copy a profile to another agent, filtering compatible tools |
 | `ACK: Associate Profile with Workspace` | Bind a profile to auto-activate for this workspace |
-| `ACK: Install Custom Prompt from File` | Copy a `.md` file into Codex's user prompts directory |
-| `ACK: Install Instruction or Prompt from File` | Install an instruction or prompt `.md` file for Copilot |
+| `ACK: Install Custom Prompt from File` | Install a prompt/instruction `.md` file for the active agent (Codex or Copilot) |
 | `ACK: Refresh Tool Tree` | Force-refresh the sidebar tree |
 
 ---
@@ -136,25 +128,6 @@ Configure ACK behavior in VS Code settings (`Ctrl+,` / `Cmd+,`).
 | `ack.showChangeNotifications` | `boolean` | `true` | Notify when agent config files are modified outside VS Code |
 | `ack.skipDeleteConfirmation` | `boolean` | `false` | Skip the confirmation dialog when deleting tools |
 | `ack.autoActivateWorkspaceProfiles` | `boolean` | `true` | Automatically activate the associated profile when opening a workspace |
-| `ack.userRepositories` | `string[]` | `[]` | GitHub repository URLs to scan for installable tools |
-| `ack.registrySources` | `object[]` | `[]` | Additional tool registry sources (GitHub repos). The default community registry is always included. |
-
-### Custom Registry Sources
-
-Add your own tool registries by configuring `ack.registrySources`:
-
-```jsonc
-"ack.registrySources": [
-  {
-    "id": "my-team",
-    "name": "Team Tools",
-    "owner": "my-org",
-    "repo": "agent-tools",
-    "branch": "main",             // optional, defaults to "main"
-    "indexPath": "registry.json"  // optional, defaults to "registry.json"
-  }
-]
-```
 
 ---
 
@@ -165,8 +138,10 @@ Add your own tool registries by configuring `ack.registrySources`:
 | **Claude Code** | JSON (`~/.claude/`, `.claude/`) | MCP servers, slash commands, hooks, skills |
 | **Codex** | TOML (`~/.codex/`, `.codex/`) | MCP servers, skills, custom prompts |
 | **GitHub Copilot** | JSON + Markdown (`.vscode/`, `.github/`) | MCP servers, custom instructions, custom agents |
+| **Pi** | JSON (`~/.pi/agent/`, `.pi/`) | MCP servers, skills, custom prompts |
+| **Hermes** | YAML (`~/.hermes/`) | MCP servers, skills, `SOUL.md` identity |
 
-ACK auto-detects which agents are installed. If multiple are present, a status bar item lets you switch between them. Each agent has its own sidebar view, marketplace filter, and profile set.
+ACK auto-detects which agents are installed and activates one on startup -- your last-used agent when several are present. A status bar item lets you switch anytime, and each agent has its own sidebar view and profile set.
 
 ---
 
@@ -182,25 +157,33 @@ ACK auto-detects which agents are installed. If multiple are present, a status b
 │  └──────┬───────┘   └───────┬────────┘  │
 │         │                   │           │
 │  ┌──────┴───────────────────┴────────┐  │
-│  │       Adapter Registry            │  │
+│  │       Provider Registry           │  │
 │  │  ┌────────────────────────────┐   │  │
-│  │  │  Claude Code Adapter       │   │  │
+│  │  │  Claude Code Provider      │   │  │
 │  │  │  parsers / writers / paths │   │  │
 │  │  └────────────────────────────┘   │  │
 │  │  ┌────────────────────────────┐   │  │
-│  │  │  Codex Adapter             │   │  │
+│  │  │  Codex Provider            │   │  │
 │  │  │  TOML parsers / writers    │   │  │
 │  │  └────────────────────────────┘   │  │
 │  │  ┌────────────────────────────┐   │  │
-│  │  │  Copilot Adapter           │   │  │
+│  │  │  Copilot Provider          │   │  │
 │  │  │  JSON + MD parsers/writers │   │  │
+│  │  └────────────────────────────┘   │  │
+│  │  ┌────────────────────────────┐   │  │
+│  │  │  Pi Provider               │   │  │
+│  │  │  JSON parsers / writers    │   │  │
+│  │  └────────────────────────────┘   │  │
+│  │  ┌────────────────────────────┐   │  │
+│  │  │  Hermes Provider           │   │  │
+│  │  │  YAML parsers / writers    │   │  │
 │  │  └────────────────────────────┘   │  │
 │  └───────────────────────────────────┘  │
 │                                         │
-│  ┌──────────────┐   ┌───────────────┐   │
-│  │  Marketplace  │   │ Config Panel  │   │
-│  │  (webview)    │   │  (webview)    │   │
-│  └──────────────┘   └───────────────┘   │
+│  ┌───────────────┐                      │
+│  │ Config Panel  │                      │
+│  │  (webview)    │                      │
+│  └───────────────┘                      │
 └─────────────────────────────────────────┘
 ```
 
@@ -208,7 +191,7 @@ ACK auto-detects which agents are installed. If multiple are present, a status b
 
 ## Privacy
 
-ACK reads and writes agent configuration files on your local machine. It does not collect telemetry, phone home, or transmit any data. Marketplace browsing fetches public registry files from GitHub.
+ACK works entirely on your local machine. It reads and writes agent configuration files on disk, and does not collect telemetry, phone home, or transmit any data over the network.
 
 ---
 

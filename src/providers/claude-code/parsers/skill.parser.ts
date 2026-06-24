@@ -1,0 +1,146 @@
+import * as path from 'path';
+import type { FileIOService } from '../../../services/fileio.service.js';
+import type { SchemaService } from '../../../services/schema.service.js';
+import { ToolType, ConfigScope, ToolStatus } from '../../../types/enums.js';
+import type { NormalizedTool } from '../../../types/config.js';
+import { extractFrontmatter } from '../../../utils/markdown.js';
+
+/**
+ * Parse a single skill directory and return a NormalizedTool.
+ *
+ * A skill directory must contain a SKILL.md file with YAML frontmatter.
+ * Incomplete skill directories (missing SKILL.md) are returned with
+ * Warning status rather than being silently skipped.
+ */
+export async function parseSkillDirectory(
+  fileIO: FileIOService,
+  schemaService: SchemaService,
+  skillDir: string,
+  scope: ConfigScope,
+): Promise<NormalizedTool> {
+  const dirName = path.basename(skillDir);
+  const legacyDisabled = dirName.endsWith('.disabled');
+  const cleanName = legacyDisabled ? dirName.replace(/\.disabled$/, '') : dirName;
+
+  // Current scheme: a disabled skill has its SKILL.md renamed to
+  // SKILL.md.disabled, so the agent's `SKILL.md` discovery skips the folder
+  // (renaming the directory alone does NOT hide it -- the agent still finds
+  // SKILL.md inside). Legacy scheme: the whole directory was renamed
+  // (*.disabled) with SKILL.md left inside -- still read here so such skills
+  // round-trip and can be re-enabled.
+  const enabledMdPath = path.join(skillDir, 'SKILL.md');
+  const disabledMdPath = path.join(skillDir, 'SKILL.md.disabled');
+
+  let skillMdPath = enabledMdPath;
+  let content = await fileIO.readTextFile(enabledMdPath);
+  let fileDisabled = false;
+  if (content === null) {
+    const disabledContent = await fileIO.readTextFile(disabledMdPath);
+    if (disabledContent !== null) {
+      content = disabledContent;
+      skillMdPath = disabledMdPath;
+      fileDisabled = true;
+    }
+  }
+  const isDisabled = legacyDisabled || fileDisabled;
+
+  if (content === null) {
+    return {
+      id: `skill:${scope}:${cleanName}`,
+      type: ToolType.Skill,
+      name: cleanName,
+      scope,
+      status: ToolStatus.Warning,
+      statusDetail: 'Missing SKILL.md',
+      source: { filePath: skillMdPath, isDirectory: true, directoryPath: skillDir },
+      metadata: {},
+    };
+  }
+
+  const frontmatterResult = extractFrontmatter(content);
+
+  if (!frontmatterResult) {
+    return {
+      id: `skill:${scope}:${cleanName}`,
+      type: ToolType.Skill,
+      name: cleanName,
+      scope,
+      status: ToolStatus.Warning,
+      statusDetail: 'No frontmatter in SKILL.md',
+      source: { filePath: skillMdPath, isDirectory: true, directoryPath: skillDir },
+      metadata: { body: content },
+    };
+  }
+
+  const validation = schemaService.validate('skill-frontmatter', frontmatterResult.frontmatter);
+
+  if (!validation.success) {
+    const message = validation.error.issues
+      .map((i) => i.message)
+      .join('; ');
+    return {
+      id: `skill:${scope}:${cleanName}`,
+      type: ToolType.Skill,
+      name: frontmatterResult.frontmatter['name'] ?? cleanName,
+      scope,
+      status: ToolStatus.Warning,
+      statusDetail: `Invalid frontmatter: ${message}`,
+      source: { filePath: skillMdPath, isDirectory: true, directoryPath: skillDir },
+      metadata: { body: frontmatterResult.body },
+    };
+  }
+
+  const data = validation.data as {
+    name: string;
+    description: string;
+    'allowed-tools'?: string;
+    model?: string;
+  };
+
+  return {
+    id: `skill:${scope}:${data.name}`,
+    type: ToolType.Skill,
+    name: data.name,
+    description: data.description,
+    scope,
+    status: isDisabled ? ToolStatus.Disabled : ToolStatus.Enabled,
+    source: { filePath: skillMdPath, isDirectory: true, directoryPath: skillDir },
+    metadata: {
+      allowedTools: data['allowed-tools'],
+      model: data.model,
+      body: frontmatterResult.body,
+    },
+  };
+}
+
+/**
+ * Parse all skill directories within a skills directory.
+ *
+ * Lists subdirectories, calls parseSkillDirectory for each.
+ * Returns empty array if the skills directory does not exist.
+ *
+ * Hidden (dot-prefixed) directories are skipped: a skill's directory name is
+ * its skill name and valid skill names never begin with a dot, so hidden dirs
+ * are never user skills. In particular Codex stores its bundled built-in skills
+ * in `~/.codex/skills/.system/` (skills nested one level deeper), which would
+ * otherwise surface as a spurious `.system` entry with no SKILL.md.
+ */
+export async function parseSkillsDir(
+  fileIO: FileIOService,
+  schemaService: SchemaService,
+  skillsDir: string,
+  scope: ConfigScope,
+): Promise<NormalizedTool[]> {
+  const subdirs = await fileIO.listDirectories(skillsDir);
+
+  const tools: NormalizedTool[] = [];
+
+  for (const subdir of subdirs) {
+    if (subdir.startsWith('.')) continue;
+    const skillDir = path.join(skillsDir, subdir);
+    const tool = await parseSkillDirectory(fileIO, schemaService, skillDir, scope);
+    tools.push(tool);
+  }
+
+  return tools;
+}

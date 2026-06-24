@@ -1,5 +1,5 @@
 import type { ConfigService } from '../../services/config.service.js';
-import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
+import type { ProviderRegistry } from '../../providers/provider.registry.js';
 import type { NormalizedTool } from '../../types/config.js';
 import { ToolType, ConfigScope } from '../../types/enums.js';
 import { APPLICABLE_SCOPES } from '../../services/tool-scope.utils.js';
@@ -96,10 +96,10 @@ export class ToolTreeModel {
    */
   async rebuild(
     configService: ConfigService,
-    registry: AdapterRegistry,
+    registry: ProviderRegistry,
   ): Promise<void> {
-    const adapter = registry.getActiveAdapter();
-    if (!adapter) {
+    const provider = registry.getActiveProvider();
+    if (!provider) {
       this.groups = [];
       return;
     }
@@ -107,7 +107,7 @@ export class ToolTreeModel {
     const newGroups: GroupNode[] = [];
 
     for (const type of GROUP_ORDER) {
-      if (!adapter.supportedToolTypes.has(type)) {
+      if (!provider.supportedToolTypes.has(type)) {
         continue;
       }
 
@@ -125,9 +125,8 @@ export class ToolTreeModel {
         }
       }
 
-      if (allTools.length === 0 && type !== ToolType.CustomPrompt) {
-        continue; // Hide empty groups (except Custom Prompts -- needs install button)
-      }
+      // Empty groups are intentionally kept: every supported group renders even
+      // with zero tools so its inline "+" install button stays reachable.
 
       // Mark effective entries for dual-scope tools
       const effectiveKeys = this.findEffectiveKeys(allTools);

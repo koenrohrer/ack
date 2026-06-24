@@ -1,8 +1,8 @@
 {
   "name": "ack",
   "displayName": "ACK - Agent Config Keeper",
-  "description": "Discover, install, configure, and switch between agent tool sets",
-  "version": "1.3.1",
+  "description": "Organize, configure, and switch between agent tool sets for Claude Code, Codex, and GitHub Copilot",
+  "version": "2.0.0",
   "publisher": "koenrohrer",
   "license": "MIT",
   "repository": {
@@ -16,6 +16,8 @@
   "keywords": [
     "claude",
     "claude-code",
+    "codex",
+    "copilot",
     "mcp",
     "agent",
     "tools",
@@ -56,8 +58,38 @@
     "viewsWelcome": [
       {
         "view": "ack.toolTree",
-        "contents": "No agent tools found.\n\nInstall a supported agent (Claude Code or Codex) to get started.\n[Claude Code](https://docs.anthropic.com/en/docs/claude-code) | [Codex](https://openai.com/index/codex/)",
-        "when": "ack.noTools"
+        "contents": "No agent tools found.\n\nInstall a supported agent to get started.\n[Claude Code](https://docs.anthropic.com/en/docs/claude-code) | [Codex](https://openai.com/index/codex/)",
+        "when": "ack.noAgents"
+      },
+      {
+        "view": "ack.toolTree",
+        "contents": "Multiple agents detected — choose one:",
+        "when": "ack.chooseAgent"
+      },
+      {
+        "view": "ack.toolTree",
+        "contents": "[Activate Claude Code](command:ack.activateAgent?%5B%22claude-code%22%5D)",
+        "when": "ack.chooseAgent && ack.agentDetected.claudecode"
+      },
+      {
+        "view": "ack.toolTree",
+        "contents": "[Activate Codex](command:ack.activateAgent?%5B%22codex%22%5D)",
+        "when": "ack.chooseAgent && ack.agentDetected.codex"
+      },
+      {
+        "view": "ack.toolTree",
+        "contents": "[Activate GitHub Copilot](command:ack.activateAgent?%5B%22copilot%22%5D)",
+        "when": "ack.chooseAgent && ack.agentDetected.copilot"
+      },
+      {
+        "view": "ack.toolTree",
+        "contents": "[Activate Pi](command:ack.activateAgent?%5B%22pi%22%5D)",
+        "when": "ack.chooseAgent && ack.agentDetected.pi"
+      },
+      {
+        "view": "ack.toolTree",
+        "contents": "[Activate Hermes](command:ack.activateAgent?%5B%22hermes%22%5D)",
+        "when": "ack.chooseAgent && ack.agentDetected.hermes"
       }
     ],
     "commands": [
@@ -97,11 +129,6 @@
         "icon": "$(add)"
       },
       {
-        "command": "ack.openMarketplace",
-        "title": "ACK: Open Marketplace",
-        "icon": "$(extensions)"
-      },
-      {
         "command": "ack.createProfile",
         "title": "ACK: Create Profile"
       },
@@ -120,7 +147,7 @@
       },
       {
         "command": "ack.saveAsProfile",
-        "title": "ACK: Save Current State as Profile"
+        "title": "ACK: Save Tools as Profile"
       },
       {
         "command": "ack.openConfigPanel",
@@ -153,6 +180,10 @@
         "icon": "$(arrow-swap)"
       },
       {
+        "command": "ack.activateAgent",
+        "title": "ACK: Activate Agent"
+      },
+      {
         "command": "ack.addMcpServer",
         "title": "Add MCP Server",
         "icon": "$(add)"
@@ -183,13 +214,8 @@
         "icon": "$(trash)"
       },
       {
-        "command": "ack.installPromptFromFile",
+        "command": "ack.installCustomPromptFile",
         "title": "ACK: Install Custom Prompt from File",
-        "icon": "$(file-add)"
-      },
-      {
-        "command": "ack.installInstructionFromFile",
-        "title": "ACK: Install Instruction or Prompt from File",
         "icon": "$(file-add)"
       },
       {
@@ -215,11 +241,6 @@
           "group": "navigation"
         },
         {
-          "command": "ack.openMarketplace",
-          "when": "view == ack.toolTree",
-          "group": "navigation"
-        },
-        {
           "command": "ack.switchAgent",
           "when": "view == ack.toolTree",
           "group": "navigation"
@@ -233,7 +254,7 @@
         },
         {
           "command": "ack.installTool",
-          "when": "view == ack.toolTree && viewItem =~ /^group:/",
+          "when": "view == ack.toolTree && (viewItem == group:skill || viewItem == group:command)",
           "group": "inline"
         },
         {
@@ -253,32 +274,32 @@
         },
         {
           "command": "ack.installTool",
-          "when": "view == ack.toolTree && viewItem =~ /^group:/",
+          "when": "view == ack.toolTree && (viewItem == group:skill || viewItem == group:command)",
           "group": "1_install"
         },
         {
           "command": "ack.addMcpServer",
-          "when": "view == ack.toolTree && viewItem == group:mcp_server && ack.activeAdapterId == codex",
+          "when": "view == ack.toolTree && viewItem == group:mcp_server",
           "group": "inline"
         },
         {
           "command": "ack.addMcpServer",
-          "when": "view == ack.toolTree && viewItem == group:mcp_server && ack.activeAdapterId == codex",
-          "group": "2_codex"
+          "when": "view == ack.toolTree && viewItem == group:mcp_server",
+          "group": "1_install"
         },
         {
           "command": "ack.toggleMcpTool",
-          "when": "view == ack.toolTree && viewItem =~ /^subtool:mcp-tool:/ && ack.activeAdapterId == codex",
+          "when": "view == ack.toolTree && viewItem =~ /^subtool:mcp-tool:/ && ack.cap.mcpServerToolToggle",
           "group": "inline"
         },
         {
           "command": "ack.addEnvVar",
-          "when": "view == ack.toolTree && viewItem =~ /^tool:mcp_server:/ && viewItem =~ /:(?:user|project)$/ && ack.activeAdapterId == codex",
+          "when": "view == ack.toolTree && viewItem =~ /^tool:mcp_server:/ && viewItem =~ /:(?:user|project)$/ && ack.cap.mcpEnvVars",
           "group": "2_envvar"
         },
         {
           "command": "ack.editEnvVar",
-          "when": "view == ack.toolTree && viewItem == subtool:env-var && ack.activeAdapterId == codex",
+          "when": "view == ack.toolTree && viewItem == subtool:env-var && ack.cap.mcpEnvVars",
           "group": "inline"
         },
         {
@@ -288,27 +309,17 @@
         },
         {
           "command": "ack.removeEnvVar",
-          "when": "view == ack.toolTree && viewItem == subtool:env-var && ack.activeAdapterId == codex",
+          "when": "view == ack.toolTree && viewItem == subtool:env-var && ack.cap.mcpEnvVars",
           "group": "3_envvar"
         },
         {
-          "command": "ack.installPromptFromFile",
-          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.activeAdapterId == codex",
+          "command": "ack.installCustomPromptFile",
+          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.cap.customPromptFileInstall",
           "group": "inline"
         },
         {
-          "command": "ack.installPromptFromFile",
-          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.activeAdapterId == codex",
-          "group": "1_install"
-        },
-        {
-          "command": "ack.installInstructionFromFile",
-          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.activeAdapterId == copilot",
-          "group": "inline"
-        },
-        {
-          "command": "ack.installInstructionFromFile",
-          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.activeAdapterId == copilot",
+          "command": "ack.installCustomPromptFile",
+          "when": "view == ack.toolTree && viewItem == group:custom_prompt && ack.cap.customPromptFileInstall",
           "group": "1_install"
         },
         {
@@ -345,56 +356,6 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically activate the associated profile when opening a workspace"
-        },
-        "ack.userRepositories": {
-          "type": "array",
-          "default": [],
-          "description": "GitHub repository URLs to scan for installable tools",
-          "items": {
-            "type": "string"
-          }
-        },
-        "ack.registrySources": {
-          "type": "array",
-          "default": [],
-          "description": "Additional tool registry sources (GitHub repositories). The default community registry is always included.",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "description": "Unique identifier for this source"
-              },
-              "name": {
-                "type": "string",
-                "description": "Display name"
-              },
-              "owner": {
-                "type": "string",
-                "description": "GitHub repository owner"
-              },
-              "repo": {
-                "type": "string",
-                "description": "GitHub repository name"
-              },
-              "branch": {
-                "type": "string",
-                "default": "main",
-                "description": "Git branch"
-              },
-              "indexPath": {
-                "type": "string",
-                "default": "registry.json",
-                "description": "Path to registry.json in repo"
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "owner",
-              "repo"
-            ]
-          }
         }
       }
     },
@@ -443,16 +404,18 @@
     "check-types:webview": "tsc -p tsconfig.webview.json --noEmit",
     "lint": "eslint src/",
     "test:unit": "vitest run",
+    "compile:integration": "tsc -p src/test/integration/tsconfig.json",
+    "pretest:integration": "npm run compile && npm run compile:integration",
     "test:integration": "vscode-test",
+    "test": "npm run check-types && npm run lint && npm run test:unit && npm run compile && npm run test:integration",
     "dev": "npm-run-all --parallel watch check-types",
     "package": "npm run compile:ext -- --minify && node esbuild.webview.mjs --minify",
     "vscode:prepublish": "npm run package"
   },
   "dependencies": {
     "@vscode-elements/elements": "^2.4.0",
-    "dompurify": "^3.3.1",
+    "js-yaml": "^4.1.0",
     "jsonc-parser": "^3.3.1",
-    "marked": "^17.0.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "smol-toml": "^1.6.0",
@@ -461,7 +424,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0",
-    "@types/dompurify": "^3.0.5",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
@@ -470,11 +433,14 @@
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.4.1",
     "@vscode/vsce": "^3.9.2",
-    "esbuild": "^0.24",
+    "esbuild": "^0.28",
     "eslint": "^9.0",
     "npm-run-all": "^4.1",
     "typescript": "^5.7",
     "typescript-eslint": "^8.0",
     "vitest": "^3.0"
+  },
+  "overrides": {
+    "serialize-javascript": "^7.0.6"
   }
 }

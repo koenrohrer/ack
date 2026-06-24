@@ -7,7 +7,7 @@ import {
   SkillFrontmatterSchema,
   CommandFrontmatterSchema,
   claudeCodeSchemas,
-} from '../../adapters/claude-code/schemas.js';
+} from '../../providers/claude-code/schemas.js';
 
 describe('Zod schemas', () => {
   // -- SettingsFileSchema --
@@ -68,7 +68,7 @@ describe('Zod schemas', () => {
     }
   });
 
-  it('rejects MCP server without required command field', () => {
+  it('rejects MCP server with neither command nor url', () => {
     const data = {
       mcpServers: {
         bad: {
@@ -79,6 +79,21 @@ describe('Zod schemas', () => {
 
     const result = McpFileSchema.safeParse(data);
     expect(result.success).toBe(false);
+  });
+
+  it('accepts an HTTP/SSE MCP server defined by url only (no command)', () => {
+    const data = {
+      mcpServers: {
+        remote: { type: 'http', url: 'https://mcp.example.com/mcp' },
+      },
+    };
+
+    const result = McpFileSchema.safeParse(data);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.mcpServers?.remote?.url).toBe('https://mcp.example.com/mcp');
+      expect(result.data.mcpServers?.remote?.command).toBeUndefined();
+    }
   });
 
   // -- ClaudeJsonSchema --

@@ -1,8 +1,16 @@
 .planning/
 node_modules/
 dist/
+out/
+.vscode-test/
 *.vsix
 .DS_Store
 .vscode/
 .claude/
 test-workspace/
+
+# Internal planning / QA docs (kept local; docs/qa/seed-sandbox.sh is referenced
+# by the integration fixtures and stays tracked)
+docs/plans/
+docs/qa/ack-2.0-manual-test-plan.md
+docs/qa/integration-coverage.md

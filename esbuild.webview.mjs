@@ -25,7 +25,6 @@ const sharedConfig = {
 
 /** @type {Array<{ entryPoints: string[]; outfile: string }>} */
 const entries = [
-  { entryPoints: ['src/views/marketplace/webview/index.tsx'], outfile: 'dist/webview.js' },
   { entryPoints: ['src/views/config-panel/webview/index.tsx'], outfile: 'dist/config-panel.js' },
 ];
 

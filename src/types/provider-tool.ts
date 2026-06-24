@@ -1,0 +1,57 @@
+import type { ToolType, ConfigScope } from './enums.js';
+import type { NormalizedTool } from './config.js';
+
+/**
+ * Tool read/write/toggle capability interface.
+ *
+ * Covers all CRUD + toggle operations for tools across scopes.
+ * Providers route by ToolType internally (MCP JSON field vs directory rename).
+ */
+export interface ToolCapability {
+  readonly supportedToolTypes: ReadonlySet<ToolType>;
+
+  /**
+   * Subset of supportedToolTypes that can be toggled (enabled/disabled).
+   * If undefined, ALL supportedToolTypes are assumed toggleable (backward compat
+   * for Claude Code and Codex providers which do not declare this property).
+   * Providers where only some types are toggleable MUST declare this property.
+   */
+  readonly toggleableToolTypes?: ReadonlySet<ToolType>;
+
+  /**
+   * Subset of supportedToolTypes that can be moved between user/project scopes.
+   * If undefined, ALL supportedToolTypes are assumed movable (backward compat
+   * for providers with complete writeTool implementations).
+   */
+  readonly movableToolTypes?: ReadonlySet<ToolType>;
+
+  /**
+   * Read all tools of a given type within a scope.
+   */
+  readTools(type: ToolType, scope: ConfigScope): Promise<NormalizedTool[]>;
+
+  /**
+   * Write (create or update) a tool within a scope.
+   */
+  writeTool(tool: NormalizedTool, scope: ConfigScope): Promise<void>;
+
+  /**
+   * Remove a tool from its scope.
+   *
+   * Accepts the full NormalizedTool so the provider has access to
+   * type, scope, source path, and metadata needed to locate and
+   * remove the tool's config entries or files.
+   */
+  removeTool(tool: NormalizedTool): Promise<void>;
+
+  /**
+   * Toggle a tool between enabled and disabled states.
+   *
+   * The provider handles type-aware routing internally:
+   * - MCP servers: set disabled field in config JSON
+   * - Hooks: set disabled field on matcher group in settings JSON
+   * - Skills: rename SKILL.md to SKILL.md.disabled (directory name unchanged)
+   * - Commands: rename file/directory with .disabled suffix
+   */
+  toggleTool(tool: NormalizedTool): Promise<void>;
+}

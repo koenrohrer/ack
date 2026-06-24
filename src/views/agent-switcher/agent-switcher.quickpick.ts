@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { AdapterRegistry } from '../../adapters/adapter.registry.js';
+import type { ProviderRegistry } from '../../providers/provider.registry.js';
 
 interface AgentQuickPickItem extends vscode.QuickPickItem {
   agentId: string;
@@ -14,26 +14,26 @@ interface AgentQuickPickItem extends vscode.QuickPickItem {
  * @returns The selected agent's ID, or undefined if the user cancelled.
  */
 export async function showAgentQuickPick(
-  registry: AdapterRegistry,
+  registry: ProviderRegistry,
   activeAgentId: string | undefined,
 ): Promise<string | undefined> {
   const items: AgentQuickPickItem[] = [];
 
-  for (const adapter of registry.getAllAdapters()) {
-    const detected = await adapter.detect();
+  for (const provider of registry.getAllProviders()) {
+    const detected = await provider.detect();
 
-    // Adapters that opt into hideWhenUndetected are omitted entirely while
+    // Providers that opt into hideWhenUndetected are omitted entirely while
     // undetected (e.g. Copilot must not appear unless its extension is present).
-    if (!detected && adapter.hideWhenUndetected) {
+    if (!detected && provider.hideWhenUndetected) {
       continue;
     }
 
-    const isActive = adapter.id === activeAgentId;
+    const isActive = provider.id === activeAgentId;
 
     items.push({
-      label: adapter.displayName,
+      label: provider.displayName,
       description: isActive ? '(active)' : detected ? 'detected' : 'not detected',
-      agentId: adapter.id,
+      agentId: provider.id,
     });
   }
 

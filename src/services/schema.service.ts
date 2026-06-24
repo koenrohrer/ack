@@ -21,7 +21,7 @@ export class SchemaService {
    * Register one or more named schemas.
    *
    * Typically called once during extension activation with
-   * the platform adapter's schema map.
+   * the platform provider's schema map.
    */
   registerSchemas(schemas: Record<string, z.ZodType>): void {
     for (const [key, schema] of Object.entries(schemas)) {

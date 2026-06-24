@@ -274,4 +274,90 @@ describe('FileIOService', () => {
 
     expect(await fs.readFile(dest, 'utf-8')).toBe('content');
   });
+
+  // -- readYamlFile --
+
+  it('reads an existing YAML file correctly', async () => {
+    const dir = await makeTmpDir();
+    const file = path.join(dir, 'config.yaml');
+    await fs.writeFile(file, 'name: test\nmcp_servers:\n  foo:\n    command: bar\n    args:\n      - a\n      - b\n');
+
+    const result = await svc.readYamlFile<{ name: string; mcp_servers: Record<string, unknown> }>(file);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual({
+        name: 'test',
+        mcp_servers: { foo: { command: 'bar', args: ['a', 'b'] } },
+      });
+    }
+  });
+
+  it('returns null data for a missing YAML file (not failure)', async () => {
+    const dir = await makeTmpDir();
+    const file = path.join(dir, 'nonexistent.yaml');
+
+    const result = await svc.readYamlFile(file);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toBeNull();
+    }
+  });
+
+  it('returns null data for an empty YAML document', async () => {
+    const dir = await makeTmpDir();
+    const file = path.join(dir, 'empty.yaml');
+    await fs.writeFile(file, '');
+
+    const result = await svc.readYamlFile(file);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toBeNull();
+    }
+  });
+
+  it('returns failure for malformed YAML', async () => {
+    const dir = await makeTmpDir();
+    const file = path.join(dir, 'bad.yaml');
+    // Unclosed flow mapping -- invalid YAML.
+    await fs.writeFile(file, 'foo: [1, 2\nbar: : :\n');
+
+    const result = await svc.readYamlFile(file);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.filePath).toBe(file);
+    }
+  });
+
+  // -- writeYamlFile --
+
+  it('writes YAML atomically and round-trips', async () => {
+    const dir = await makeTmpDir();
+    const file = path.join(dir, 'output.yaml');
+    const data = { mcp_servers: { foo: { command: 'bar', args: ['x'] } } };
+
+    await svc.writeYamlFile(file, data);
+
+    const result = await svc.readYamlFile<typeof data>(file);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual(data);
+    }
+  });
+
+  it('creates parent directories on YAML write', async () => {
+    const dir = await makeTmpDir();
+    const file = path.join(dir, 'deep', 'nested', 'file.yaml');
+
+    await svc.writeYamlFile(file, { nested: true });
+
+    const result = await svc.readYamlFile<{ nested: boolean }>(file);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual({ nested: true });
+    }
+  });
 });

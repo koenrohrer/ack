@@ -1,7 +1,7 @@
 import type { FileIOService } from './fileio.service.js';
 import type { BackupService } from './backup.service.js';
 import type { SchemaService } from './schema.service.js';
-import type { AdapterRegistry } from '../adapters/adapter.registry.js';
+import type { ProviderRegistry } from '../providers/provider.registry.js';
 import type { NormalizedTool, ScopeEntry } from '../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../types/enums.js';
 import { canonicalKey } from '../utils/tool-key.utils.js';
@@ -30,14 +30,14 @@ const SCOPE_PRECEDENCE: readonly ConfigScope[] = [
  * - Safe write pipeline: re-read -> mutate -> validate -> backup -> atomic write
  *
  * Never accesses the filesystem directly -- delegates to FileIOService and
- * platform adapters for all I/O.
+ * platform providers for all I/O.
  */
 export class ConfigService {
   constructor(
     private readonly fileIO: FileIOService,
     private readonly backup: BackupService,
     private readonly schemas: SchemaService,
-    private readonly registry: AdapterRegistry,
+    private readonly registry: ProviderRegistry,
   ) {}
 
   /**
@@ -48,8 +48,8 @@ export class ConfigService {
    * with `scopeEntries` tracking all scopes where the tool exists.
    */
   async readAllTools(type: ToolType): Promise<NormalizedTool[]> {
-    const adapter = this.registry.getActiveAdapter();
-    if (!adapter) {
+    const provider = this.registry.getActiveProvider();
+    if (!provider) {
       return [];
     }
 
@@ -58,7 +58,7 @@ export class ConfigService {
 
     for (const scope of scopes) {
       try {
-        const tools = await adapter.readTools(type, scope);
+        const tools = await provider.readTools(type, scope);
         allTools.push(...tools);
       } catch (err: unknown) {
         // Read errors produce an error-status tool instead of throwing.
@@ -87,12 +87,12 @@ export class ConfigService {
    * at a particular level before writing.
    */
   async readToolsByScope(type: ToolType, scope: ConfigScope): Promise<NormalizedTool[]> {
-    const adapter = this.registry.getActiveAdapter();
-    if (!adapter) {
+    const provider = this.registry.getActiveProvider();
+    if (!provider) {
       return [];
     }
 
-    return adapter.readTools(type, scope);
+    return provider.readTools(type, scope);
   }
 
   /**
@@ -190,7 +190,7 @@ export class ConfigService {
    * Sequence: re-read -> mutate -> validate -> backup -> atomic write.
    *
    * Identical to writeConfigFile but uses TOML read/write instead of JSON.
-   * Used by CodexAdapter for config.toml modifications.
+   * Used by CodexProvider for config.toml modifications.
    */
   async writeTomlConfigFile<T extends Record<string, unknown>>(
     filePath: string,
@@ -222,6 +222,46 @@ export class ConfigService {
 
     // 5. Atomic write
     await this.fileIO.writeTomlFile(filePath, updated);
+  }
+
+  /**
+   * Safe write pipeline for YAML config files.
+   *
+   * Sequence: re-read -> mutate -> validate -> backup -> atomic write.
+   *
+   * Identical to writeTomlConfigFile but uses YAML read/write instead of TOML.
+   * Used by HermesProvider for config.yaml modifications.
+   */
+  async writeYamlConfigFile<T extends Record<string, unknown>>(
+    filePath: string,
+    schemaKey: string,
+    mutate: (current: T) => T,
+  ): Promise<void> {
+    // 1. Re-read current content
+    const readResult = await this.fileIO.readYamlFile<T>(filePath);
+    let current: T;
+    if (readResult.success) {
+      current = (readResult.data ?? {}) as T;
+    } else {
+      throw new Error(`Failed to read ${filePath}: ${readResult.error}`);
+    }
+
+    // 2. Apply mutation
+    const updated = mutate(current);
+
+    // 3. Validate against schema
+    const validation = this.schemas.validate(schemaKey, updated);
+    if (!validation.success) {
+      throw new Error(
+        `Schema validation failed for ${schemaKey}: ${validation.error.message}`,
+      );
+    }
+
+    // 4. Backup current file
+    await this.backup.createBackup(filePath);
+
+    // 5. Atomic write
+    await this.fileIO.writeYamlFile(filePath, updated);
   }
 
   /**
