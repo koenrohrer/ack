@@ -419,7 +419,7 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "smol-toml": "^1.6.0",
-    "write-file-atomic": "^6.0",
+    "write-file-atomic": "^8.0",
     "zod": "^4.3"
   },
   "devDependencies": {
