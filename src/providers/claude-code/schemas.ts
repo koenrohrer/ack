@@ -64,7 +64,7 @@ export const SettingsFileSchema = z
  */
 export const McpServerSchema = z
   .object({
-    command: z.string(),
+    command: z.string().optional(),
     args: z.array(z.string()).optional().default([]),
     env: z.record(z.string(), z.string()).optional().default({}),
     type: z.enum(['stdio', 'http', 'sse']).optional(),
@@ -72,7 +72,14 @@ export const McpServerSchema = z
     url: z.string().optional(),
     disabled: z.boolean().optional(),
   })
-  .passthrough();
+  .passthrough()
+  // A server is either stdio (a `command`) or remote (a `url`). `command` is no
+  // longer unconditionally required, so HTTP/SSE servers ({ url }) both write and
+  // read without failing validation; a server with neither is still rejected.
+  .refine(
+    (server) => typeof server.command === 'string' || typeof server.url === 'string',
+    'MCP server must define a "command" (stdio) or a "url" (http/sse).',
+  );
 
 /**
  * MCP configuration file (.mcp.json / managed-mcp.json).
