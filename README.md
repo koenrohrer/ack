@@ -19,7 +19,7 @@
 
 Agent tools are scattered across JSON files in hidden directories. You add an MCP server here, a slash command there, tweak a permission somewhere else -- and none of it is visible until something breaks.
 
-**ACK puts it all in one place.** See, install, toggle, and organize every tool your AI agent uses -- without ever opening a config file. Switch between Claude Code, Codex, and GitHub Copilot with a single click.
+**ACK puts it all in one place.** See, install, toggle, and organize every tool your AI agent uses -- without ever opening a config file. Switch between Claude Code, Codex, GitHub Copilot, Pi, and Hermes with a single click.
 
 <!-- Screenshot: sidebar tool tree showing MCP servers, commands, and hooks -->
 <p align="center">
@@ -34,7 +34,7 @@ Agent tools are scattered across JSON files in hidden directories. You add an MC
 
 ### Switch between agents
 
-ACK detects your installed agents (Claude Code, Codex, and GitHub Copilot) and lets you switch between them from the status bar or command palette. The sidebar and config panel both context-switch to show the active agent's tools.
+ACK detects your installed agents -- Claude Code, Codex, GitHub Copilot, Pi, and Hermes -- and reconciles them on startup: it auto-activates a single agent, re-activates your last-used one when several are present, or shows a chooser when there's no history to go on. Switch anytime from the status bar or command palette; the sidebar and config panel both context-switch to show the active agent's tools.
 
 ### See everything at a glance
 
@@ -46,10 +46,11 @@ Click the **+** on a tool group in the sidebar to install from your own disk -- 
 
 ### Switch contexts with profiles
 
-Different projects need different tool setups. Profiles let you snapshot your current configuration and restore it later with a single command. Profiles are scoped per agent -- each agent maintains its own profile set. If no profiles exist yet, switching profiles prompts you to create one right away.
+Different projects need different tool setups. A profile is a **complete preset**: you pick exactly which tools it enables, and switching to it turns every other tool off. Profiles are scoped per agent -- each agent maintains its own set. If no profiles exist yet, switching profiles prompts you to create one right away.
 
-- **Save as profile** -- Freeze your current tools, servers, and settings into a named snapshot
-- **Import / Export** -- Share configurations as portable JSON files with agent compatibility metadata
+- **Pick your tools** -- Choose which skills, servers, and commands a profile enables; everything else is turned off when you switch to it
+- **Edit tools** -- Re-open the picker to add tools installed after the profile was created (it pre-checks what's already enabled)
+- **Import / Export** -- Share configurations as portable bundles with agent compatibility metadata
 - **Workspace association** -- Bind a profile to a workspace so it activates the moment you open it
 - **Clone to agent** -- Copy a profile from one agent to another, filtering to compatible tools
 
@@ -101,12 +102,12 @@ All commands are available from the command palette (`Ctrl+Shift+P` / `Cmd+Shift
 | Command | Description |
 |---------|-------------|
 | `ACK: Configure Agent` | Open the visual config panel |
-| `ACK: Switch Agent` | Switch the active agent (Claude Code / Codex / Copilot) |
+| `ACK: Switch Agent` | Switch the active agent (Claude Code / Codex / Copilot / Pi / Hermes) |
 | `ACK: Initialize Codex for This Project` | Scaffold `.codex/config.toml` and `skills/` |
 | `ACK: Re-detect Agents` | Re-run agent detection after installing a new CLI |
 | `ACK: Switch Profile` | Switch to a saved profile |
-| `ACK: Create Profile` | Create a new empty profile |
-| `ACK: Save Current State as Profile` | Snapshot current tools as a profile |
+| `ACK: Create Profile` | Create a profile by picking which tools to enable |
+| `ACK: Save Tools as Profile` | Pick tools to enable as a new profile |
 | `ACK: Edit Profile` | Modify an existing profile |
 | `ACK: Delete Profile` | Remove a profile |
 | `ACK: Export Profile` | Export a profile to a `.ackprofile` file |
@@ -137,8 +138,10 @@ Configure ACK behavior in VS Code settings (`Ctrl+,` / `Cmd+,`).
 | **Claude Code** | JSON (`~/.claude/`, `.claude/`) | MCP servers, slash commands, hooks, skills |
 | **Codex** | TOML (`~/.codex/`, `.codex/`) | MCP servers, skills, custom prompts |
 | **GitHub Copilot** | JSON + Markdown (`.vscode/`, `.github/`) | MCP servers, custom instructions, custom agents |
+| **Pi** | JSON (`~/.pi/agent/`, `.pi/`) | MCP servers, skills, custom prompts |
+| **Hermes** | YAML (`~/.hermes/`) | MCP servers, skills, `SOUL.md` identity |
 
-ACK auto-detects which agents are installed. If multiple are present, a status bar item lets you switch between them. Each agent has its own sidebar view and profile set.
+ACK auto-detects which agents are installed and activates one on startup -- your last-used agent when several are present. A status bar item lets you switch anytime, and each agent has its own sidebar view and profile set.
 
 ---
 
@@ -166,6 +169,14 @@ ACK auto-detects which agents are installed. If multiple are present, a status b
 │  │  ┌────────────────────────────┐   │  │
 │  │  │  Copilot Provider          │   │  │
 │  │  │  JSON + MD parsers/writers │   │  │
+│  │  └────────────────────────────┘   │  │
+│  │  ┌────────────────────────────┐   │  │
+│  │  │  Pi Provider               │   │  │
+│  │  │  JSON parsers / writers    │   │  │
+│  │  └────────────────────────────┘   │  │
+│  │  ┌────────────────────────────┐   │  │
+│  │  │  Hermes Provider           │   │  │
+│  │  │  YAML parsers / writers    │   │  │
 │  │  └────────────────────────────┘   │  │
 │  └───────────────────────────────────┘  │
 │                                         │
