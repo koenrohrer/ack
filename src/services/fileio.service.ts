@@ -25,6 +25,28 @@ async function loadToml(): Promise<TomlModule> {
 }
 
 /**
+ * Lazy-loaded js-yaml load and dump functions.
+ *
+ * Same rationale as smol-toml above: we dynamic-import and define our own
+ * minimal interface to avoid ESM/CJS type-import friction (js-yaml ships no
+ * bundled types and `@types/js-yaml` is not a dependency). js-yaml's ESM build
+ * exposes `load`/`dump` on the namespace; the `default ?? mod` fallback covers
+ * the CJS-interop shape esbuild may produce.
+ */
+interface YamlModule {
+  load: (input: string) => unknown;
+  dump: (input: Record<string, unknown>) => string;
+}
+let _yaml: YamlModule | undefined;
+async function loadYaml(): Promise<YamlModule> {
+  if (!_yaml) {
+    const mod = await import('js-yaml') as unknown as YamlModule & { default?: YamlModule };
+    _yaml = (mod.default ?? mod) as YamlModule;
+  }
+  return _yaml;
+}
+
+/**
  * Service for safe filesystem operations.
  *
  * Reads JSON files with lenient parsing (comments, trailing commas).
@@ -261,6 +283,57 @@ export class FileIOService {
     await fs.mkdir(dir, { recursive: true });
     const { stringify } = await loadToml();
     const content = stringify(data) + '\n';
+    await writeFileAtomic(filePath, content, 'utf-8');
+  }
+
+  /**
+   * Read and parse a YAML file.
+   *
+   * Returns `{ success: true, data: null }` when the file does not exist --
+   * a missing file is a valid state (config not yet created).
+   * Returns `{ success: false, error, filePath }` for permission errors or
+   * malformed YAML that cannot be parsed.
+   *
+   * Mirrors {@link readTomlFile}; used by HermesProvider for config.yaml.
+   */
+  async readYamlFile<T>(filePath: string): Promise<ConfigReadResult<T | null>> {
+    let content: string;
+
+    try {
+      content = await fs.readFile(filePath, 'utf-8');
+    } catch (err: unknown) {
+      if (isNodeError(err) && err.code === 'ENOENT') {
+        return { success: true, data: null };
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      return { success: false, error: message, filePath };
+    }
+
+    try {
+      const { load } = await loadYaml();
+      const parsed = load(content);
+      // An empty YAML document parses to undefined -- treat as an empty config.
+      return { success: true, data: (parsed ?? null) as T };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { success: false, error: message, filePath };
+    }
+  }
+
+  /**
+   * Write data to a YAML file atomically.
+   *
+   * Creates parent directories if they do not exist.
+   * Serializes using js-yaml's dump with trailing newline.
+   * Throws on write failure -- callers are expected to handle errors.
+   *
+   * Mirrors {@link writeTomlFile}.
+   */
+  async writeYamlFile(filePath: string, data: Record<string, unknown>): Promise<void> {
+    const dir = path.dirname(filePath);
+    await fs.mkdir(dir, { recursive: true });
+    const { dump } = await loadYaml();
+    const content = dump(data);
     await writeFileAtomic(filePath, content, 'utf-8');
   }
 }

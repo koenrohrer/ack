@@ -9,7 +9,8 @@ import type { ConfigService } from '../../services/config.service.js';
 import type { WorkspaceProfileService } from '../../services/workspace-profile.service.js';
 import type { ToolTreeProvider } from './tool-tree.provider.js';
 import type { ProfileToolEntry } from '../../services/profile.types.js';
-import { ToolType, ConfigScope } from '../../types/enums.js';
+import type { NormalizedTool } from '../../types/config.js';
+import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { canonicalKey, extractToolTypeFromKey } from '../../utils/tool-key.utils.js';
 import type { ProviderRegistry } from '../../providers/provider.registry.js';
 
@@ -21,6 +22,86 @@ import type { ProviderRegistry } from '../../providers/provider.registry.js';
  */
 interface ProfileQuickPickItem extends vscode.QuickPickItem {
   profile: Profile | null;
+}
+
+/**
+ * Multi-select QuickPick item for one tool when building a profile.
+ *
+ * `key` is the tool's canonical key; it is absent on separator rows (which are
+ * never selectable, so they never appear in the picked result).
+ */
+interface ToolPickItem extends vscode.QuickPickItem {
+  key?: string;
+}
+
+/** Tool types offered in the profile tool picker, in display order. */
+const PROFILE_TOOL_TYPES: ReadonlyArray<{ type: ToolType; label: string }> = [
+  { type: ToolType.Skill, label: 'Skills' },
+  { type: ToolType.McpServer, label: 'MCP Servers' },
+  { type: ToolType.Command, label: 'Commands' },
+  { type: ToolType.Hook, label: 'Hooks' },
+  { type: ToolType.CustomPrompt, label: 'Custom Prompts' },
+];
+
+/**
+ * Read every selectable (non-managed) tool for the active agent and build a
+ * grouped multi-select item list — one separator per non-empty tool-type group.
+ *
+ * Items whose canonical key is in `preChecked` start selected (used by the
+ * edit flow to pre-tick the profile's currently-enabled tools; the create flow
+ * passes nothing for a blank slate).
+ *
+ * Returns both the QuickPick `items` and the flat `tools` list so the caller
+ * can record a profile entry for EVERY tool (enabling the picked ones and
+ * disabling the rest — a complete-preset profile).
+ */
+async function buildToolPicker(
+  configService: ConfigService,
+  preChecked: ReadonlySet<string> = new Set(),
+): Promise<{ items: ToolPickItem[]; tools: NormalizedTool[] }> {
+  const items: ToolPickItem[] = [];
+  const tools: NormalizedTool[] = [];
+
+  for (const { type, label } of PROFILE_TOOL_TYPES) {
+    const groupTools = (await configService.readAllTools(type)).filter(
+      (t) => t.scope !== ConfigScope.Managed,
+    );
+    if (groupTools.length === 0) {
+      continue;
+    }
+    items.push({ label, kind: vscode.QuickPickItemKind.Separator });
+    for (const tool of groupTools) {
+      const key = canonicalKey(tool);
+      tools.push(tool);
+      items.push({
+        label: tool.name,
+        description: `${tool.scope}${tool.status === ToolStatus.Enabled ? ' · on' : ''}`,
+        key,
+        picked: preChecked.has(key),
+      });
+    }
+  }
+
+  return { items, tools };
+}
+
+/**
+ * Turn a multi-select result into complete-preset profile entries: every
+ * available tool gets an entry, enabled iff it was picked. Shared by the
+ * create and edit-tools flows so both produce the same profile shape (a tool
+ * added after creation is captured the next time the profile is edited).
+ */
+function buildPresetEntries(
+  tools: NormalizedTool[],
+  picked: readonly ToolPickItem[],
+): ProfileToolEntry[] {
+  const pickedKeys = new Set(
+    picked.map((i) => i.key).filter((k): k is string => k !== undefined),
+  );
+  return tools.map((tool) => {
+    const key = canonicalKey(tool);
+    return { key, enabled: pickedKeys.has(key) };
+  });
 }
 
 /**
@@ -48,7 +129,7 @@ async function reconcileAndBuildItem(
  * Register all profile management command handlers.
  *
  * Commands:
- * - createProfile: Snapshot current tool states into a new named profile
+ * - createProfile: Pick which tools to enable, save them as a named profile
  * - switchProfile: Diff-based switch with progress notification
  * - editProfile: Rename, edit tools, or delete an existing profile
  * - deleteProfile: Delete with confirmation
@@ -88,9 +169,35 @@ export function registerProfileCommands(
         return;
       }
 
-      const profile = await profileService.createProfile(trimmedName);
+      // Let the user pick which tools the profile enables. Every available tool
+      // gets an entry: picked -> enabled, unpicked -> disabled, so switching to
+      // the profile applies a complete preset.
+      const { items, tools } = await buildToolPicker(configService);
+      if (tools.length === 0) {
+        vscode.window.showInformationMessage(
+          'No tools available for the active agent. Add tools first, then create a profile.',
+        );
+        return;
+      }
+
+      const picked = await vscode.window.showQuickPick(items, {
+        canPickMany: true,
+        title: `Create Profile: ${trimmedName}`,
+        placeHolder: 'Select the tools to enable — unselected tools are turned off when you switch to this profile',
+        matchOnDescription: true,
+      });
+
+      // Cancelled (Esc) -> create nothing. An empty (but confirmed) selection is
+      // a valid "everything off" profile, so only undefined aborts.
+      if (picked === undefined) {
+        return;
+      }
+
+      const entries = buildPresetEntries(tools, picked);
+      const profile = await profileService.createProfile(trimmedName, entries);
+      const enabledCount = entries.filter((e) => e.enabled).length;
       vscode.window.showInformationMessage(
-        `Profile "${trimmedName}" created with ${profile.tools.length} tools`,
+        `Profile "${profile.name}" created — ${enabledCount} of ${entries.length} tools enabled.`,
       );
     },
   );
@@ -372,7 +479,7 @@ export function registerProfileCommands(
   );
 
   // ---------------------------------------------------------------------------
-  // Save Current State as Profile (delegates to createProfile)
+  // Save Tools as Profile (discoverability alias; delegates to createProfile)
   // ---------------------------------------------------------------------------
 
   const saveAsCmd = vscode.commands.registerCommand(
@@ -912,82 +1019,48 @@ export function registerProfileCommands(
 // ---------------------------------------------------------------------------
 
 /**
- * Present a multi-select QuickPick for editing which tools are in a profile.
+ * Present a multi-select QuickPick for editing which tools a profile enables.
  *
- * Shows all non-managed tools in the current environment. Tools that are
- * in the profile with `enabled: true` are pre-selected. After selection,
- * computes the updated tool entries: selected tools become enabled, tools
- * that were in the profile but deselected become disabled, and newly
- * picked tools are added as enabled.
+ * Uses the same grouped picker as profile creation, pre-ticking the tools that
+ * are currently enabled in the profile. Because the picker lists EVERY current
+ * tool (across all types, all non-managed scopes), this is also how a profile
+ * picks up tools that were added after it was created — they appear here,
+ * unchecked, ready to include. On confirm the profile is rewritten as a
+ * complete preset: ticked tools enabled, the rest disabled.
  */
 async function editProfileTools(
   profile: Profile,
   profileService: ProfileService,
   configService: ConfigService,
 ): Promise<void> {
-  // Read all current tools
-  const allTools = [];
-  for (const type of [ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command]) {
-    const tools = await configService.readAllTools(type);
-    allTools.push(...tools);
+  const enabledKeys = new Set(
+    profile.tools.filter((e) => e.enabled).map((e) => e.key),
+  );
+
+  const { items, tools } = await buildToolPicker(configService, enabledKeys);
+  if (tools.length === 0) {
+    vscode.window.showInformationMessage(
+      'No tools available for the active agent to put in this profile.',
+    );
+    return;
   }
 
-  // Filter out managed tools
-  const editableTools = allTools.filter((t) => t.scope !== ConfigScope.Managed);
-
-  // Build a set of profile keys that are enabled for pre-selection
-  const profileKeyMap = new Map(profile.tools.map((e) => [e.key, e.enabled]));
-
-  // Build QuickPick items
-  interface ToolQuickPickItem extends vscode.QuickPickItem {
-    toolKey: string;
-  }
-
-  const items: ToolQuickPickItem[] = editableTools.map((tool) => {
-    const key = canonicalKey(tool);
-    const isInProfile = profileKeyMap.has(key);
-    const isEnabled = profileKeyMap.get(key) === true;
-
-    return {
-      label: tool.name,
-      description: `[${tool.type}] ${tool.scope}`,
-      picked: isEnabled,
-      toolKey: key,
-      detail: isInProfile ? undefined : '(not in profile)',
-    };
-  });
-
-  const selected = await vscode.window.showQuickPick(items, {
+  const picked = await vscode.window.showQuickPick(items, {
     canPickMany: true,
-    placeHolder: `Select tools to enable in "${profile.name}"`,
+    title: `Edit Tools: ${profile.name}`,
+    placeHolder: 'Checked tools are enabled; unchecked tools are turned off when you switch to this profile',
+    matchOnDescription: true,
   });
 
-  if (!selected) {
-    return; // Cancelled
+  if (picked === undefined) {
+    return; // Cancelled — leave the profile unchanged
   }
 
-  // Compute new tool entries
-  const selectedKeys = new Set(selected.map((s) => s.toolKey));
-  const allItemKeys = new Set(items.map((i) => i.toolKey));
-  const newEntries: ProfileToolEntry[] = [];
+  const entries = buildPresetEntries(tools, picked);
+  await profileService.updateProfile(profile.id, { tools: entries });
 
-  // For every tool key that was either in the original profile or shown in the picker:
-  for (const key of allItemKeys) {
-    const wasInProfile = profileKeyMap.has(key);
-    const isSelected = selectedKeys.has(key);
-
-    if (isSelected) {
-      // Tool is selected -- include as enabled
-      newEntries.push({ key, enabled: true });
-    } else if (wasInProfile) {
-      // Tool was in profile but deselected -- include as disabled
-      newEntries.push({ key, enabled: false });
-    }
-    // If not in profile and not selected, don't add (keep profile lean)
-  }
-
-  await profileService.updateProfile(profile.id, { tools: newEntries });
+  const enabledCount = entries.filter((e) => e.enabled).length;
   vscode.window.showInformationMessage(
-    `Profile "${profile.name}" updated: ${newEntries.filter((e) => e.enabled).length} enabled, ${newEntries.filter((e) => !e.enabled).length} disabled`,
+    `Profile "${profile.name}" updated — ${enabledCount} of ${entries.length} tools enabled.`,
   );
 }

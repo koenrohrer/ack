@@ -118,6 +118,12 @@ export async function parseSkillDirectory(
  *
  * Lists subdirectories, calls parseSkillDirectory for each.
  * Returns empty array if the skills directory does not exist.
+ *
+ * Hidden (dot-prefixed) directories are skipped: a skill's directory name is
+ * its skill name and valid skill names never begin with a dot, so hidden dirs
+ * are never user skills. In particular Codex stores its bundled built-in skills
+ * in `~/.codex/skills/.system/` (skills nested one level deeper), which would
+ * otherwise surface as a spurious `.system` entry with no SKILL.md.
  */
 export async function parseSkillsDir(
   fileIO: FileIOService,
@@ -130,6 +136,7 @@ export async function parseSkillsDir(
   const tools: NormalizedTool[] = [];
 
   for (const subdir of subdirs) {
+    if (subdir.startsWith('.')) continue;
     const skillDir = path.join(skillsDir, subdir);
     const tool = await parseSkillDirectory(fileIO, schemaService, skillDir, scope);
     tools.push(tool);

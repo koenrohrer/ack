@@ -585,18 +585,17 @@ export class ConfigPanel {
       const containerKey = provider?.getMcpContainerKey() ?? 'mcpServers';
       const disableField = provider?.getMcpDisableField();
 
-      // Codex stores MCP servers in config.toml; all other providers use JSON.
-      if (provider?.getMcpConfigFormat() === 'toml') {
-        await this.configService.writeTomlConfigFile(
-          filePath,
-          schemaKey,
-          (current: Record<string, unknown>) =>
-            applyMcpEnvUpdate(current, containerKey, disableField, serverName, env, disabled),
-        );
+      // Codex stores MCP servers in config.toml; Hermes in config.yaml; the
+      // rest use JSON. Route to the matching write pipeline by format.
+      const mcpFormat = provider?.getMcpConfigFormat();
+      const mutate = (current: Record<string, unknown>) =>
+        applyMcpEnvUpdate(current, containerKey, disableField, serverName, env, disabled);
+      if (mcpFormat === 'toml') {
+        await this.configService.writeTomlConfigFile(filePath, schemaKey, mutate);
+      } else if (mcpFormat === 'yaml') {
+        await this.configService.writeYamlConfigFile(filePath, schemaKey, mutate);
       } else {
-        await this.configService.writeConfigFile(filePath, schemaKey, (current: Record<string, unknown>) =>
-          applyMcpEnvUpdate(current, containerKey, disableField, serverName, env, disabled),
-        );
+        await this.configService.writeConfigFile(filePath, schemaKey, mutate);
       }
 
       this.outputChannel.appendLine(`[ConfigPanel] Updated MCP env for "${serverName}" (${scope})`);

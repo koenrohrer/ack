@@ -225,6 +225,46 @@ export class ConfigService {
   }
 
   /**
+   * Safe write pipeline for YAML config files.
+   *
+   * Sequence: re-read -> mutate -> validate -> backup -> atomic write.
+   *
+   * Identical to writeTomlConfigFile but uses YAML read/write instead of TOML.
+   * Used by HermesProvider for config.yaml modifications.
+   */
+  async writeYamlConfigFile<T extends Record<string, unknown>>(
+    filePath: string,
+    schemaKey: string,
+    mutate: (current: T) => T,
+  ): Promise<void> {
+    // 1. Re-read current content
+    const readResult = await this.fileIO.readYamlFile<T>(filePath);
+    let current: T;
+    if (readResult.success) {
+      current = (readResult.data ?? {}) as T;
+    } else {
+      throw new Error(`Failed to read ${filePath}: ${readResult.error}`);
+    }
+
+    // 2. Apply mutation
+    const updated = mutate(current);
+
+    // 3. Validate against schema
+    const validation = this.schemas.validate(schemaKey, updated);
+    if (!validation.success) {
+      throw new Error(
+        `Schema validation failed for ${schemaKey}: ${validation.error.message}`,
+      );
+    }
+
+    // 4. Backup current file
+    await this.backup.createBackup(filePath);
+
+    // 5. Atomic write
+    await this.fileIO.writeYamlFile(filePath, updated);
+  }
+
+  /**
    * Safe write pipeline for text config files (skills, commands).
    *
    * Sequence: backup -> atomic write.

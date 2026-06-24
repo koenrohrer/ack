@@ -13,6 +13,10 @@ import { CodexProvider } from './providers/codex/codex.provider.js';
 import { codexSchemas } from './providers/codex/schemas.js';
 import { CopilotProvider } from './providers/copilot/copilot.provider.js';
 import { copilotSchemas } from './providers/copilot/schemas.js';
+import { PiProvider } from './providers/pi/pi.provider.js';
+import { piSchemas } from './providers/pi/schemas.js';
+import { HermesProvider } from './providers/hermes/hermes.provider.js';
+import { hermesSchemas } from './providers/hermes/schemas.js';
 import { ToolTreeProvider } from './views/tool-tree/tool-tree.provider.js';
 import { registerToolTreeCommands } from './views/tool-tree/tool-tree.commands.js';
 import { registerManagementCommands } from './views/tool-tree/tool-tree.management.js';
@@ -78,6 +82,8 @@ export function activate(context: vscode.ExtensionContext): void {
   schemas.registerSchemas(claudeCodeSchemas);
   schemas.registerSchemas(codexSchemas);
   schemas.registerSchemas(copilotSchemas);
+  schemas.registerSchemas(piSchemas);
+  schemas.registerSchemas(hermesSchemas);
 
   // 4. Workspace root (undefined when no folder is open)
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -91,6 +97,9 @@ export function activate(context: vscode.ExtensionContext): void {
     new ClaudeCodeProvider(fileIO, schemas, workspaceRoot),
     new CodexProvider(fileIO, schemas, workspaceRoot),
     new CopilotProvider(fileIO, schemas, workspaceRoot, context),
+    new PiProvider(fileIO, schemas, workspaceRoot),
+    // Hermes keeps all config in a single user/managed home dir -- no project scope.
+    new HermesProvider(fileIO, schemas),
   ];
   for (const provider of providers) {
     registry.register(provider);

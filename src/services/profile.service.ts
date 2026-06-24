@@ -160,23 +160,51 @@ export class ProfileService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Create a new profile by snapshotting the current tool inventory.
+   * Create a new profile.
    *
-   * Reads all tools across every type (Skill, McpServer, Hook, Command),
-   * filters out managed-scope tools, and maps each to a ProfileToolEntry
-   * with its canonical key and current enabled/disabled state.
+   * When `entries` is provided (the curated "pick your tools" flow), the
+   * profile records exactly those entries — selected tools enabled, the rest
+   * disabled — so switching to it applies a complete preset. When omitted, the
+   * profile snapshots the current tool inventory (each tool's present state).
    *
    * The new profile is automatically associated with the active agent.
    * Throws if no agent is active (cannot create profile without agent context).
    */
-  async createProfile(name: string): Promise<Profile> {
+  async createProfile(name: string, entries?: ProfileToolEntry[]): Promise<Profile> {
     const agentId = this.getActiveAgentId();
     if (!agentId) {
       throw new Error('Cannot create profile: no agent is active');
     }
 
-    const entries: ProfileToolEntry[] = [];
+    const tools = entries ?? (await this.snapshotCurrentEntries());
 
+    const now = new Date().toISOString();
+    const profile: Profile = {
+      id: crypto.randomUUID(),
+      name,
+      agentId,
+      tools,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const store = this.loadStore();
+    store.profiles.push(profile);
+    await this.saveStore(store);
+
+    return profile;
+  }
+
+  /**
+   * Snapshot the current tool inventory into profile entries.
+   *
+   * Reads all tools across every type, filters out managed-scope tools, and
+   * maps each to a ProfileToolEntry with its current enabled/disabled state.
+   * Used by {@link createProfile} when the caller does not supply an explicit
+   * tool selection.
+   */
+  private async snapshotCurrentEntries(): Promise<ProfileToolEntry[]> {
+    const entries: ProfileToolEntry[] = [];
     // Include all tool types (Skills, MCP Servers, Hooks, Commands, Custom Prompts)
     for (const type of [ToolType.Skill, ToolType.McpServer, ToolType.Hook, ToolType.Command, ToolType.CustomPrompt]) {
       const tools = await this.configService.readAllTools(type);
@@ -190,22 +218,7 @@ export class ProfileService {
         });
       }
     }
-
-    const now = new Date().toISOString();
-    const profile: Profile = {
-      id: crypto.randomUUID(),
-      name,
-      agentId,
-      tools: entries,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    const store = this.loadStore();
-    store.profiles.push(profile);
-    await this.saveStore(store);
-
-    return profile;
+    return entries;
   }
 
   /**

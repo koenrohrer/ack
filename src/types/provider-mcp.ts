@@ -53,10 +53,10 @@ export interface McpCapability {
    * The on-disk format of the MCP config file.
    *
    * Codex stores MCP servers in `config.toml` -> `'toml'`; Claude Code and
-   * Copilot use JSON files -> `'json'`. Lets callers pick the right reader/
-   * writer without branching on provider id.
+   * Copilot use JSON files -> `'json'`; Hermes uses `config.yaml` -> `'yaml'`.
+   * Lets callers pick the right reader/writer without branching on provider id.
    */
-  getMcpConfigFormat(): 'toml' | 'json';
+  getMcpConfigFormat(): 'toml' | 'json' | 'yaml';
 
   // ---------------------------------------------------------------------------
   // Optional capability methods (present iff the matching capabilities flag set)

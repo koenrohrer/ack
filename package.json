@@ -80,6 +80,16 @@
         "view": "ack.toolTree",
         "contents": "[Activate GitHub Copilot](command:ack.activateAgent?%5B%22copilot%22%5D)",
         "when": "ack.chooseAgent && ack.agentDetected.copilot"
+      },
+      {
+        "view": "ack.toolTree",
+        "contents": "[Activate Pi](command:ack.activateAgent?%5B%22pi%22%5D)",
+        "when": "ack.chooseAgent && ack.agentDetected.pi"
+      },
+      {
+        "view": "ack.toolTree",
+        "contents": "[Activate Hermes](command:ack.activateAgent?%5B%22hermes%22%5D)",
+        "when": "ack.chooseAgent && ack.agentDetected.hermes"
       }
     ],
     "commands": [
@@ -137,7 +147,7 @@
       },
       {
         "command": "ack.saveAsProfile",
-        "title": "ACK: Save Current State as Profile"
+        "title": "ACK: Save Tools as Profile"
       },
       {
         "command": "ack.openConfigPanel",
@@ -401,6 +411,7 @@
   },
   "dependencies": {
     "@vscode-elements/elements": "^2.4.0",
+    "js-yaml": "^4.1.0",
     "jsonc-parser": "^3.3.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -410,6 +421,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",

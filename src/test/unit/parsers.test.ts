@@ -423,6 +423,41 @@ Body.`);
     const tools = await parseSkillsDir(fileIO, schemaService, path.join(dir, 'missing'), ConfigScope.User);
     expect(tools).toEqual([]);
   });
+
+  it('skips hidden dot-directories (e.g. Codex .system bundle)', async () => {
+    const dir = await makeTmpDir();
+    const skillsDir = path.join(dir, 'skills');
+    await fs.mkdir(skillsDir);
+
+    // Real user skill
+    const skill1 = path.join(skillsDir, 'skill-1');
+    await fs.mkdir(skill1);
+    await fs.writeFile(path.join(skill1, 'SKILL.md'), `---
+name: Skill One
+description: First skill
+---
+
+Body.`);
+
+    // Codex's bundled system-skills container: a hidden dir with skills nested
+    // one level deeper and no SKILL.md at its top level.
+    const system = path.join(skillsDir, '.system');
+    await fs.mkdir(system);
+    const nested = path.join(system, 'imagegen');
+    await fs.mkdir(nested);
+    await fs.writeFile(path.join(nested, 'SKILL.md'), `---
+name: imagegen
+description: A bundled skill
+---
+
+Body.`);
+
+    const tools = await parseSkillsDir(fileIO, schemaService, skillsDir, ConfigScope.User);
+
+    expect(tools).toHaveLength(1);
+    expect(tools[0].name).toBe('Skill One');
+    expect(tools.find(t => t.name === '.system')).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
