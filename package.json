@@ -413,7 +413,7 @@
     "vscode:prepublish": "npm run package"
   },
   "dependencies": {
-    "@vscode-elements/elements": "^2.4.0",
+    "@vscode-elements/elements": "^2.5.1",
     "js-yaml": "^4.1.0",
     "jsonc-parser": "^3.3.1",
     "react": "^19.2.4",
