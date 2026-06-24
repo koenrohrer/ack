@@ -1,6 +1,8 @@
 .planning/
 node_modules/
 dist/
+out/
+.vscode-test/
 *.vsix
 .DS_Store
 .vscode/

@@ -404,7 +404,10 @@
     "check-types:webview": "tsc -p tsconfig.webview.json --noEmit",
     "lint": "eslint src/",
     "test:unit": "vitest run",
+    "compile:integration": "tsc -p src/test/integration/tsconfig.json",
+    "pretest:integration": "npm run compile && npm run compile:integration",
     "test:integration": "vscode-test",
+    "test": "npm run check-types && npm run lint && npm run test:unit && npm run compile && npm run test:integration",
     "dev": "npm-run-all --parallel watch check-types",
     "package": "npm run compile:ext -- --minify && node esbuild.webview.mjs --minify",
     "vscode:prepublish": "npm run package"

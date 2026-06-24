@@ -1,0 +1,22 @@
+{
+  // Dedicated build for the VS Code extension-host (Mocha) integration tests.
+  // These run inside Electron and are `require`d by the VS Code test runner, so
+  // they must emit CommonJS to out/test/integration/ -- NOT the esbuild bundle
+  // (dist/) and NOT the vitest unit suite.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": ["ES2022"],
+    "outDir": "../../../out/test/integration",
+    "rootDir": ".",
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "types": ["node", "mocha"]
+  },
+  "include": ["**/*.ts"]
+}
