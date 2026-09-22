@@ -142,6 +142,10 @@ async function findMdFiles(dir: string): Promise<string[]> {
     return [];
   }
 
+  // readdir order is unspecified. Sort by name so `x.md` precedes
+  // `x.md.disabled`: both parse to one key, and the first one wins.
+  entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
