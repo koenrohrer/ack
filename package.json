@@ -129,6 +129,11 @@
         "icon": "$(add)"
       },
       {
+        "command": "ack.installPlugin",
+        "title": "ACK: Install Plugin...",
+        "icon": "$(package)"
+      },
+      {
         "command": "ack.createProfile",
         "title": "ACK: Create Profile"
       },
@@ -285,6 +290,16 @@
         {
           "command": "ack.addMcpServer",
           "when": "view == ack.toolTree && viewItem == group:mcp_server",
+          "group": "1_install"
+        },
+        {
+          "command": "ack.installPlugin",
+          "when": "view == ack.toolTree && (viewItem == group:skill || viewItem == group:mcp_server)",
+          "group": "inline"
+        },
+        {
+          "command": "ack.installPlugin",
+          "when": "view == ack.toolTree && (viewItem == group:skill || viewItem == group:mcp_server)",
           "group": "1_install"
         },
         {

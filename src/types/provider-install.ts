@@ -27,11 +27,15 @@ export interface InstallCapability {
    *
    * Creates the target directory at getSkillsDir(scope)/skillName
    * and writes each file. Overwrites existing files.
+   *
+   * A file's `content` is a `string` for text and a `Uint8Array` for bytes: a
+   * skill read from a plugin package (`readSkillTree`) may carry binary assets,
+   * and those must reach disk unchanged rather than UTF-8 decoded into U+FFFD.
    */
   installSkill(
     scope: ConfigScope,
     skillName: string,
-    files: Array<{ name: string; content: string }>,
+    files: Array<{ name: string; content: string | Uint8Array }>,
   ): Promise<void>;
 
   /**

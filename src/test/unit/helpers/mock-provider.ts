@@ -1,6 +1,7 @@
 import { ToolType, ConfigScope } from '../../../types/enums.js';
 import type { AgentProvider } from '../../../types/provider.js';
 import type { NormalizedTool } from '../../../types/config.js';
+import type { McpTransportSupport } from '../../../types/provider-mcp.js';
 
 /**
  * Shared, fully-typed mock provider factory for unit tests.
@@ -62,6 +63,11 @@ export function createMockProvider(overrides: MockProviderOverrides = {}): Agent
     },
     getMcpConfigFormat(): 'toml' | 'json' {
       return 'json';
+    },
+    getMcpTransportSupport(): McpTransportSupport {
+      // Mirrors the Claude Code descriptor, matching the other MCP defaults
+      // above. Override per test to exercise a different transport encoding.
+      return { field: 'type', native: { stdio: 'stdio', 'streamable-http': 'http', sse: 'sse' } };
     },
 
     // PathCapability

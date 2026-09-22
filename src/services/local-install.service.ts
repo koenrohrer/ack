@@ -203,11 +203,23 @@ export class LocalInstallService {
       return true; // does not exist
     }
 
-    const choice = await vscode.window.showWarningMessage(
-      `"${name}" already exists at this scope. Overwrite?`,
-      { modal: true },
-      'Overwrite',
-    );
-    return choice === 'Overwrite';
+    return confirmOverwritePrompt(name);
   }
+}
+
+/**
+ * Ask whether to overwrite an existing tool of the same name at this scope.
+ *
+ * Exported because the plugin install path asks the same question but does its
+ * own existence check first (`PluginInstallService` only calls its confirmer on
+ * a real collision). Sharing the prompt, rather than the whole check, keeps one
+ * wording and one affordance instead of two dialects of the same dialog.
+ */
+export async function confirmOverwritePrompt(name: string): Promise<boolean> {
+  const choice = await vscode.window.showWarningMessage(
+    `"${name}" already exists at this scope. Overwrite?`,
+    { modal: true },
+    'Overwrite',
+  );
+  return choice === 'Overwrite';
 }

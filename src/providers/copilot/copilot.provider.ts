@@ -7,8 +7,9 @@ import type { BackupService } from '../../services/backup.service.js';
 import type { AgentProvider, ProviderCapabilities } from '../../types/provider.js';
 import type { CustomPromptInstallResult } from '../../types/provider-install.js';
 import type { NormalizedTool } from '../../types/config.js';
+import type { McpTransportSupport } from '../../types/provider-mcp.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
-import { ProviderScopeError } from '../../types/provider-errors.js';
+import { ProviderConfigError, ProviderScopeError } from '../../types/provider-errors.js';
 import { CopilotPaths } from './paths.js';
 import { parseCopilotMcpFile } from './parsers/mcp.parser.js';
 import { parseCopilotInstructions } from './parsers/instructions.parser.js';
@@ -369,6 +370,15 @@ export class CopilotProvider implements AgentProvider {
     return 'json';
   }
 
+  /**
+   * Values read off `CopilotMcpServerSchema` in `schemas.ts:17`, whose `type`
+   * field is the enum `['stdio', 'http', 'sse']` -- Copilot spells the portable
+   * `streamable-http` as `http`.
+   */
+  getMcpTransportSupport(): McpTransportSupport {
+    return { field: 'type', native: { stdio: 'stdio', 'streamable-http': 'http', sse: 'sse' } };
+  }
+
   // ---------------------------------------------------------------------------
   // PathCapability -- getSkillsDir
   // ---------------------------------------------------------------------------
@@ -421,17 +431,30 @@ export class CopilotProvider implements AgentProvider {
    *
    * Throws `ProviderScopeError` if no workspace is open (Copilot agents are
    * workspace-scoped only — there is no user-scope agents directory).
+   *
+   * `content` may be raw bytes under the widened `InstallCapability` contract,
+   * but a Copilot agent is a markdown file and `fileIO` writes text only, so
+   * bytes are rejected. No caller reaches this: plugin skills — the only source
+   * of binary content — are skipped for Copilot (§A5), because `getSkillsDir`
+   * throws for it. Rejecting loudly rather than stringifying keeps it that way;
+   * a `String(content)` here would silently U+FFFD-corrupt whatever arrived.
    */
   async installSkill(
     scope: ConfigScope,
     _skillName: string,
-    files: Array<{ name: string; content: string }>,
+    files: Array<{ name: string; content: string | Uint8Array }>,
   ): Promise<void> {
     if (!this.workspaceRoot) {
       throw new ProviderScopeError('GitHub Copilot', scope, 'installSkill (no workspace open)');
     }
     const agentsDir = CopilotPaths.workspaceAgentsDir(this.workspaceRoot);
     for (const file of files) {
+      if (typeof file.content !== 'string') {
+        throw new ProviderConfigError(
+          this.displayName,
+          `skill file "${file.name}" is binary, and a Copilot agent file must be text`,
+        );
+      }
       // Copilot requires the compound `.agent.md` extension for agent files.
       // Registry files may arrive as `SKILL.md` or similar — normalize here.
       const baseName = file.name.endsWith('.agent.md')

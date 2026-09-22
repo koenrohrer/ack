@@ -5,12 +5,14 @@ import type { ConfigService } from '../../services/config.service.js';
 import type { BackupService } from '../../services/backup.service.js';
 import type { AgentProvider, ProviderCapabilities } from '../../types/provider.js';
 import type { NormalizedTool } from '../../types/config.js';
+import type { McpTransportSupport } from '../../types/provider-mcp.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { HermesPaths } from './paths.js';
 import { parseHermesConfigMcpServers } from './parsers/config.parser.js';
 import { parseHermesSoul } from './parsers/soul.parser.js';
 import { parseSkillsDir } from '../claude-code/parsers/skill.parser.js';
 import { removeSkill, copySkill, renameSkill } from '../claude-code/writers/skill.writer.js';
+import { writeSkillTree } from '../shared/skill-tree.js';
 import { ProviderScopeError } from '../../types/provider-errors.js';
 import {
   addHermesMcpServer,
@@ -351,6 +353,21 @@ export class HermesProvider implements AgentProvider {
     return 'yaml';
   }
 
+  /**
+   * UNVERIFIED against the real agent. `HermesMcpServerSchema`
+   * (`schemas.ts:27`) types `transport` as a loose string, so only the field
+   * name is pinned by code -- nothing in this repo exercises a remote Hermes
+   * server, and no fixture or captured config shows what values it accepts.
+   * Passing the portable names through unchanged is the self-consistent guess,
+   * not a confirmed mapping; revisit once a real Hermes remote config is seen.
+   */
+  getMcpTransportSupport(): McpTransportSupport {
+    return {
+      field: 'transport',
+      native: { stdio: 'stdio', 'streamable-http': 'streamable-http', sse: 'sse' },
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // McpCapability -- optional capability methods (capabilities.mcpEnvVars).
   // Delegate to the config.writer YAML mutations so the view never touches
@@ -422,22 +439,18 @@ export class HermesProvider implements AgentProvider {
   /**
    * Install a skill by writing files to the scope's skills directory.
    *
-   * Creates the skill subdirectory and writes all provided files.
+   * Creates the skill subdirectory and writes all provided files, nested
+   * `file.name` values included -- see {@link writeSkillTree}.
    * getSkillsDir(scope) throws for non-user scopes, which is correct since
    * Hermes skills are user-only.
    */
   async installSkill(
     scope: ConfigScope,
     skillName: string,
-    files: Array<{ name: string; content: string }>,
+    files: Array<{ name: string; content: string | Uint8Array }>,
   ): Promise<void> {
-    const { mkdir, writeFile } = await import('fs/promises');
     const baseDir = this.getSkillsDir(scope);
-    const targetDir = path.join(baseDir, skillName);
-    await mkdir(targetDir, { recursive: true });
-    for (const file of files) {
-      await writeFile(path.join(targetDir, file.name), file.content, 'utf-8');
-    }
+    await writeSkillTree(this.displayName, path.join(baseDir, skillName), files);
   }
 
   // ---------------------------------------------------------------------------

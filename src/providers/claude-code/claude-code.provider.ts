@@ -5,6 +5,7 @@ import type { ConfigService } from '../../services/config.service.js';
 import type { BackupService } from '../../services/backup.service.js';
 import type { AgentProvider, ProviderCapabilities } from '../../types/provider.js';
 import type { NormalizedTool } from '../../types/config.js';
+import type { McpTransportSupport } from '../../types/provider-mcp.js';
 import { ToolType, ConfigScope } from '../../types/enums.js';
 import { ClaudeCodePaths } from './paths.js';
 import { parseSettingsFile, readDisabledMcpServers } from './parsers/settings.parser.js';
@@ -16,6 +17,7 @@ import { toggleMcpServer, removeMcpServer, addMcpServer } from './writers/mcp.wr
 import { toggleHook, removeHook, addHook } from './writers/settings.writer.js';
 import { removeSkill, copySkill, renameSkill } from './writers/skill.writer.js';
 import { removeCommand, copyCommand, renameCommand } from './writers/command.writer.js';
+import { writeSkillTree } from '../shared/skill-tree.js';
 import { isToggleDisable } from '../../services/tool-manager.utils.js';
 
 /**
@@ -305,6 +307,15 @@ export class ClaudeCodeProvider implements AgentProvider {
     return 'json';
   }
 
+  /**
+   * Values read off `McpServerSchema` in `schemas.ts:70`, whose `type` field is
+   * the enum `['stdio', 'http', 'sse']` -- Claude Code spells the portable
+   * `streamable-http` as `http`.
+   */
+  getMcpTransportSupport(): McpTransportSupport {
+    return { field: 'type', native: { stdio: 'stdio', 'streamable-http': 'http', sse: 'sse' } };
+  }
+
   // ---------------------------------------------------------------------------
   // PathCapability
   // ---------------------------------------------------------------------------
@@ -356,19 +367,17 @@ export class ClaudeCodeProvider implements AgentProvider {
 
   /**
    * Install a skill by writing files to the scope's skills directory.
+   *
+   * A `file.name` may be a nested relative path; see {@link writeSkillTree},
+   * which also rejects any name resolving outside the skill directory.
    */
   async installSkill(
     scope: ConfigScope,
     skillName: string,
-    files: Array<{ name: string; content: string }>,
+    files: Array<{ name: string; content: string | Uint8Array }>,
   ): Promise<void> {
-    const { mkdir, writeFile } = await import('fs/promises');
     const baseDir = this.getSkillsDir(scope);
-    const targetDir = path.join(baseDir, skillName);
-    await mkdir(targetDir, { recursive: true });
-    for (const file of files) {
-      await writeFile(path.join(targetDir, file.name), file.content, 'utf-8');
-    }
+    await writeSkillTree(this.displayName, path.join(baseDir, skillName), files);
   }
 
   /**
