@@ -282,10 +282,11 @@ export function registerManagementCommands(
         const scope = scopePick.scope;
 
         // installMcpServer replaces an entry of the same name, so an existing
-        // server is only overwritten after the user says so.
+        // server is only overwritten after the user says so. A config that
+        // does not parse counts as "may exist": its entries cannot be read.
         if (await toolManager.mcpServerExists(scope, serverName)) {
           const overwrite = await vscode.window.showWarningMessage(
-            `An MCP server named '${serverName}' already exists in ${scopePick.label}. Overwrite it?`,
+            `An MCP server named '${serverName}' already exists in ${scopePick.label}, or that config could not be read. Overwrite it?`,
             { modal: true },
             'Overwrite',
           );
