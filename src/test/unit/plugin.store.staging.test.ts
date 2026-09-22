@@ -78,3 +78,51 @@ describe('PluginStore.install — staged load failure', () => {
     expect((await fs.readdir(pluginsDir)).sort()).toEqual(['test-plugin']);
   });
 });
+
+describe('PluginStore.install — recovery from a crash between the two renames', () => {
+  it('restores the set-aside root and removes only this plugin\'s stale staging', async () => {
+    await writePackage(source, '1.0.0', { 'v1.txt': 'one' });
+    const first = await store.install(source);
+
+    // A crash after `root -> <staging>-previous` and before `staging -> root`.
+    const setAside = path.join(pluginsDir, '.staging-test-plugin-aB3xYz-previous');
+    await fs.rename(first.record.root, setAside);
+    await fs.mkdir(path.join(pluginsDir, '.staging-test-plugin-aB3xYz'));
+    // Staging that belongs to another plugin whose name shares the prefix.
+    const foreign = path.join(pluginsDir, '.staging-test-plugin-extra-Q1w2E3');
+    await fs.mkdir(foreign);
+
+    // The next install fails at the staged load, so what survives is the recovery.
+    forced.failStagedLoad = true;
+    await expect(store.install(source)).rejects.toThrow(/forced staged-load failure/);
+
+    forced.failStagedLoad = false;
+    expect((await store.get('test-plugin'))?.version).toBe('1.0.0');
+    expect(await fs.readFile(path.join(first.record.root, 'v1.txt'), 'utf-8')).toBe('one');
+    expect((await fs.readdir(pluginsDir)).sort()).toEqual([
+      '.staging-test-plugin-extra-Q1w2E3',
+      'test-plugin',
+    ]);
+  });
+});
+
+describe('PluginStore.install — ambiguous crash leftovers', () => {
+  it('restores nothing when more than one set-aside root exists', async () => {
+    await writePackage(source, '1.0.0', { 'v1.txt': 'one' });
+    const first = await store.install(source);
+    await fs.rename(first.record.root, path.join(pluginsDir, '.staging-test-plugin-aaaaaa-previous'));
+    await fs.cp(
+      path.join(pluginsDir, '.staging-test-plugin-aaaaaa-previous'),
+      path.join(pluginsDir, '.staging-test-plugin-bbbbbb-previous'),
+      { recursive: true },
+    );
+
+    forced.failStagedLoad = true;
+    await expect(store.install(source)).rejects.toThrow(/forced staged-load failure/);
+
+    expect((await fs.readdir(pluginsDir)).sort()).toEqual([
+      '.staging-test-plugin-aaaaaa-previous',
+      '.staging-test-plugin-bbbbbb-previous',
+    ]);
+  });
+});

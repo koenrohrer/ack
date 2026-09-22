@@ -128,6 +128,7 @@ export class PluginStore {
         `The plugin name ${JSON.stringify(name)} does not resolve to a path inside the managed store.`,
       );
     }
+    await this.recoverInterruptedInstall(name, owned.root);
 
     // (1b) Refuse a source that overlaps PLUGIN_ROOT, before anything is
     // written. A source equal to or inside the root is deleted by the replace
@@ -227,6 +228,36 @@ export class PluginStore {
     }
     await fs.rm(owned.root, { recursive: true, force: true });
     await fs.rm(owned.dataDir, { recursive: true, force: true });
+  }
+
+  /**
+   * Undo what a crash inside `install` for `name` left in the plugins tree.
+   *
+   * A crash between `root -> <staging>-previous` and `staging -> root` leaves no
+   * root and one set-aside copy: that copy is renamed back. More than one
+   * set-aside copy is ambiguous and is left for the user. Staging
+   * directories are removed. Only names `mkdtemp` made for this plugin match:
+   * the six-character suffix holds no `-`, so another plugin whose name merely
+   * starts with this one is never touched.
+   */
+  private async recoverInterruptedInstall(name: string, root: string): Promise<void> {
+    let entries: string[];
+    try {
+      entries = await fs.readdir(this.pluginsDir);
+    } catch {
+      return;
+    }
+    const escaped = name.replace(/\./g, '\\.');
+    const staging = new RegExp(`^\\.staging-${escaped}-[A-Za-z0-9]{6}$`);
+    const setAside = new RegExp(`^\\.staging-${escaped}-[A-Za-z0-9]{6}-previous$`);
+
+    const setAsides = entries.filter((entry) => setAside.test(entry));
+    if (setAsides.length === 1 && !(await entryExists(root))) {
+      await fs.rename(path.join(this.pluginsDir, setAsides[0]), root);
+    }
+    for (const entry of entries.filter((e) => staging.test(e))) {
+      await fs.rm(path.join(this.pluginsDir, entry), { recursive: true, force: true });
+    }
   }
 
   /**
