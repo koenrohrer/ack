@@ -4,6 +4,14 @@ All notable changes to ACK are documented here.
 
 ---
 
+## Unreleased
+
+### Added
+
+- **Install Agent Plugins packages.** `ACK: Install Plugin...` (also the package button and context menu on the Skills and MCP Servers groups) loads and validates a plugin folder (`plugin.json`, `skills/`, `mcp.json`), copies it into a managed store under ACK's global storage, and installs its skills and namespaced MCP servers into the active agent. A per-component report lists anything skipped, such as an MCP transport the agent does not support.
+
+---
+
 ## 2.0.0
 
 A major release: the community marketplace is gone and ACK is now fully local and provider-pluggable, with two new agents -- **Pi** and **Hermes** -- joining Claude Code, Codex, and GitHub Copilot, plus multi-agent detection, startup activation, and a state-aware welcome.
