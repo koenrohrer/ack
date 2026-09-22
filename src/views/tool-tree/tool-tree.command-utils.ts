@@ -89,8 +89,8 @@ const BUNDLE_TEXT_MAX = 80;
 /** Longest error message about a bundle, which quotes bundle-supplied keys. */
 const BUNDLE_ERROR_MAX = 300;
 
-/** Most combining marks kept on one base character. */
-const COMBINING_MARKS_MAX = 2;
+/** Most nonspacing or enclosing marks kept on one base character. */
+const COMBINING_MARKS_MAX = 4;
 
 /**
  * Matches a character hidden from bundle-supplied text: a control (newlines
@@ -101,15 +101,19 @@ const COMBINING_MARKS_MAX = 2;
  */
 const HIDDEN_CHAR = /[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}]/u;
 
-/** Matches a combining mark. */
-const COMBINING_MARK = /\p{M}/u;
+/** Matches a nonspacing or enclosing mark, the marks that stack. */
+const COMBINING_MARK = /[\p{Mn}\p{Me}]/u;
+
+/** Matches a spacing mark: always kept, and it does not end the count. */
+const SPACING_MARK = /\p{Mc}/u;
 
 /**
  * Make text from an untrusted profile bundle safe to show to the user.
  *
  * Removes the characters that can hide or reorder text or add lines, keeps at
- * most COMBINING_MARKS_MAX combining marks on each base character, then clips
- * the result to BUNDLE_TEXT_MAX characters, the last one an ellipsis.
+ * most COMBINING_MARKS_MAX nonspacing or enclosing marks on each base
+ * character (spacing marks are always kept), then clips the result to
+ * BUNDLE_TEXT_MAX characters, the last one an ellipsis.
  */
 export function sanitizeBundleText(value: string): string {
   return sanitize(value, BUNDLE_TEXT_MAX);
@@ -136,7 +140,7 @@ function sanitize(value: string, max: number): string {
       if (marks > COMBINING_MARKS_MAX) {
         continue;
       }
-    } else {
+    } else if (!SPACING_MARK.test(ch)) {
       marks = 0;
     }
     visible.push(ch);

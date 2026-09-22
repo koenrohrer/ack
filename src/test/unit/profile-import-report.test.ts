@@ -69,12 +69,28 @@ describe('sanitizeBundleText', () => {
     expect(sanitizeBundleText(`a${hidden}b`)).toBe('ab');
   });
 
-  it('keeps at most two combining marks on one base character', () => {
-    expect(sanitizeBundleText(`x${'\u0301'.repeat(40)}y`)).toBe('x\u0301\u0301y');
+  it('keeps at most four nonspacing or enclosing marks on one base character', () => {
+    expect(sanitizeBundleText(`x${'\u0301'.repeat(40)}y`)).toBe(`x${'\u0301'.repeat(4)}y`);
+  });
+
+  it('keeps exactly four of 200 combining acute accents on one base character', () => {
+    expect(sanitizeBundleText(`x${'\u0301'.repeat(200)}`)).toBe(`x${'\u0301'.repeat(4)}`);
+  });
+
+  it('keeps Burmese text, whose spacing marks are never counted', () => {
+    expect(sanitizeBundleText('မြို့')).toBe('မြို့');
   });
 
   it('counts combining marks per base character', () => {
-    expect(sanitizeBundleText('e\u0301\u0302\u0303o\u0308\u0304\u0306')).toBe('e\u0301\u0302o\u0308\u0304');
+    const six = '\u0301\u0302\u0303\u0304\u0306\u0307';
+    const five = '\u0308\u030a\u030b\u030c\u030f';
+    expect(sanitizeBundleText(`e${six}o${five}`)).toBe(`e${six.slice(0, 4)}o${five.slice(0, 4)}`);
+  });
+
+  it('keeps a spacing mark without resetting the count, so it cannot stack more than four marks', () => {
+    const spacing = '\u093e';
+    const input = `x\u0301\u0301${spacing}\u0301\u0301\u0301\u0301${spacing}\u0301\u0301`;
+    expect(sanitizeBundleText(input)).toBe(`x\u0301\u0301${spacing}\u0301\u0301${spacing}`);
   });
 
   it('keeps accented letters, CJK and emoji', () => {
