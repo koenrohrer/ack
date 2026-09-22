@@ -7,9 +7,22 @@ import type { NormalizedTool } from '../../../types/config.js';
 import { extractFrontmatter } from '../../../utils/markdown.js';
 
 /**
+ * Suffix a disabled command file carries: toggling `deploy.md` off renames it
+ * to `deploy.md.disabled`, which Claude Code no longer loads.
+ */
+const DISABLED_COMMAND_SUFFIX = '.md.disabled';
+
+/** Whether a file name is a command file, enabled or disabled. */
+function isCommandFileName(name: string): boolean {
+  return name.endsWith('.md') || name.endsWith(DISABLED_COMMAND_SUFFIX);
+}
+
+/**
  * Parse a single slash command .md file and return a NormalizedTool.
  *
  * The command name is derived from the filename (without .md extension).
+ * A `name.md.disabled` file is the same command, disabled, under the same
+ * name -- so a profile or the tree can find it and re-enable it.
  * Frontmatter is optional -- commands work without it.
  */
 export async function parseCommandFile(
@@ -18,9 +31,13 @@ export async function parseCommandFile(
   filePath: string,
   scope: ConfigScope,
 ): Promise<NormalizedTool> {
-  const rawName = path.basename(filePath, '.md');
-  const isDisabled = filePath.endsWith('.disabled') || rawName.endsWith('.disabled');
-  const commandName = isDisabled ? rawName.replace(/\.disabled$/, '') : rawName;
+  const fileName = path.basename(filePath);
+  const fileDisabled = fileName.endsWith(DISABLED_COMMAND_SUFFIX);
+  const rawName = fileDisabled
+    ? fileName.slice(0, -DISABLED_COMMAND_SUFFIX.length)
+    : path.basename(filePath, '.md');
+  const isDisabled = fileDisabled || rawName.endsWith('.disabled');
+  const commandName = rawName.replace(/\.disabled$/, '');
   const content = await fileIO.readTextFile(filePath);
 
   if (content === null) {
@@ -81,7 +98,7 @@ export async function parseCommandFile(
 }
 
 /**
- * Recursively find all .md files in a commands directory and parse each one.
+ * Recursively find all command files in a commands directory and parse each one.
  *
  * Subdirectories are supported for organization (per Claude Code docs).
  * Returns empty array if the directory does not exist.
@@ -109,10 +126,11 @@ export async function parseCommandsDir(
 }
 
 /**
- * Recursively find all .md files under a directory.
+ * Recursively find all command files under a directory: `*.md`, and the
+ * `*.md.disabled` files a disabled command is renamed to.
  *
  * Follows symlinks: symlinks to directories are traversed,
- * and symlinks to .md files are included.
+ * and symlinks to command files are included.
  */
 async function findMdFiles(dir: string): Promise<string[]> {
   const results: string[] = [];
@@ -136,13 +154,13 @@ async function findMdFiles(dir: string): Promise<string[]> {
         if (stat.isDirectory()) {
           const nested = await findMdFiles(fullPath);
           results.push(...nested);
-        } else if (stat.isFile() && entry.name.endsWith('.md')) {
+        } else if (stat.isFile() && isCommandFileName(entry.name)) {
           results.push(fullPath);
         }
       } catch {
         // Broken symlink -- skip silently
       }
-    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+    } else if (entry.isFile() && isCommandFileName(entry.name)) {
       results.push(fullPath);
     }
   }

@@ -525,4 +525,16 @@ describe('Command Writer', () => {
     const newExists = await fs.access(target).then(() => true).catch(() => false);
     expect(newExists).toBe(true);
   });
+
+  it('renameCommand refuses to replace an existing target', async () => {
+    const source = path.join(tmpDir, 'my-cmd.md.disabled');
+    const target = path.join(tmpDir, 'my-cmd.md');
+    await fs.writeFile(source, 'old');
+    await fs.writeFile(target, 'current');
+
+    await expect(renameCommand(source, target)).rejects.toThrow(/already exists/);
+
+    expect(await fs.readFile(target, 'utf-8')).toBe('current');
+    expect(await fs.readFile(source, 'utf-8')).toBe('old');
+  });
 });

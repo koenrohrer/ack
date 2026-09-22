@@ -557,6 +557,51 @@ Deploy everything.`);
     expect(disabledExists).toBe(true);
   });
 
+  it('toggleTool re-enables a command it disabled, found by a fresh read', async () => {
+    const dir = await makeTmpDir();
+    const commandsDir = path.join(dir, '.claude', 'commands');
+    await fs.mkdir(commandsDir, { recursive: true });
+    const cmdFile = path.join(commandsDir, 'deploy.md');
+    await fs.writeFile(cmdFile, 'Deploy.');
+
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
+    const { configService, backupService } = makeWriteServices();
+    provider.setWriteServices(configService, backupService);
+
+    const [enabled] = await provider.readTools(ToolType.Command, ConfigScope.Project);
+    await provider.toggleTool(enabled);
+
+    // The disabled command must still be listed, or nothing can re-enable it.
+    const afterDisable = await provider.readTools(ToolType.Command, ConfigScope.Project);
+    expect(afterDisable.map((t) => [t.name, t.status])).toEqual([['deploy', ToolStatus.Disabled]]);
+
+    await provider.toggleTool(afterDisable[0]);
+
+    expect(await fs.readFile(cmdFile, 'utf-8')).toBe('Deploy.');
+    const leftover = await fs.stat(`${cmdFile}.disabled`).then(() => true).catch(() => false);
+    expect(leftover).toBe(false);
+  });
+
+  it('toggleTool refuses to enable a command over an enabled one of the same name', async () => {
+    const dir = await makeTmpDir();
+    const commandsDir = path.join(dir, '.claude', 'commands');
+    await fs.mkdir(commandsDir, { recursive: true });
+    const cmdFile = path.join(commandsDir, 'deploy.md');
+    await fs.writeFile(cmdFile, 'Current.');
+    await fs.writeFile(`${cmdFile}.disabled`, 'Old.');
+
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
+    const { configService, backupService } = makeWriteServices();
+    provider.setWriteServices(configService, backupService);
+
+    const tools = await provider.readTools(ToolType.Command, ConfigScope.Project);
+    const disabled = tools.find((t) => t.status === ToolStatus.Disabled)!;
+
+    await expect(provider.toggleTool(disabled)).rejects.toThrow(/already exists/);
+    expect(await fs.readFile(cmdFile, 'utf-8')).toBe('Current.');
+    expect(await fs.readFile(`${cmdFile}.disabled`, 'utf-8')).toBe('Old.');
+  });
+
   // ---------------------------------------------------------------------------
   // getMcpFilePath / getMcpSchemaKey
   // ---------------------------------------------------------------------------

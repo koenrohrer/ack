@@ -541,6 +541,38 @@ describe('parseCommandsDir', () => {
     expect(tools).toEqual([]);
   });
 
+  it('lists a disabled command (name.md.disabled) under its own name', async () => {
+    const dir = await makeTmpDir();
+    const cmdsDir = path.join(dir, 'commands');
+    await fs.mkdir(path.join(cmdsDir, 'category'), { recursive: true });
+    await fs.writeFile(path.join(cmdsDir, 'deploy.md.disabled'), '---\ndescription: Ship it\n---\nDeploy.');
+    await fs.writeFile(path.join(cmdsDir, 'category', 'lint.md.disabled'), 'Lint.');
+    await fs.writeFile(path.join(cmdsDir, 'build.md'), 'Build.');
+
+    const tools = await parseCommandsDir(fileIO, schemaService, cmdsDir, ConfigScope.User);
+    const byName = new Map(tools.map((t) => [t.name, t]));
+
+    expect([...byName.keys()].sort()).toEqual(['build', 'deploy', 'lint']);
+    expect(byName.get('deploy')?.status).toBe(ToolStatus.Disabled);
+    expect(byName.get('deploy')?.id).toBe('command:user:deploy');
+    expect(byName.get('deploy')?.description).toBe('Ship it');
+    expect(byName.get('deploy')?.source.filePath).toBe(path.join(cmdsDir, 'deploy.md.disabled'));
+    expect(byName.get('lint')?.status).toBe(ToolStatus.Disabled);
+    expect(byName.get('build')?.status).toBe(ToolStatus.Enabled);
+  });
+
+  it('ignores other suffixes after .md, such as a backup', async () => {
+    const dir = await makeTmpDir();
+    const cmdsDir = path.join(dir, 'commands');
+    await fs.mkdir(cmdsDir);
+    await fs.writeFile(path.join(cmdsDir, 'deploy.md.bak.1'), 'old');
+    await fs.writeFile(path.join(cmdsDir, 'deploy.disabled'), 'not a command file');
+
+    const tools = await parseCommandsDir(fileIO, schemaService, cmdsDir, ConfigScope.User);
+
+    expect(tools).toEqual([]);
+  });
+
   it('ignores non-.md files', async () => {
     const dir = await makeTmpDir();
     const cmdsDir = path.join(dir, 'commands');

@@ -60,10 +60,18 @@ export async function copyCommand(
  * Rename a command file or directory.
  *
  * Used for disable (adding .disabled suffix) and re-enable (removing it).
+ * Throws when something already exists at `targetPath`: `deploy.md` and
+ * `deploy.md.disabled` can both exist, and a bare rename would replace one
+ * with the other without a trace.
  */
 export async function renameCommand(
   sourcePath: string,
   targetPath: string,
 ): Promise<void> {
+  if (await fs.lstat(targetPath).then(() => true, () => false)) {
+    throw new Error(
+      `Cannot rename ${path.basename(sourcePath)}: ${targetPath} already exists. Remove or rename one of them first.`,
+    );
+  }
   await fs.rename(sourcePath, targetPath);
 }
