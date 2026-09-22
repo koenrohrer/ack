@@ -444,6 +444,48 @@ describe('PluginStore — PLUGIN_DATA (§9.1)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// A failed update never costs the installed version
+// ---------------------------------------------------------------------------
+
+/** chmod 000 blocks a read only for a non-root POSIX user. */
+const itUnreadable =
+  process.platform === 'win32' || process.getuid?.() === 0 ? it.skip : it;
+
+describe('PluginStore.install — staged update', () => {
+  itUnreadable('keeps the installed version when copying the new one fails', async () => {
+    await buildSource(source, { version: '1.0.0', files: { 'v1.txt': 'one' } });
+    const first = await store.install(source);
+
+    await fs.rm(source, { recursive: true, force: true });
+    await buildSource(source, { version: '2.0.0', files: { 'secret.txt': 'unreadable' } });
+    const blocked = path.join(source, 'secret.txt');
+    await fs.chmod(blocked, 0o000);
+    try {
+      await expect(store.install(source)).rejects.toThrow();
+    } finally {
+      await fs.chmod(blocked, 0o644);
+    }
+
+    expect((await store.get('test-plugin'))?.version).toBe('1.0.0');
+    expect(await readOrNull(path.join(first.record.root, 'v1.txt'))).toBe('one');
+    // No staging or set-aside directory is left behind.
+    expect(await entries(pluginsDir)).toEqual(['test-plugin']);
+  });
+
+  it('leaves only the installed plugin in the plugins tree after an update', async () => {
+    await buildSource(source, { version: '1.0.0' });
+    await store.install(source);
+    await fs.rm(source, { recursive: true, force: true });
+    await buildSource(source, { version: '2.0.0' });
+
+    await store.install(source);
+
+    expect(await entries(pluginsDir)).toEqual(['test-plugin']);
+    expect((await store.get('test-plugin'))?.version).toBe('2.0.0');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Path containment during the copy (§4.1)
 // ---------------------------------------------------------------------------
 
