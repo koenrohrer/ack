@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { collectWatchDirs } from '../../views/file-watcher.utils.js';
+import { collectWatchDirs, collectWatchedFileNames, isWatchedChange } from '../../views/file-watcher.utils.js';
 import { ConfigScope, ToolType } from '../../types/enums.js';
 import type { AgentProvider } from '../../types/provider.js';
 import { createMockProvider } from './helpers/mock-provider.js';
@@ -147,6 +147,47 @@ describe('collectWatchDirs', () => {
     expect(dirPaths).toContain('/home/.claude');
     expect(dirPaths).toContain('/workspace/.claude');
     expect(dirPaths).toContain('/etc/claude');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// collectWatchedFileNames / isWatchedChange
+// ---------------------------------------------------------------------------
+
+describe('collectWatchedFileNames', () => {
+  it('maps each file-parent directory to the file names watched in it', () => {
+    const provider = makeProvider({
+      [ConfigScope.User]: [
+        '/home/.claude/settings.json',
+        '/home/.claude.json',
+        '/home/.claude/skills',
+      ],
+      [ConfigScope.Local]: ['/home/.claude/settings.local.json'],
+    });
+
+    const names = collectWatchedFileNames(provider);
+
+    expect(names.get('/home')).toEqual(new Set(['.claude.json']));
+    expect(names.get('/home/.claude')).toEqual(new Set(['settings.json', 'settings.local.json']));
+    // A recursive directory watches everything under it and carries no filter.
+    expect(names.has('/home/.claude/skills')).toBe(false);
+  });
+});
+
+describe('isWatchedChange', () => {
+  it('ignores a sibling file in a watched file\'s parent directory', () => {
+    const names = new Set(['.claude.json']);
+
+    expect(isWatchedChange(names, '/home/.bash_history')).toBe(false);
+    expect(isWatchedChange(names, '/home/.claude.json.tmp')).toBe(false);
+  });
+
+  it('accepts the watched file itself', () => {
+    expect(isWatchedChange(new Set(['.claude.json']), '/home/.claude.json')).toBe(true);
+  });
+
+  it('accepts every path when the directory has no name filter', () => {
+    expect(isWatchedChange(undefined, '/home/.claude/skills/a/SKILL.md')).toBe(true);
   });
 });
 
