@@ -9,10 +9,12 @@ import { ToolType, ConfigScope, ToolStatus } from '../types/enums.js';
 import { canonicalKey, extractToolTypeFromKey } from '../utils/tool-key.utils.js';
 import {
   PROFILE_STORE_KEY,
-  DEFAULT_PROFILE_STORE,
+  PROFILE_STORE_BACKUP_KEY,
   ProfileStoreSchema,
   PROFILE_STORE_VERSION,
   EXPORT_BUNDLE_VERSION,
+  createDefaultProfileStore,
+  salvageProfileStore,
 } from './profile.types.js';
 import type {
   Profile,
@@ -917,19 +919,20 @@ export class ProfileService {
   /**
    * Load the profile store from globalState with Zod validation.
    *
-   * If stored data fails validation (corrupt state), returns the default
-   * empty store to prevent crashes. This is defensive -- corrupt data
-   * should not block the extension from functioning.
+   * No stored value yields a fresh empty store. A stored value that fails
+   * validation is salvaged -- every profile that validates on its own is kept
+   * -- so one bad entry never hides the rest. Every return value is a fresh
+   * object the caller may mutate.
    */
   private loadStore(): ProfileStore {
-    const raw = this.globalState.get<ProfileStore>(
-      PROFILE_STORE_KEY,
-      DEFAULT_PROFILE_STORE,
-    );
+    const raw = this.globalState.get<unknown>(PROFILE_STORE_KEY);
+    if (raw === undefined) {
+      return createDefaultProfileStore();
+    }
 
     const result = ProfileStoreSchema.safeParse(raw);
     if (!result.success) {
-      return { ...DEFAULT_PROFILE_STORE };
+      return salvageProfileStore(raw);
     }
 
     return result.data as ProfileStore;
@@ -937,8 +940,24 @@ export class ProfileService {
 
   /**
    * Persist the profile store to globalState.
+   *
+   * Never overwrites an unreadable store silently: when the value currently
+   * stored fails validation, it is first appended to PROFILE_STORE_BACKUP_KEY
+   * and the backup is logged, so the dropped entries can still be recovered.
    */
   private async saveStore(store: ProfileStore): Promise<void> {
+    const previous = this.globalState.get<unknown>(PROFILE_STORE_KEY);
+    if (previous !== undefined && !ProfileStoreSchema.safeParse(previous).success) {
+      const existing = this.globalState.get<unknown>(PROFILE_STORE_BACKUP_KEY);
+      const backups = Array.isArray(existing) ? existing : [];
+      await this.globalState.update(PROFILE_STORE_BACKUP_KEY, [
+        ...backups,
+        { savedAt: new Date().toISOString(), store: previous },
+      ]);
+      this.outputChannel?.appendLine(
+        `Profile store failed validation; kept the readable profiles and saved the original under globalState key "${PROFILE_STORE_BACKUP_KEY}" before writing.`,
+      );
+    }
     await this.globalState.update(PROFILE_STORE_KEY, store);
   }
 }
