@@ -668,10 +668,11 @@ export function registerProfileCommands(
       }
 
       // Sanitize the bundle's name once: it is stored, and the tree, pickers and
-      // notifications show it. The collision check compares sanitized names.
+      // notifications show it. A collision exists only when the stored name would
+      // equal an existing name exactly: two local names can clip to the same text.
       let finalName = sanitizeBundleText(bundle.profile.name) || IMPORTED_PROFILE_FALLBACK_NAME;
       const existingProfiles = profileService.getProfiles();
-      const nameConflict = existingProfiles.find((p) => sanitizeBundleText(p.name) === finalName);
+      const nameConflict = existingProfiles.find((p) => p.name === finalName);
 
       if (nameConflict) {
         const choice = await vscode.window.showQuickPick(

@@ -62,6 +62,7 @@ let switchResult: SwitchResult;
 let outputLines: string[];
 let createProfile: ReturnType<typeof vi.fn>;
 let switchProfile: ReturnType<typeof vi.fn>;
+let deleteProfile: ReturnType<typeof vi.fn>;
 
 function profile(name: string): Profile {
   return { id: `id-${name}`, name, tools: [], createdAt: 'x', updatedAt: 'x' } as unknown as Profile;
@@ -86,7 +87,7 @@ async function runImport(): Promise<void> {
   const profileService = {
     getProfiles: () => existing,
     validateImportBundle: () => ({ valid: true }),
-    deleteProfile: vi.fn(async () => true),
+    deleteProfile,
     analyzeImport: async () => ({ matching: [], conflicts: [], missing: [] }),
     createProfile,
     updateProfile: vi.fn(async () => undefined),
@@ -135,6 +136,7 @@ beforeEach(async () => {
   ui.showErrorMessage = vi.fn(async () => undefined);
   createProfile = vi.fn(async (name: string) => profile(name));
   switchProfile = vi.fn(async () => switchResult);
+  deleteProfile = vi.fn(async () => true);
 });
 
 afterEach(async () => {
@@ -193,6 +195,31 @@ describe('ack.importProfile profile name', () => {
 
     const text = shownText().join('\n');
     expect(text).not.toMatch(/\u202e|[\u{e0000}-\u{e007f}]/u);
+  });
+
+  it('never deletes a differently named profile whose name clips to the same text', async () => {
+    existing = [profile(`${'a'.repeat(79)}-backend`)];
+    ui.quickPickLabel = 'Overwrite existing';
+    await writeBundle(bundleNamed(`${'a'.repeat(79)}-frontend`));
+
+    await runImport();
+
+    expect(ui.showQuickPick).not.toHaveBeenCalled();
+    expect(deleteProfile).not.toHaveBeenCalled();
+    expect(createProfile).toHaveBeenCalledWith(`${'a'.repeat(79)}…`);
+  });
+
+  it('overwrites the profile whose name equals the sanitized bundle name exactly', async () => {
+    existing = [profile('other'), profile('team')];
+    ui.quickPickLabel = 'Overwrite existing';
+    await writeBundle(bundleNamed('team\u202e'));
+
+    await runImport();
+
+    expect(ui.showQuickPick).toHaveBeenCalledTimes(1);
+    expect(deleteProfile).toHaveBeenCalledTimes(1);
+    expect(deleteProfile).toHaveBeenCalledWith('id-team');
+    expect(createProfile).toHaveBeenCalledWith('team');
   });
 });
 
