@@ -22,6 +22,7 @@ import { registerToolTreeCommands } from './views/tool-tree/tool-tree.commands.j
 import { registerManagementCommands } from './views/tool-tree/tool-tree.management.js';
 import { registerProfileCommands } from './views/tool-tree/tool-tree.profile-commands.js';
 import { runInstallPlugin } from './views/tool-tree/tool-tree.plugin-install.js';
+import { reportSwitchFailures } from './views/profile-switch-report.js';
 import { ToolManagerService } from './services/tool-manager.service.js';
 import { ProfileService } from './services/profile.service.js';
 import { FileWatcherManager } from './views/file-watcher.manager.js';
@@ -484,8 +485,9 @@ async function handleWorkspaceAutoActivation(
   // 8. Update sidebar header
   treeProvider.setActiveProfile(profile.name);
 
-  // 9. Show info notification
+  // 9. Show info notification, then any toggle that failed
   vscode.window.showInformationMessage(`Switched to profile: ${profile.name}`);
+  reportSwitchFailures(result, outputChannel);
 
   // 10. If missing tools, report them (local-only; no remote install)
   if (result.skipped > 0) {

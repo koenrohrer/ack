@@ -219,3 +219,17 @@ describe('ack.importProfile schema failure', () => {
     expect(createProfile).not.toHaveBeenCalled();
   });
 });
+
+describe('ack.importProfile then Switch', () => {
+  it('reports the toggles that failed when the user switches to the imported profile', async () => {
+    switchResult = { ...NO_FAILURES, success: false, failed: 1, errors: ['Failed to toggle hook:PreToolUse:Bash'] };
+    ui.infoAnswer = 'Switch';
+    await writeBundle(bundleNamed('team'));
+
+    await runImport();
+
+    expect(switchProfile).toHaveBeenCalledTimes(1);
+    expect(ui.showWarningMessage).toHaveBeenCalledWith('1 toggle(s) failed: Failed to toggle hook:PreToolUse:Bash');
+    expect(outputLines).toContain('  Failed to toggle hook:PreToolUse:Bash');
+  });
+});

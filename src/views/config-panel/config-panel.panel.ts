@@ -8,6 +8,7 @@ import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { canonicalKey } from '../../utils/tool-key.utils.js';
 import type { ProviderRegistry } from '../../providers/provider.registry.js';
 import type { WorkspaceProfileService } from '../../services/workspace-profile.service.js';
+import { reportSwitchFailures } from '../profile-switch-report.js';
 import {
   applyMcpEnvUpdate,
   canToggleMcpStatus,
@@ -310,6 +311,7 @@ export class ConfigPanel {
         `toggled=${result.toggled} skipped=${result.skipped} failed=${result.failed} ` +
         `nonToggleableSkipped=${result.nonToggleableSkipped}`,
       );
+      reportSwitchFailures(result, this.outputChannel);
 
       if (result.nonToggleableSkipped > 0) {
         const activeAgent = this.registry.getActiveProvider()?.displayName ?? 'active agent';
@@ -443,7 +445,8 @@ export class ConfigPanel {
       // If this is the active profile, re-apply so tool states reflect the changes
       const activeId = this.profileService.getActiveProfileId();
       if (activeId === profileId) {
-        await this.profileService.switchProfile(profileId);
+        const result = await this.profileService.switchProfile(profileId);
+        reportSwitchFailures(result, this.outputChannel);
         await this.sendToolsData();
         this.refreshTree();
       }

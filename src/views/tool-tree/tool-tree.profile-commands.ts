@@ -14,6 +14,7 @@ import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { canonicalKey, extractToolTypeFromKey } from '../../utils/tool-key.utils.js';
 import { sanitizeBundleText, sanitizeBundleError, formatImportConflictReport } from './tool-tree.command-utils.js';
 import type { ProviderRegistry } from '../../providers/provider.registry.js';
+import { reportSwitchFailures } from '../profile-switch-report.js';
 
 /**
  * QuickPick item that carries an optional profile reference.
@@ -279,11 +280,7 @@ export function registerProfileCommands(
       }
       vscode.window.showInformationMessage(parts.join(', '));
 
-      if (result.failed > 0) {
-        vscode.window.showWarningMessage(
-          `${result.failed} toggle(s) failed: ${result.errors.join('; ')}`,
-        );
-      }
+      reportSwitchFailures(result, outputChannel);
 
       // Inform user about non-toggleable entries (e.g. MCP servers on Copilot)
       if (result.nonToggleableSkipped > 0) {
@@ -737,7 +734,8 @@ export function registerProfileCommands(
       );
 
       if (switchAction === 'Switch') {
-        await profileService.switchProfile(newProfile.id);
+        const result = await profileService.switchProfile(newProfile.id);
+        reportSwitchFailures(result, outputChannel);
         treeProvider.setActiveProfile(finalName);
         treeProvider.refresh();
       }
