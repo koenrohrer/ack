@@ -483,6 +483,21 @@ export class ProfileService {
     let nonToggleableSkipped = 0;
     const incompatibleSkipped: string[] = [];
 
+    // Hook groups per scope, read once. readToolsByScope does not collapse keys.
+    const hooksByScope = new Map<ConfigScope, NormalizedTool[]>();
+    const hookGroupsSharingKey = async (winner: NormalizedTool): Promise<NormalizedTool[]> => {
+      let hooks = hooksByScope.get(winner.scope);
+      if (!hooks) {
+        hooks = await this.configService.readToolsByScope(ToolType.Hook, winner.scope);
+        hooksByScope.set(winner.scope, hooks);
+      }
+      const key = canonicalKey(winner);
+      const siblings = hooks.filter(
+        (h) => h.source.filePath === winner.source.filePath && canonicalKey(h) === key,
+      );
+      return siblings.length > 0 ? siblings : [winner];
+    };
+
     for (const entry of profile.tools) {
       // Check tool type compatibility with active agent
       const toolType = extractToolTypeFromKey(entry.key);
@@ -508,13 +523,15 @@ export class ProfileService {
         continue;
       }
 
-      const currentlyEnabled = tool.status === ToolStatus.Enabled;
-      if (currentlyEnabled === entry.enabled) {
-        // Already in desired state -- no toggle needed
-        continue;
+      // A hook's canonical key is its event and matcher, so one settings file can
+      // hold several groups under one key. readAllTools keeps only the first;
+      // the entry applies to every group with that key in the winner's file.
+      const targets = tool.type === ToolType.Hook ? await hookGroupsSharingKey(tool) : [tool];
+      for (const target of targets) {
+        if ((target.status === ToolStatus.Enabled) !== entry.enabled) {
+          ops.push({ tool: target, targetEnabled: entry.enabled });
+        }
       }
-
-      ops.push({ tool, targetEnabled: entry.enabled });
     }
 
     // Execute toggles sequentially to prevent race conditions on shared config files
