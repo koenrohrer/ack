@@ -148,12 +148,12 @@ function sanitize(value: string, max: number): string {
 }
 
 /**
- * One output-channel line per import conflict: the sanitized tool name and
- * the names of the fields that differ. Never contains a field value.
+ * One output-channel line per import conflict: the sanitized local tool name
+ * and the names of the fields that differ. Never contains a field value.
  */
 export function formatImportConflictReport(conflicts: ImportAnalysis['conflicts']): string[] {
   return conflicts.map(({ exported, local }) => {
     const fields = importConflictFields(exported, local);
-    return `  ${sanitizeBundleText(exported.name)}: ${fields.length > 0 ? fields.join(', ') : 'config'}`;
+    return `  ${sanitizeBundleText(local.name)}: ${fields.length > 0 ? fields.join(', ') : 'config'}`;
   });
 }

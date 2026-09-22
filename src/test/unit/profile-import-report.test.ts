@@ -161,7 +161,7 @@ describe('formatImportConflictReport', () => {
     expect(text).not.toMatch(/\bsh\b/);
   });
 
-  it('sanitizes the tool name a bundle supplies', () => {
+  it('names the local tool, never the tool name a bundle supplies', () => {
     const local = makeTool({
       type: ToolType.McpServer,
       name: 'srv',
@@ -176,7 +176,24 @@ describe('formatImportConflictReport', () => {
     const lines = formatImportConflictReport([{ exported, local }]);
 
     expect(lines.every((line) => !/[\n\u202e]/.test(line))).toBe(true);
-    expect(lines).toContain('  srvACK: all tools verified: command');
+    expect(lines).toContain('  srv: command');
+  });
+
+  it('sanitizes the local tool name, which can come from an untrusted cloned repository', () => {
+    const local = makeTool({
+      type: ToolType.McpServer,
+      name: 'local-srv\nACK: all tools verified\u202e',
+      scope: ConfigScope.User,
+      metadata: { command: 'node', args: [], env: {} },
+    });
+    const exported: ExportedTool = {
+      ...exportedServer({ command: 'sh', args: [], env: {} }),
+      name: 'bundle-srv',
+    };
+
+    const lines = formatImportConflictReport([{ exported, local }]);
+
+    expect(lines).toEqual(['  local-srvACK: all tools verified: command']);
   });
 });
 
