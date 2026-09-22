@@ -473,19 +473,20 @@ export class ConfigPanel {
         return;
       }
 
+      const activeAgentId = this.registry.getActiveProvider()?.id;
+      if (!activeAgentId) {
+        this.postMessage({ type: 'operationError', op: 'associateProfile', error: 'No agent is active' });
+        return;
+      }
+
       if (profileId === null) {
-        await this.workspaceProfileService.removeAssociation(wsRoot);
+        await this.workspaceProfileService.removeAssociation(wsRoot, activeAgentId);
         this.postMessage({ type: 'workspaceAssociation', profileName: null });
-        this.outputChannel.appendLine('[ConfigPanel] Removed workspace profile association');
+        this.outputChannel.appendLine(`[ConfigPanel] Removed workspace profile association for agent "${activeAgentId}"`);
       } else {
         const profile = this.profileService.getProfile(profileId);
         if (!profile) {
           this.postMessage({ type: 'operationError', op: 'associateProfile', error: 'Profile not found' });
-          return;
-        }
-        const activeAgentId = this.registry.getActiveProvider()?.id;
-        if (!activeAgentId) {
-          this.postMessage({ type: 'operationError', op: 'associateProfile', error: 'No agent is active' });
           return;
         }
         await this.workspaceProfileService.setAssociation(wsRoot, profile.name, activeAgentId);
@@ -505,11 +506,12 @@ export class ConfigPanel {
   private async sendWorkspaceAssociation(): Promise<void> {
     try {
       const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-      if (!wsRoot) {
+      const activeAgentId = this.registry.getActiveProvider()?.id;
+      if (!wsRoot || !activeAgentId) {
         this.postMessage({ type: 'workspaceAssociation', profileName: null });
         return;
       }
-      const association = await this.workspaceProfileService.getAssociation(wsRoot);
+      const association = await this.workspaceProfileService.getAssociationForAgent(wsRoot, activeAgentId);
       this.postMessage({ type: 'workspaceAssociation', profileName: association?.profileName ?? null });
     } catch {
       this.postMessage({ type: 'workspaceAssociation', profileName: null });

@@ -30,6 +30,20 @@ export const WorkspaceProfileAssociationSchema = z
   .passthrough();
 
 /**
+ * Current shape of `.vscode/agent-profile.json`: one association per agent in
+ * `associations`, plus the legacy top-level fields mirroring one of them so a
+ * version that reads only those still finds an association.
+ */
+const WorkspaceProfileFileSchema = z
+  .object({
+    associations: z.record(z.string(), z.string()).optional(),
+  })
+  .passthrough();
+
+/** Agent a legacy association without `agentId` applies to. */
+const LEGACY_AGENT_ID = 'claude-code';
+
+/**
  * Override entry stored in globalState.
  *
  * Tracks when a user manually switched profiles in a workspace that has
@@ -63,80 +77,101 @@ export class WorkspaceProfileService {
   ) {}
 
   /**
-   * Read the profile association for a workspace.
+   * Read every agent's association for a workspace, keyed by agent id.
    *
-   * Returns null if no association file exists or if it fails validation.
+   * The `associations` map is authoritative when it is present and valid. A
+   * version without the map rewrites the whole file, so a file without it was
+   * last written in the legacy single-association shape, which is read as one
+   * entry (no `agentId` means 'claude-code'). An unreadable or unrecognised
+   * file reads as no associations.
+   *
+   * `mirroredAgentId` is the agent whose association the top level holds.
    */
-  async getAssociation(workspaceRoot: string): Promise<WorkspaceProfileAssociation | null> {
-    const filePath = path.join(workspaceRoot, ASSOCIATION_FILE);
-    const result = await this.fileIO.readJsonFile<unknown>(filePath);
-
+  private async readAssociations(
+    workspaceRoot: string,
+  ): Promise<{ associations: Record<string, string>; mirroredAgentId?: string }> {
+    const result = await this.fileIO.readJsonFile<unknown>(path.join(workspaceRoot, ASSOCIATION_FILE));
     if (!result.success || result.data === null) {
-      return null;
+      return { associations: {} };
     }
 
-    const parsed = WorkspaceProfileAssociationSchema.safeParse(result.data);
-    if (!parsed.success) {
-      return null;
+    const legacy = WorkspaceProfileAssociationSchema.safeParse(result.data);
+    const mirroredAgentId = legacy.success ? (legacy.data.agentId ?? LEGACY_AGENT_ID) : undefined;
+
+    const file = WorkspaceProfileFileSchema.safeParse(result.data);
+    if (file.success && file.data.associations) {
+      return { associations: { ...file.data.associations }, mirroredAgentId };
     }
 
-    return parsed.data as WorkspaceProfileAssociation;
+    if (!legacy.success || mirroredAgentId === undefined) {
+      return { associations: {} };
+    }
+    return { associations: { [mirroredAgentId]: legacy.data.profileName }, mirroredAgentId };
   }
 
   /**
-   * Get the profile association for a specific agent.
+   * Write the map, with one entry mirrored at the top level for older versions,
+   * or delete the file when the map is empty.
+   */
+  private async writeAssociations(
+    workspaceRoot: string,
+    associations: Record<string, string>,
+    mirrorAgentId: string | undefined,
+  ): Promise<void> {
+    const filePath = path.join(workspaceRoot, ASSOCIATION_FILE);
+    const agentId =
+      mirrorAgentId !== undefined && Object.hasOwn(associations, mirrorAgentId)
+        ? mirrorAgentId
+        : Object.keys(associations)[0];
+    if (agentId === undefined) {
+      await this.fileIO.deleteFile(filePath);
+      return;
+    }
+    await this.fileIO.writeJsonFile(filePath, {
+      profileName: associations[agentId],
+      agentId,
+      associations,
+    });
+  }
+
+  /**
+   * Get the profile association for a specific agent, or null if it has none.
    *
-   * - If the association has no agentId (legacy v1.0), it's treated as 'claude-code'.
-   * - Returns the association if it matches the given agentId, null otherwise.
-   *
-   * This enables per-agent workspace associations: each agent can have its own
-   * profile associated with a workspace, and only the active agent's association
-   * is returned.
+   * Each agent has its own association with a workspace, and only the given
+   * agent's association is returned.
    */
   async getAssociationForAgent(workspaceRoot: string, agentId: string): Promise<WorkspaceProfileAssociation | null> {
-    const association = await this.getAssociation(workspaceRoot);
-    if (!association) {
+    const { associations } = await this.readAssociations(workspaceRoot);
+    if (!Object.hasOwn(associations, agentId)) {
       return null;
     }
-
-    // Legacy associations (no agentId) are treated as Claude Code scope
-    const effectiveAgentId = association.agentId ?? 'claude-code';
-
-    if (effectiveAgentId !== agentId) {
-      // Association is for a different agent
-      return null;
-    }
-
-    return association;
+    return { profileName: associations[agentId], agentId };
   }
 
   /**
-   * Set the profile association for a workspace.
+   * Set one agent's profile association for a workspace.
    *
-   * Writes `{ profileName, agentId }` to `.vscode/agent-profile.json` and clears
-   * any manual override (the user is explicitly setting an association,
-   * so the override should reset).
-   *
-   * If agentId is omitted, the association will apply only to Claude Code
-   * (backward compatible with legacy v1.0 behavior).
+   * Keeps the other agents' associations, mirrors this one at the top level of
+   * `.vscode/agent-profile.json`, and clears any manual override (the user is
+   * explicitly setting an association, so the override should reset).
    */
-  async setAssociation(workspaceRoot: string, profileName: string, agentId?: string): Promise<void> {
-    const filePath = path.join(workspaceRoot, ASSOCIATION_FILE);
-    const data: WorkspaceProfileAssociation = agentId
-      ? { profileName, agentId }
-      : { profileName };
-    await this.fileIO.writeJsonFile(filePath, data);
+  async setAssociation(workspaceRoot: string, profileName: string, agentId: string): Promise<void> {
+    const { associations } = await this.readAssociations(workspaceRoot);
+    associations[agentId] = profileName;
+    await this.writeAssociations(workspaceRoot, associations, agentId);
     await this.clearOverride(workspaceRoot);
   }
 
   /**
-   * Remove the profile association for a workspace.
+   * Remove one agent's profile association for a workspace.
    *
-   * Deletes `.vscode/agent-profile.json` and clears any override.
+   * Deletes `.vscode/agent-profile.json` when no association remains, and
+   * clears any override.
    */
-  async removeAssociation(workspaceRoot: string): Promise<void> {
-    const filePath = path.join(workspaceRoot, ASSOCIATION_FILE);
-    await this.fileIO.deleteFile(filePath);
+  async removeAssociation(workspaceRoot: string, agentId: string): Promise<void> {
+    const { associations, mirroredAgentId } = await this.readAssociations(workspaceRoot);
+    delete associations[agentId];
+    await this.writeAssociations(workspaceRoot, associations, mirroredAgentId);
     await this.clearOverride(workspaceRoot);
   }
 
