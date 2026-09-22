@@ -118,4 +118,17 @@ describe('ProfileService.switchProfile — hook groups sharing one key', () => {
     expect(toggleTool.mock.calls.map(([tool]) => (tool as NormalizedTool).id)).toEqual([project.id]);
   });
 
+  it('does not unstash a same-key sibling when the entry enables', async () => {
+    const winner = hook(0, 'echo a', ToolStatus.Enabled);
+    const stashed = hook(1, 'echo b', ToolStatus.Disabled);
+    const { svc, toggleTool } = makeService([winner], { [ConfigScope.Project]: [winner, stashed] }, [
+      { key: 'hook:PreToolUse:Bash', enabled: true },
+    ]);
+
+    const result = await svc.switchProfile('p1');
+
+    expect(toggleTool).not.toHaveBeenCalled();
+    expect(result.toggled).toBe(0);
+  });
+
 });

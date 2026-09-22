@@ -525,9 +525,12 @@ export class ProfileService {
       }
 
       // A hook's canonical key is its event and matcher, so one settings file can
-      // hold several groups under one key. readAllTools keeps only the first;
-      // the entry applies to every group with that key in the winner's file.
-      const targets = tool.type === ToolType.Hook ? await hookGroupsSharingKey(tool) : [tool];
+      // hold several groups under one key. readAllTools keeps only the first.
+      // A disabling entry applies to every group with that key in the winner's
+      // file; an enabling entry toggles only the winner, so a switch never
+      // unstashes a sibling group the user disabled.
+      const targets =
+        tool.type === ToolType.Hook && !entry.enabled ? await hookGroupsSharingKey(tool) : [tool];
       for (const target of targets) {
         if ((target.status === ToolStatus.Enabled) !== entry.enabled) {
           ops.push({ tool: target, targetEnabled: entry.enabled });
