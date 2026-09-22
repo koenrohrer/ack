@@ -35,26 +35,48 @@ export async function readDirFiles(
   return { files, skippedDirs };
 }
 
+/** The provider surface the scope probes need — one probe per installable type. */
+type ScopeProbeProvider = Pick<
+  AgentProvider,
+  'getSkillsDir' | 'getCommandsDir' | 'getMcpFilePath'
+>;
+
+/** Scope preference order; every returned list follows it. */
+const SCOPE_ORDER = [ConfigScope.User, ConfigScope.Project] as const;
+
 /**
  * Determine which scopes the active provider can install the given tool type into.
  *
- * Probes `getSkillsDir`/`getCommandsDir` per candidate scope rather than checking
- * provider identity, so a new provider needs no change here. A provider that
- * installs to the workspace without a resolvable directory (e.g. Copilot agents,
- * whose `getSkillsDir` is not wired but whose `installSkill` writes to
- * `.github/agents/`) reports no scopes; we then fall back to Project when a
- * workspace is open.
+ * Probes `getSkillsDir`/`getCommandsDir`/`getMcpFilePath` per candidate scope
+ * rather than checking provider identity, so a new provider needs no change here.
+ *
+ * The Project fallback for `'skill'`/`'command'` is deliberately NOT symmetric
+ * with `'mcp_server'` — do not "tidy" it into symmetry. It exists for a provider
+ * that installs into the workspace without a resolvable directory: Copilot's
+ * `getSkillsDir` is unwired while its `installSkill` still writes to
+ * `.github/agents/`, so an empty probe there does not mean there is nowhere to
+ * land. No provider has that shape for MCP — an MCP config path that resolves
+ * nowhere means genuinely nowhere to write — so `'mcp_server'` returns no scopes
+ * instead, and the caller may honestly say so.
  */
 export function resolveInstallScopes(
-  provider: Pick<AgentProvider, 'getSkillsDir' | 'getCommandsDir'>,
-  type: 'skill' | 'command',
+  provider: ScopeProbeProvider,
+  type: 'skill' | 'command' | 'mcp_server',
   hasWorkspace: boolean,
 ): ConfigScope[] {
   const candidates = hasWorkspace
     ? [ConfigScope.User, ConfigScope.Project]
     : [ConfigScope.User];
-  const resolve = (scope: ConfigScope): string =>
-    type === 'skill' ? provider.getSkillsDir(scope) : provider.getCommandsDir(scope);
+  const resolve = (scope: ConfigScope): string => {
+    switch (type) {
+      case 'skill':
+        return provider.getSkillsDir(scope);
+      case 'command':
+        return provider.getCommandsDir(scope);
+      case 'mcp_server':
+        return provider.getMcpFilePath(scope);
+    }
+  };
 
   const valid = candidates.filter((scope) => {
     try {
@@ -68,7 +90,31 @@ export function resolveInstallScopes(
   if (valid.length > 0) {
     return valid;
   }
+  if (type === 'mcp_server') {
+    return [];
+  }
   return hasWorkspace ? [ConfigScope.Project] : [];
+}
+
+/**
+ * Which scopes an Agent Plugin as a whole can be installed into.
+ *
+ * A plugin may ship skills, MCP servers, or both, so probing either component
+ * type alone gets the answer wrong for a package that does not contain it — the
+ * skills-only probe is what made an MCP-only plugin uninstallable for Copilot
+ * with no workspace open (addendum §A5). The union is safe because the fan-out
+ * already isolates per component (§11.3): a scope that suits only one component
+ * type costs the other component a skip, never the install.
+ */
+export function resolvePluginInstallScopes(
+  provider: ScopeProbeProvider,
+  hasWorkspace: boolean,
+): ConfigScope[] {
+  const union = new Set([
+    ...resolveInstallScopes(provider, 'skill', hasWorkspace),
+    ...resolveInstallScopes(provider, 'mcp_server', hasWorkspace),
+  ]);
+  return SCOPE_ORDER.filter((scope) => union.has(scope));
 }
 
 /** Build the post-install confirmation message, noting any skipped subfolders. */

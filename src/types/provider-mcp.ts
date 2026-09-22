@@ -1,6 +1,25 @@
 import type { ConfigScope } from './enums.js';
 import type { NormalizedTool } from './config.js';
 
+/** Portable transports an Agent Plugins mcp.json can declare (§7.2.1). */
+export type PluginMcpTransport = 'stdio' | 'streamable-http' | 'sse';
+
+/**
+ * How this agent's native MCP config expresses a transport.
+ *
+ * `field` is the native key naming the transport, or undefined when the agent
+ * infers it from the presence of `command` vs `url`. `native` maps each
+ * portable transport the agent CAN express to the value written into `field`;
+ * `null` means "expressible, but implicitly — write no field".
+ *
+ * A transport absent from `native` cannot be expressed by this agent, and
+ * §7.2.2.4 requires skipping that server entry rather than guessing a value.
+ */
+export interface McpTransportSupport {
+  field?: string;
+  native: Partial<Record<PluginMcpTransport, string | null>>;
+}
+
 /**
  * MCP server management capability interface.
  *
@@ -57,6 +76,16 @@ export interface McpCapability {
    * Lets callers pick the right reader/writer without branching on provider id.
    */
   getMcpConfigFormat(): 'toml' | 'json' | 'yaml';
+
+  /**
+   * How this agent's native MCP config expresses a transport.
+   *
+   * Required rather than optional: a provider that declines to answer must not
+   * be silently assumed to express every portable transport. Lets callers
+   * encode a transport -- or decide it is inexpressible and skip the server per
+   * §7.2.2.4 -- without branching on provider id.
+   */
+  getMcpTransportSupport(): McpTransportSupport;
 
   // ---------------------------------------------------------------------------
   // Optional capability methods (present iff the matching capabilities flag set)

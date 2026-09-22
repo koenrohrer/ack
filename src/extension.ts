@@ -21,6 +21,7 @@ import { ToolTreeProvider } from './views/tool-tree/tool-tree.provider.js';
 import { registerToolTreeCommands } from './views/tool-tree/tool-tree.commands.js';
 import { registerManagementCommands } from './views/tool-tree/tool-tree.management.js';
 import { registerProfileCommands } from './views/tool-tree/tool-tree.profile-commands.js';
+import { runInstallPlugin } from './views/tool-tree/tool-tree.plugin-install.js';
 import { ToolManagerService } from './services/tool-manager.service.js';
 import { ProfileService } from './services/profile.service.js';
 import { FileWatcherManager } from './views/file-watcher.manager.js';
@@ -191,6 +192,13 @@ export function activate(context: vscode.ExtensionContext): void {
       ),
   );
   context.subscriptions.push(openConfigPanel);
+
+  // 15c. Install an Agent Plugins package and fan it out into the active agent
+  const installPluginCmd = vscode.commands.registerCommand(
+    'ack.installPlugin',
+    () => runInstallPlugin(context, registry, treeProvider, outputChannel),
+  );
+  context.subscriptions.push(installPluginCmd);
 
   // 15d. Switch agent command (status bar click or command palette)
   const switchAgentCmd = vscode.commands.registerCommand(

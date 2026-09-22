@@ -7,6 +7,7 @@ import type { BackupService } from '../../services/backup.service.js';
 import type { AgentProvider, ProviderCapabilities } from '../../types/provider.js';
 import type { CustomPromptInstallResult } from '../../types/provider-install.js';
 import type { NormalizedTool } from '../../types/config.js';
+import type { McpTransportSupport } from '../../types/provider-mcp.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { CodexPaths } from './paths.js';
 import { isCodexInstalled } from './codex.detect.utils.js';
@@ -14,6 +15,7 @@ import { parseCodexConfigMcpServers } from './parsers/config.parser.js';
 import { parsePromptsDir } from './parsers/prompt.parser.js';
 import { parseSkillsDir } from '../claude-code/parsers/skill.parser.js';
 import { removeSkill, copySkill, renameSkill } from '../claude-code/writers/skill.writer.js';
+import { writeSkillTree } from '../shared/skill-tree.js';
 import { ProviderScopeError } from '../../types/provider-errors.js';
 import {
   addCodexMcpServer,
@@ -423,6 +425,16 @@ export class CodexProvider implements AgentProvider {
     return 'toml';
   }
 
+  /**
+   * `CodexMcpServerSchema` (`schemas.ts:16`) has no transport field at all:
+   * Codex infers the transport from `command` vs `url`, so both expressible
+   * transports map to `null` -- write no field. It cannot express `sse`, which
+   * §7.2.2.4 turns into a skipped server rather than a guessed value.
+   */
+  getMcpTransportSupport(): McpTransportSupport {
+    return { field: undefined, native: { stdio: null, 'streamable-http': null } };
+  }
+
   // ---------------------------------------------------------------------------
   // McpCapability -- optional capability methods (capabilities.mcpEnvVars /
   // mcpServerToolToggle). Delegate to the config.writer TOML mutations so the
@@ -508,21 +520,17 @@ export class CodexProvider implements AgentProvider {
   /**
    * Install a skill by writing files to the scope's skills directory.
    *
-   * Creates the skill subdirectory and writes all provided files.
-   * Identical behavior to ClaudeCodeProvider since skill format is shared.
+   * Creates the skill subdirectory and writes all provided files, nested
+   * `file.name` values included. Identical behavior to ClaudeCodeProvider
+   * since skill format is shared -- see {@link writeSkillTree}.
    */
   async installSkill(
     scope: ConfigScope,
     skillName: string,
-    files: Array<{ name: string; content: string }>,
+    files: Array<{ name: string; content: string | Uint8Array }>,
   ): Promise<void> {
-    const { mkdir, writeFile } = await import('fs/promises');
     const baseDir = this.getSkillsDir(scope);
-    const targetDir = path.join(baseDir, skillName);
-    await mkdir(targetDir, { recursive: true });
-    for (const file of files) {
-      await writeFile(path.join(targetDir, file.name), file.content, 'utf-8');
-    }
+    await writeSkillTree(this.displayName, path.join(baseDir, skillName), files);
   }
 
   // ---------------------------------------------------------------------------
