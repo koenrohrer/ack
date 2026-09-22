@@ -129,6 +129,17 @@ export class PluginStore {
       );
     }
 
+    // (1b) Refuse a source that overlaps PLUGIN_ROOT, before anything is
+    // written. A source equal to or inside the root is deleted by the replace
+    // below; a source containing the root is copied into itself until the
+    // path is too long. isContained resolves symlinks on both sides, so a link
+    // to the installed root is caught as well.
+    if ((await isContained(owned.root, sourcePath)) || (await isContained(sourcePath, owned.root))) {
+      throw new Error(
+        `The plugin at ${JSON.stringify(sourceDir)} overlaps its install location ${JSON.stringify(owned.root)}. Choose a source directory outside the managed plugin store.`,
+      );
+    }
+
     // (2) PLUGIN_DATA: created if absent, and otherwise left completely alone.
     // §9.1 requires its contents to survive an update, so an existing data
     // directory is never cleared, replaced or read here.

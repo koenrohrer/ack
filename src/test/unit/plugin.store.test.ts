@@ -235,6 +235,58 @@ describe('PluginStore.install — validates before copying', () => {
 });
 
 // ---------------------------------------------------------------------------
+// A source that overlaps the root it would replace
+// ---------------------------------------------------------------------------
+
+describe('PluginStore.install — rejects a source that overlaps the installed root', () => {
+  it('rejects the installed root itself as the source and leaves it intact', async () => {
+    await buildSource(source, { skills: ['alpha'] });
+    const { record } = await store.install(source);
+
+    await expect(store.install(record.root)).rejects.toThrow(/overlaps/);
+
+    expect(await readOrNull(path.join(record.root, 'skills', 'alpha', 'SKILL.md'))).toBe('# alpha');
+    expect((await store.get('test-plugin'))?.name).toBe('test-plugin');
+  });
+
+  it('rejects a source nested inside the installed root and leaves both intact', async () => {
+    await buildSource(source);
+    const { record } = await store.install(source);
+    const nested = await buildSource(path.join(record.root, 'vendored'), { skills: ['inner'] });
+
+    await expect(store.install(nested)).rejects.toThrow(/overlaps/);
+
+    expect(await lexists(path.join(nested, 'skills', 'inner', 'SKILL.md'))).toBe(true);
+    expect(await lexists(path.join(record.root, 'plugin.json'))).toBe(true);
+  });
+
+  it('rejects a source that contains the managed store and writes nothing into it', async () => {
+    // The store lives INSIDE the package the user picked.
+    await buildSource(source);
+    const nestedStore = new PluginStore(
+      path.join(source, 'state', 'plugins'),
+      path.join(source, 'state', 'plugin-data'),
+    );
+
+    await expect(nestedStore.install(source)).rejects.toThrow(/overlaps/);
+
+    expect(await lexists(path.join(source, 'state'))).toBe(false);
+    expect(await lexists(path.join(source, 'plugin.json'))).toBe(true);
+  });
+
+  itSymlink('rejects the installed root when it is reached through a symlink', async () => {
+    await buildSource(source);
+    const { record } = await store.install(source);
+    const link = path.join(outside, 'root-link');
+    await fs.symlink(record.root, link, 'dir');
+
+    await expect(store.install(link)).rejects.toThrow(/overlaps/);
+
+    expect(await lexists(path.join(record.root, 'plugin.json'))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Happy path — the copy and the record
 // ---------------------------------------------------------------------------
 
