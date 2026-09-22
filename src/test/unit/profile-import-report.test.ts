@@ -179,3 +179,35 @@ describe('formatImportConflictReport', () => {
     expect(lines).toContain('  srvACK: all tools verified: command');
   });
 });
+
+describe('importConflictFields compares contents the way the import analysis does', () => {
+  it('does not name env when only its values differ, because env values differ per machine', () => {
+    const local = makeTool({
+      type: ToolType.McpServer,
+      name: 'srv',
+      scope: ConfigScope.User,
+      metadata: { command: 'node', args: ['a.js'], env: { API_TOKEN: 'local' } },
+    });
+    const exported = exportedServer({ command: 'node', args: ['b.js'], env: { API_TOKEN: 'remote' } });
+
+    expect(importConflictFields(exported, local)).toEqual(['args']);
+  });
+
+  it('does not name hooks when only the key order of a hook differs', () => {
+    const local = makeTool({
+      type: ToolType.Hook,
+      name: 'PreToolUse:Bash',
+      scope: ConfigScope.User,
+      metadata: { eventName: 'PreToolUse', matcher: 'Bash', hooks: [{ type: 'command', command: 'lint.sh' }] },
+    });
+    const exported: ExportedTool = {
+      key: 'hook:PreToolUse:Bash',
+      enabled: true,
+      type: 'hook',
+      name: 'PreToolUse:Bash',
+      config: { kind: 'hook', eventName: 'PreToolUse', matcher: '', hooks: [{ command: 'lint.sh', type: 'command' }] },
+    };
+
+    expect(importConflictFields(exported, local)).toEqual(['matcher']);
+  });
+});

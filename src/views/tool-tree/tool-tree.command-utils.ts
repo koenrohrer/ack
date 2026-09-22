@@ -7,7 +7,10 @@
 
 import { ToolType } from '../../types/enums.js';
 import type { NormalizedTool } from '../../types/config.js';
-import type { ExportedTool, ImportAnalysis } from '../../services/profile.types.js';
+import type { ImportAnalysis } from '../../services/profile.types.js';
+import { importConflictFields } from '../../services/profile-import.utils.js';
+
+export { importConflictFields };
 
 /**
  * Determine the open route for a tool based on its type.
@@ -142,49 +145,6 @@ function sanitize(value: string, max: number): string {
     return visible.join('');
   }
   return `${visible.slice(0, max - 1).join('')}…`;
-}
-
-/**
- * Name the config fields whose imported value differs from the local tool's.
- *
- * Returns field names only (for an MCP server: command, url, args, env; for a
- * hook group: eventName, matcher, hooks), never a value. Other kinds yield [].
- */
-export function importConflictFields(exported: ExportedTool, local: NormalizedTool): string[] {
-  const config = exported.config;
-  const meta = local.metadata;
-  const differs = (a: unknown, b: unknown): boolean => JSON.stringify(a) !== JSON.stringify(b);
-  const fields: string[] = [];
-  switch (config.kind) {
-    case 'mcp_server':
-      if (config.command !== ((meta.command as string | undefined) ?? '')) {
-        fields.push('command');
-      }
-      if ((config.url ?? '') !== ((meta.url as string | undefined) ?? '')) {
-        fields.push('url');
-      }
-      if (differs(config.args, meta.args ?? [])) {
-        fields.push('args');
-      }
-      if (differs(config.env, meta.env ?? {})) {
-        fields.push('env');
-      }
-      break;
-    case 'hook':
-      if (config.eventName !== ((meta.eventName as string | undefined) ?? '')) {
-        fields.push('eventName');
-      }
-      if (config.matcher !== ((meta.matcher as string | undefined) ?? '')) {
-        fields.push('matcher');
-      }
-      if (differs(config.hooks, meta.hooks ?? [])) {
-        fields.push('hooks');
-      }
-      break;
-    default:
-      break;
-  }
-  return fields;
 }
 
 /**

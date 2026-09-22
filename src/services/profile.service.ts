@@ -27,6 +27,7 @@ import type {
   ImportAnalysis,
 } from './profile.types.js';
 import type { ProviderRegistry } from '../providers/provider.registry.js';
+import { importConflictFields } from './profile-import.utils.js';
 
 /**
  * Manages named profiles -- preset collections of tool enabled/disabled states.
@@ -900,29 +901,20 @@ export class ProfileService {
   }
 
   /**
-   * Heuristic comparison to determine if an exported tool matches its local counterpart.
+   * Determine whether an exported tool matches its local counterpart.
    *
-   * Uses simple shape matching rather than exact equality:
-   * - MCP servers: compare command + url + args + env key count
-   * - Skills/commands: compare file count
-   * - Hooks: compare hooks array length and event/matcher
+   * - MCP servers and hooks: match when importConflictFields names no field
+   *   (command, url, args element by element, env key set; event, matcher,
+   *   and each hook's type, command, prompt and timeout)
+   * - Skills/commands: always match
    */
   private configsMatch(exported: ExportedTool, local: NormalizedTool): boolean {
     const config = exported.config;
 
     switch (config.kind) {
-      case 'mcp_server': {
-        const localCmd = (local.metadata.command as string) ?? '';
-        const localArgs = (local.metadata.args as string[]) ?? [];
-        const localEnv = (local.metadata.env as Record<string, string>) ?? {};
-        const localUrl = (local.metadata.url as string) ?? '';
-        return (
-          config.command === localCmd &&
-          (config.url ?? '') === localUrl &&
-          config.args.length === localArgs.length &&
-          Object.keys(config.env).length === Object.keys(localEnv).length
-        );
-      }
+      case 'mcp_server':
+      case 'hook':
+        return importConflictFields(exported, local).length === 0;
 
       case 'skill':
       case 'command':
@@ -935,17 +927,6 @@ export class ProfileService {
           return true;
         }
         return true; // File count check would require async; treat as matching for now
-      }
-
-      case 'hook': {
-        const localHooks = (local.metadata.hooks as unknown[]) ?? [];
-        const localEvent = (local.metadata.eventName as string) ?? '';
-        const localMatcher = (local.metadata.matcher as string) ?? '';
-        return (
-          config.eventName === localEvent &&
-          config.matcher === localMatcher &&
-          config.hooks.length === localHooks.length
-        );
       }
 
       default:
