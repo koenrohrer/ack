@@ -281,6 +281,19 @@ export function registerManagementCommands(
         }
         const scope = scopePick.scope;
 
+        // installMcpServer replaces an entry of the same name, so an existing
+        // server is only overwritten after the user says so.
+        if (await toolManager.mcpServerExists(scope, serverName)) {
+          const overwrite = await vscode.window.showWarningMessage(
+            `An MCP server named '${serverName}' already exists in ${scopePick.label}. Overwrite it?`,
+            { modal: true },
+            'Overwrite',
+          );
+          if (overwrite !== 'Overwrite') {
+            return;
+          }
+        }
+
         // Step 3: Transport type
         const transportPick = await vscode.window.showQuickPick(
           [

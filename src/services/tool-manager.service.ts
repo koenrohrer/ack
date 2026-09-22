@@ -1,7 +1,7 @@
 import type { ConfigService } from './config.service.js';
 import type { ProviderRegistry } from '../providers/provider.registry.js';
 import type { NormalizedTool } from '../types/config.js';
-import { ConfigScope } from '../types/enums.js';
+import { ConfigScope, ToolStatus, ToolType } from '../types/enums.js';
 import { isManaged } from './tool-manager.utils.js';
 
 /**
@@ -152,6 +152,22 @@ export class ToolManagerService {
       // If we can't read the target scope, assume no conflict
       return false;
     }
+  }
+
+  /**
+   * Whether an MCP server named `serverName` is already configured at `scope`.
+   *
+   * Used before adding a server, because `installMcpServer` replaces an
+   * existing entry of the same name without asking. Unlike checkConflict, a
+   * read failure propagates: reporting "no conflict" for a file that could not
+   * be read would let the caller overwrite a server it never saw. The error
+   * entry a provider returns for an unreadable file is not a server.
+   */
+  async mcpServerExists(scope: ConfigScope, serverName: string): Promise<boolean> {
+    const servers = await this.configService.readToolsByScope(ToolType.McpServer, scope);
+    return servers.some(
+      (server) => server.name === serverName && server.status !== ToolStatus.Error,
+    );
   }
 
   // ---------------------------------------------------------------------------
