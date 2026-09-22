@@ -695,7 +695,7 @@ export function registerProfileCommands(
       const analysis = await profileService.analyzeImport(bundle);
 
       // Handle conflicts: ask per-tool
-      const resolvedConflictKeys = new Set<string>();
+      const useImported: typeof analysis.conflicts = [];
       for (const conflict of analysis.conflicts) {
         const resolution = await vscode.window.showQuickPick(
           [
@@ -710,8 +710,25 @@ export function registerProfileCommands(
         }
 
         if ((resolution as { useImported: boolean }).useImported) {
-          resolvedConflictKeys.add(conflict.exported.key);
+          useImported.push(conflict);
         }
+      }
+
+      // Apply the imported config for each conflict the user resolved that way
+      const notApplied: string[] = [];
+      for (const conflict of useImported) {
+        const applied = await profileService.applyImportedConfig(conflict.exported, conflict.local);
+        if (!applied.applied) {
+          notApplied.push(`${conflict.exported.name} (${applied.reason})`);
+        }
+      }
+      if (useImported.length > 0) {
+        treeProvider.refresh();
+      }
+      if (notApplied.length > 0) {
+        vscode.window.showWarningMessage(
+          `Kept the local config for ${notApplied.length} tool(s): ${notApplied.join(', ')}`,
+        );
       }
 
       // Handle missing tools: report and skip (local-only; no remote install).

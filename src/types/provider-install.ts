@@ -54,11 +54,13 @@ export interface InstallCapability {
    * Install a hook by adding a matcher group to the scope's settings file.
    *
    * Routes to the existing addHook writer with the correct file path.
+   * `stashed` installs the group disabled (Claude Code: into `_disabledHooks`).
    */
   installHook(
     scope: ConfigScope,
     eventName: string,
     matcherGroup: { matcher: string; hooks: unknown[] },
+    stashed?: boolean,
   ): Promise<void>;
 
   /**

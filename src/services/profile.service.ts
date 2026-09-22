@@ -25,6 +25,7 @@ import type {
   ExportedTool,
   ExportedToolConfig,
   ImportAnalysis,
+  ImportApplyResult,
 } from './profile.types.js';
 import type { ProviderRegistry } from '../providers/provider.registry.js';
 
@@ -671,6 +672,93 @@ export class ProfileService {
     }
 
     return { matching, conflicts, missing };
+  }
+
+  /**
+   * Replace a local tool's config with the imported one, for a conflict the
+   * user resolved as "use imported".
+   *
+   * - MCP server: the entry is edited in place. `command`, `args`, `env` and
+   *   `url` take the imported values (an empty one is removed); every other key
+   *   stays. A server whose transport kind differs (a command on one side, a
+   *   url on the other) is left unchanged, because its transport key would no
+   *   longer match.
+   * - Hook: the imported matcher group is added, stashed if the local group is
+   *   stashed, and the local group removed.
+   * - Other kinds: never in conflict (configsMatch), so reported as not applied.
+   *
+   * Never throws: a failure is returned as `applied: false` with its reason.
+   */
+  async applyImportedConfig(exported: ExportedTool, local: NormalizedTool): Promise<ImportApplyResult> {
+    const provider = this.registry.getActiveProvider();
+    if (!provider) {
+      return { applied: false, reason: 'no agent is active' };
+    }
+    const config = exported.config;
+    try {
+      if (config.kind === 'mcp_server') {
+        const localIsStdio = typeof local.metadata.command === 'string' && local.metadata.command !== '';
+        if ((config.command !== '') !== localIsStdio) {
+          return { applied: false, reason: 'the imported server uses a different transport' };
+        }
+        const containerKey = provider.getMcpContainerKey();
+        const mutate = (current: Record<string, unknown>): Record<string, unknown> => {
+          const servers = { ...((current[containerKey] as Record<string, Record<string, unknown>>) ?? {}) };
+          if (!Object.hasOwn(servers, local.name)) {
+            throw new Error(`${local.name} was not found in ${local.source.filePath}; the file changed since it was read`);
+          }
+          const merged = { ...servers[local.name] };
+          delete merged.command;
+          delete merged.args;
+          delete merged.env;
+          delete merged.url;
+          if (config.command !== '') {
+            merged.command = config.command;
+          }
+          if (config.args.length > 0) {
+            merged.args = [...config.args];
+          }
+          if (Object.keys(config.env).length > 0) {
+            merged.env = { ...config.env };
+          }
+          if (config.url) {
+            merged.url = config.url;
+          }
+          servers[local.name] = merged;
+          return { ...current, [containerKey]: servers };
+        };
+        const filePath = local.source.filePath;
+        const schemaKey = provider.getMcpSchemaKey(local.scope);
+        const format = provider.getMcpConfigFormat();
+        if (format === 'toml') {
+          await this.configService.writeTomlConfigFile(filePath, schemaKey, mutate);
+        } else if (format === 'yaml') {
+          await this.configService.writeYamlConfigFile(filePath, schemaKey, mutate);
+        } else {
+          await this.configService.writeConfigFile(filePath, schemaKey, mutate);
+        }
+        return { applied: true };
+      }
+
+      if (config.kind === 'hook') {
+        // Add first, then remove: a failed add leaves the local group in place.
+        // removeTool finds the local group by content, so the added group,
+        // whose hooks differ, is not the one removed. The imported group takes
+        // the local group's stash state, so a disabled hook stays disabled.
+        await provider.installHook(
+          local.scope,
+          config.eventName,
+          { matcher: config.matcher, hooks: config.hooks },
+          local.metadata.stashed === true,
+        );
+        await provider.removeTool(local);
+        return { applied: true };
+      }
+
+      return { applied: false, reason: `a ${config.kind} config cannot be applied over a local one` };
+    } catch (err: unknown) {
+      return { applied: false, reason: err instanceof Error ? err.message : String(err) };
+    }
   }
 
   /**
