@@ -13,9 +13,10 @@ import type { BackupService } from '../../../services/backup.service.js';
 /**
  * Remove a command file or directory.
  *
- * If the command is a directory, backs up the main .md file then
- * deletes the entire directory recursively. If it's a single file,
- * backs up then unlinks.
+ * If the command is a directory, backs up the main .md file BESIDE the
+ * directory (`<commands>/<name>.<file>.md.bak.1`) then deletes the entire
+ * directory recursively -- a backup inside it would be deleted with it. If
+ * it's a single file, backs up then unlinks.
  */
 export async function removeCommand(
   backupService: BackupService,
@@ -23,13 +24,14 @@ export async function removeCommand(
   isDirectory: boolean,
 ): Promise<void> {
   if (isDirectory) {
+    const dir = path.resolve(commandPath);
     // For directories, find .md files to back up the primary one
-    const entries = await fs.readdir(commandPath).catch(() => []);
+    const entries = await fs.readdir(dir).catch(() => []);
     const mdFile = (entries as string[]).find((e) => e.endsWith('.md'));
     if (mdFile) {
-      await backupService.createBackup(path.join(commandPath, mdFile));
+      await backupService.createBackupAt(path.join(dir, mdFile), `${dir}.${mdFile}`);
     }
-    await fs.rm(commandPath, { recursive: true, force: true });
+    await fs.rm(dir, { recursive: true, force: true });
   } else {
     await backupService.createBackup(commandPath);
     await fs.unlink(commandPath);

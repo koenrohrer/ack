@@ -397,16 +397,46 @@ describe('Skill Writer', () => {
     await fs.writeFile(skillMd, 'original content');
 
     // Use a spy to verify backup was called before deletion
-    const backupSpy = vi.spyOn(backup, 'createBackup');
+    const backupSpy = vi.spyOn(backup, 'createBackupAt');
 
     await removeSkill(backup, skillDir);
 
-    expect(backupSpy).toHaveBeenCalledWith(skillMd);
+    expect(backupSpy).toHaveBeenCalledWith(skillMd, `${skillDir}.SKILL.md`);
     // Directory should be gone after removal
     const dirExists = await fs.access(skillDir).then(() => true).catch(() => false);
     expect(dirExists).toBe(false);
 
     backupSpy.mockRestore();
+  });
+
+  it('removeSkill keeps a backup of SKILL.md beside the directory it deletes', async () => {
+    const skillDir = path.join(tmpDir, 'kept-skill');
+    await fs.mkdir(skillDir);
+    await fs.writeFile(path.join(skillDir, 'SKILL.md'), 'original skill');
+
+    await removeSkill(backup, skillDir);
+
+    expect(await fs.readFile(`${skillDir}.SKILL.md.bak.1`, 'utf-8')).toBe('original skill');
+  });
+
+  it('removeSkill keeps a backup of a disabled SKILL.md.disabled', async () => {
+    const skillDir = path.join(tmpDir, 'off-skill');
+    await fs.mkdir(skillDir);
+    await fs.writeFile(path.join(skillDir, 'SKILL.md.disabled'), 'disabled skill');
+
+    await removeSkill(backup, skillDir);
+
+    expect(await fs.readFile(`${skillDir}.SKILL.md.disabled.bak.1`, 'utf-8')).toBe('disabled skill');
+  });
+
+  it('removeSkill puts the backup outside the directory when the path ends in a separator', async () => {
+    const skillDir = path.join(tmpDir, 'slash-skill');
+    await fs.mkdir(skillDir);
+    await fs.writeFile(path.join(skillDir, 'SKILL.md'), 'slash skill');
+
+    await removeSkill(backup, `${skillDir}${path.sep}`);
+
+    expect(await fs.readFile(`${skillDir}.SKILL.md.bak.1`, 'utf-8')).toBe('slash skill');
   });
 
   it('copySkill copies directory to target', async () => {
@@ -483,6 +513,16 @@ describe('Command Writer', () => {
 
     const exists = await fs.access(cmdDir).then(() => true).catch(() => false);
     expect(exists).toBe(false);
+  });
+
+  it('removeCommand keeps a backup of a directory command beside the directory it deletes', async () => {
+    const cmdDir = path.join(tmpDir, 'kept-cmd');
+    await fs.mkdir(cmdDir);
+    await fs.writeFile(path.join(cmdDir, 'main.md'), 'main command');
+
+    await removeCommand(backup, cmdDir, true);
+
+    expect(await fs.readFile(`${cmdDir}.main.md.bak.1`, 'utf-8')).toBe('main command');
   });
 
   it('copyCommand copies single file to target', async () => {

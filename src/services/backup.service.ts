@@ -27,29 +27,42 @@ export class BackupService {
    * Silently skips if the source file does not exist (nothing to back up).
    */
   async createBackup(filePath: string): Promise<void> {
+    await this.createBackupAt(filePath, filePath);
+  }
+
+  /**
+   * Create a rolling backup of `sourcePath` under `backupBase`.
+   *
+   * Writes `${backupBase}.bak.1` through `.bak.5` with the same rotation as
+   * {@link createBackup}. Use it when the source's own directory is about to be
+   * deleted: a backup written beside the source would be deleted with it.
+   *
+   * Silently skips if the source file does not exist (nothing to back up).
+   */
+  async createBackupAt(sourcePath: string, backupBase: string): Promise<void> {
     // If source file does not exist, nothing to back up
-    const exists = await this.fileIO.fileExists(filePath);
+    const exists = await this.fileIO.fileExists(sourcePath);
     if (!exists) {
       return;
     }
 
     // Delete oldest backup if it exists (deleteFile is a no-op on ENOENT)
-    await this.fileIO.deleteFile(`${filePath}.bak.${MAX_BACKUPS}`);
+    await this.fileIO.deleteFile(`${backupBase}.bak.${MAX_BACKUPS}`);
 
     // Shift existing backups: .bak.4 -> .bak.5, .bak.3 -> .bak.4, etc.
     // Source backups may not exist; skip ENOENT silently.
     for (let i = MAX_BACKUPS - 1; i >= 1; i--) {
       await silentMove(
         this.fileIO,
-        `${filePath}.bak.${i}`,
-        `${filePath}.bak.${i + 1}`,
+        `${backupBase}.bak.${i}`,
+        `${backupBase}.bak.${i + 1}`,
       );
     }
 
     // Copy current file to .bak.1
-    const content = await this.fileIO.readTextFile(filePath);
+    const content = await this.fileIO.readTextFile(sourcePath);
     if (content !== null) {
-      await this.fileIO.writeTextFile(`${filePath}.bak.1`, content);
+      await this.fileIO.writeTextFile(`${backupBase}.bak.1`, content);
     }
   }
 
