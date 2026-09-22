@@ -13,7 +13,7 @@
  * VS Code API will fail loudly rather than silently no-op -- that is deliberate;
  * grow this stub only for the surface a test genuinely needs.
  *
- * Wired up via `resolve.alias` in `vitest.config.ts`.
+ * Wired up via `test.alias` in `vitest.config.mts`.
  *
  * ---
  *
