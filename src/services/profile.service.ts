@@ -921,8 +921,8 @@ export class ProfileService {
       case 'custom_prompt': {
         // Compare by file count as a simple heuristic
         const localDir = local.source.directoryPath;
-        // If we can't determine local file count, treat as matching
-        // (the user can still see and resolve via conflict UI)
+        // If we can't determine local file count, treat as matching.
+        // An import keeps the local files either way; it never writes them.
         if (!localDir) {
           return true;
         }

@@ -241,8 +241,9 @@ export const ExportedToolSchema = z.object({
   name: z.string(),
   config: ExportedToolConfigSchema,
 }).passthrough().refine(
-  // A bundle is untrusted: the key picks the local tool, the config is what is
-  // written over it. All three must name the same tool type.
+  // A bundle is untrusted: the key picks the local tool, and the config is
+  // compared with it to report conflicts; ACK never writes it. All three must
+  // name the same tool type.
   (tool) => extractToolTypeFromKey(tool.key) === tool.type && tool.type === tool.config.kind,
   'Tool key prefix, type and config kind must agree.',
 );
