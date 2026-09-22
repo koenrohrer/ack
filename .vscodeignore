@@ -15,7 +15,7 @@ tsconfig.webview.json
 esbuild.mjs
 esbuild.webview.mjs
 eslint.config.mjs
-vitest.config.ts
+vitest.config.mts
 package-lock.json
 **/*.map
 CONTRIBUTING.md
