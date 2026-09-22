@@ -83,6 +83,9 @@ export function getTomlPath(
 /** Longest bundle-supplied text shown in a notification or the output channel. */
 const BUNDLE_TEXT_MAX = 80;
 
+/** Longest error message about a bundle, which quotes bundle-supplied keys. */
+const BUNDLE_ERROR_MAX = 300;
+
 /** Most combining marks kept on one base character. */
 const COMBINING_MARKS_MAX = 2;
 
@@ -106,6 +109,19 @@ const COMBINING_MARK = /\p{M}/u;
  * the result to BUNDLE_TEXT_MAX characters, the last one an ellipsis.
  */
 export function sanitizeBundleText(value: string): string {
+  return sanitize(value, BUNDLE_TEXT_MAX);
+}
+
+/**
+ * Make an error message about an untrusted profile bundle safe to show.
+ *
+ * Same as sanitizeBundleText, but clips to BUNDLE_ERROR_MAX characters.
+ */
+export function sanitizeBundleError(value: string): string {
+  return sanitize(value, BUNDLE_ERROR_MAX);
+}
+
+function sanitize(value: string, max: number): string {
   const visible: string[] = [];
   let marks = 0;
   for (const ch of value) {
@@ -122,10 +138,10 @@ export function sanitizeBundleText(value: string): string {
     }
     visible.push(ch);
   }
-  if (visible.length <= BUNDLE_TEXT_MAX) {
+  if (visible.length <= max) {
     return visible.join('');
   }
-  return `${visible.slice(0, BUNDLE_TEXT_MAX - 1).join('')}…`;
+  return `${visible.slice(0, max - 1).join('')}…`;
 }
 
 /**

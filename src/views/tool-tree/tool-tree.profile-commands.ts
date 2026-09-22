@@ -12,7 +12,7 @@ import type { ProfileToolEntry } from '../../services/profile.types.js';
 import type { NormalizedTool } from '../../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { canonicalKey, extractToolTypeFromKey } from '../../utils/tool-key.utils.js';
-import { sanitizeBundleText, formatImportConflictReport } from './tool-tree.command-utils.js';
+import { sanitizeBundleText, sanitizeBundleError, formatImportConflictReport } from './tool-tree.command-utils.js';
 import type { ProviderRegistry } from '../../providers/provider.registry.js';
 
 /**
@@ -617,7 +617,7 @@ export function registerProfileCommands(
           return;
         }
         vscode.window.showErrorMessage(
-          `Invalid profile bundle: ${validation.error.message}`,
+          `Invalid profile bundle: ${sanitizeBundleError(validation.error.message)}`,
         );
         return;
       }

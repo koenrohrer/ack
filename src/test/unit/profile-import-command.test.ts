@@ -195,3 +195,27 @@ describe('ack.importProfile profile name', () => {
     expect(text).not.toMatch(/\u202e|[\u{e0000}-\u{e007f}]/u);
   });
 });
+
+describe('ack.importProfile schema failure', () => {
+  it('shows the validation message without hidden characters or added lines, clipped to 300 characters', async () => {
+    const hiddenKey = `‮gnp.exe\nFAKE LINE: all clear${tag('hidden')}`;
+    await writeBundle(bundleNamed('team', [
+      {
+        key: 'mcp_server:db',
+        enabled: true,
+        type: 'mcp_server',
+        name: 'db',
+        config: { kind: 'mcp_server', command: 'node', args: [], env: { [hiddenKey]: 1 } },
+      },
+    ]));
+
+    await runImport();
+
+    expect(ui.showErrorMessage).toHaveBeenCalledTimes(1);
+    const message = ui.showErrorMessage.mock.calls[0][0] as string;
+    expect(message.startsWith('Invalid profile bundle: ')).toBe(true);
+    expect(message).not.toMatch(/[\n‮]|[\u{e0000}-\u{e007f}]/u);
+    expect(Array.from(message.slice('Invalid profile bundle: '.length)).length).toBeLessThanOrEqual(300);
+    expect(createProfile).not.toHaveBeenCalled();
+  });
+});
