@@ -15,6 +15,7 @@ import { parseCommandsDir } from './parsers/command.parser.js';
 import { ProviderScopeError } from '../../types/provider-errors.js';
 import { toggleMcpServer, removeMcpServer, addMcpServer } from './writers/mcp.writer.js';
 import { toggleHook, removeHook, addHook } from './writers/settings.writer.js';
+import type { HookGroupLocator } from './writers/settings.writer.js';
 import { removeSkill, copySkill, renameSkill } from './writers/skill.writer.js';
 import { removeCommand, copyCommand, renameCommand } from './writers/command.writer.js';
 import { writeSkillTree } from '../shared/skill-tree.js';
@@ -226,9 +227,7 @@ export class ClaudeCodeProvider implements AgentProvider {
       case ToolType.Hook: {
         const filePath = tool.source.filePath;
         const eventName = tool.metadata.eventName as string;
-        const parts = tool.id.split(':');
-        const matcherIndex = parseInt(parts[parts.length - 1], 10);
-        await toggleHook(this.configService!, filePath, eventName, matcherIndex, shouldDisable);
+        await toggleHook(this.configService!, filePath, eventName, this.hookLocator(tool), shouldDisable);
         break;
       }
 
@@ -536,10 +535,7 @@ export class ClaudeCodeProvider implements AgentProvider {
     const filePath = this.getSettingsFilePath(tool.scope);
     const eventName = tool.metadata.eventName as string;
     const stashed = tool.metadata.stashed === true;
-    // Extract matcher index from tool ID (format: "hook:{scope}:{eventName}:{index}" or "hook-stashed:...")
-    const parts = tool.id.split(':');
-    const matcherIndex = parseInt(parts[parts.length - 1], 10);
-    await removeHook(this.configService!, filePath, eventName, matcherIndex, stashed);
+    await removeHook(this.configService!, filePath, eventName, this.hookLocator(tool), stashed);
   }
 
   private async removeSkillTool(tool: NormalizedTool): Promise<void> {
@@ -558,6 +554,22 @@ export class ClaudeCodeProvider implements AgentProvider {
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
+
+  /**
+   * Locate a hook's matcher group by what the parser read, not by position.
+   *
+   * The id ends in the group's index ("hook:{scope}:{eventName}:{index}" or
+   * "hook-stashed:..."), which goes stale as soon as an earlier group of the
+   * same event moves; it survives only as the tiebreak among identical groups.
+   */
+  private hookLocator(tool: NormalizedTool): HookGroupLocator {
+    const parts = tool.id.split(':');
+    return {
+      index: parseInt(parts[parts.length - 1], 10),
+      matcher: (tool.metadata.matcher as string | undefined) ?? '',
+      hooks: (tool.metadata.hooks as Array<Record<string, unknown>> | undefined) ?? [],
+    };
+  }
 
   private ensureWriteServices(): void {
     if (!this.configService || !this.backupService) {

@@ -13,7 +13,7 @@ import { claudeCodeSchemas } from '../../providers/claude-code/schemas.js';
 import { toggleMcpServer, removeMcpServer, addMcpServer } from '../../providers/claude-code/writers/mcp.writer.js';
 
 // Settings writer
-import { toggleHook, removeHook, addHook } from '../../providers/claude-code/writers/settings.writer.js';
+import { toggleHook, removeHook, addHook, findHookGroupIndex } from '../../providers/claude-code/writers/settings.writer.js';
 
 // Skill writer
 import { removeSkill, copySkill, renameSkill } from '../../providers/claude-code/writers/skill.writer.js';
@@ -370,6 +370,68 @@ describe('Settings Writer', () => {
       // Old disabled field should be stripped
       expect(data._disabledHooks.PreToolUse[0].disabled).toBeUndefined();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Settings Writer -- hooks addressed by content, not position
+// ---------------------------------------------------------------------------
+
+describe('Settings Writer -- hook locator', () => {
+  const bash = { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo a' }] };
+  const write = { matcher: 'Write', hooks: [{ type: 'command', command: 'echo b' }] };
+
+  it('findHookGroupIndex finds a group by matcher and hook commands', () => {
+    expect(findHookGroupIndex([bash, write], { index: 0, ...write })).toBe(1);
+  });
+
+  it('findHookGroupIndex ignores hook-entry keys the settings schema strips', () => {
+    // The parser validates through HookEntrySchema, which drops unknown keys,
+    // so the locator built from parsed metadata never carries `async`.
+    const raw = { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo a', async: true }] };
+    expect(findHookGroupIndex([write, raw], { index: 0, ...bash })).toBe(1);
+  });
+
+  it('findHookGroupIndex prefers the recorded index among identical groups', () => {
+    expect(findHookGroupIndex([bash, bash, bash], { index: 2, ...bash })).toBe(2);
+    expect(findHookGroupIndex([bash, bash], { index: 5, ...bash })).toBe(0);
+  });
+
+  it('findHookGroupIndex returns -1 when no group matches', () => {
+    expect(findHookGroupIndex([bash], { index: 0, ...write })).toBe(-1);
+  });
+
+  it('toggleHook with a stale index disables the group the locator describes', async () => {
+    const filePath = path.join(tmpDir, 'settings.json');
+    // `write` was at index 1 when read; an earlier toggle moved it to index 0.
+    await fileIO.writeJsonFile(filePath, { hooks: { PreToolUse: [write] } });
+
+    await toggleHook(configService, filePath, 'PreToolUse', { index: 1, ...write }, true);
+
+    const result = await fileIO.readJsonFile<Record<string, unknown>>(filePath);
+    expect(result.success && result.data).toEqual({ hooks: {}, _disabledHooks: { PreToolUse: [write] } });
+  });
+
+  it('toggleHook rejects and writes nothing when the locator matches no group', async () => {
+    const filePath = path.join(tmpDir, 'settings.json');
+    await fileIO.writeJsonFile(filePath, { hooks: { PreToolUse: [bash] } });
+
+    await expect(
+      toggleHook(configService, filePath, 'PreToolUse', { index: 0, ...write }, true),
+    ).rejects.toThrow(/not found/);
+
+    const result = await fileIO.readJsonFile<Record<string, unknown>>(filePath);
+    expect(result.success && result.data).toEqual({ hooks: { PreToolUse: [bash] } });
+  });
+
+  it('removeHook with a stale index removes the group the locator describes', async () => {
+    const filePath = path.join(tmpDir, 'settings.json');
+    await fileIO.writeJsonFile(filePath, { hooks: { PreToolUse: [bash, write] } });
+
+    await removeHook(configService, filePath, 'PreToolUse', { index: 0, ...write });
+
+    const result = await fileIO.readJsonFile<Record<string, unknown>>(filePath);
+    expect(result.success && result.data).toEqual({ hooks: { PreToolUse: [bash] } });
   });
 });
 

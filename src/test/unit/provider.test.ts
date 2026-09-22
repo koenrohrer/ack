@@ -257,6 +257,58 @@ Project skill body.`);
     expect(tools[0].metadata.eventName).toBe('PreToolUse');
   });
 
+  it('toggleTool disables two hooks of one event from a single stale read', async () => {
+    // Profile switching reads the tool list once and then toggles in sequence.
+    // Disabling the first group shifts the others down, so a position-based id
+    // hits the wrong group on the second toggle.
+    const dir = await makeTmpDir();
+    const settingsPath = path.join(dir, '.claude', 'settings.json');
+    await fs.mkdir(path.dirname(settingsPath), { recursive: true });
+    const groups = [
+      { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo a' }] },
+      { matcher: 'Write', hooks: [{ type: 'command', command: 'echo b', statusMessage: 'kept' }] },
+      { matcher: 'Edit', hooks: [{ type: 'command', command: 'echo c' }] },
+    ];
+    await fs.writeFile(settingsPath, JSON.stringify({ hooks: { PreToolUse: groups } }));
+
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
+    const { configService, backupService } = makeWriteServices();
+    provider.setWriteServices(configService, backupService);
+
+    const tools = await provider.readTools(ToolType.Hook, ConfigScope.Project);
+    const bash = tools.find((t) => t.metadata.matcher === 'Bash')!;
+    const write = tools.find((t) => t.metadata.matcher === 'Write')!;
+    await provider.toggleTool(bash);
+    await provider.toggleTool(write);
+
+    const saved = JSON.parse(await fs.readFile(settingsPath, 'utf-8'));
+    expect(saved.hooks.PreToolUse).toEqual([groups[2]]);
+    expect(saved._disabledHooks.PreToolUse).toEqual([groups[0], groups[1]]);
+  });
+
+  it('removeTool deletes two hooks of one event from a single stale read', async () => {
+    const dir = await makeTmpDir();
+    const settingsPath = path.join(dir, '.claude', 'settings.json');
+    await fs.mkdir(path.dirname(settingsPath), { recursive: true });
+    const groups = [
+      { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo a' }] },
+      { matcher: 'Write', hooks: [{ type: 'command', command: 'echo b' }] },
+      { matcher: 'Edit', hooks: [{ type: 'command', command: 'echo c' }] },
+    ];
+    await fs.writeFile(settingsPath, JSON.stringify({ hooks: { PreToolUse: groups } }));
+
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, dir);
+    const { configService, backupService } = makeWriteServices();
+    provider.setWriteServices(configService, backupService);
+
+    const tools = await provider.readTools(ToolType.Hook, ConfigScope.Project);
+    await provider.removeTool(tools[0]);
+    await provider.removeTool(tools[1]);
+
+    const saved = JSON.parse(await fs.readFile(settingsPath, 'utf-8'));
+    expect(saved.hooks.PreToolUse).toEqual([groups[2]]);
+  });
+
   it('readTools routes McpServer+Project to mcp parser with disabled list', async () => {
     const dir = await makeTmpDir();
     const projectRoot = dir;
