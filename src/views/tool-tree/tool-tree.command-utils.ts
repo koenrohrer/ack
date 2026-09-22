@@ -7,7 +7,7 @@
 
 import { ToolType } from '../../types/enums.js';
 import type { NormalizedTool } from '../../types/config.js';
-import type { ExportedToolConfig } from '../../services/profile.types.js';
+import type { ExportedTool, ImportAnalysis } from '../../services/profile.types.js';
 
 /**
  * Determine the open route for a tool based on its type.
@@ -80,55 +80,88 @@ export function getTomlPath(
   return '';
 }
 
-/** Longest value describeImportedConfig shows before it truncates. */
-const IMPORT_VALUE_MAX = 80;
+/** Longest bundle-supplied text shown in a notification or the output channel. */
+const BUNDLE_TEXT_MAX = 80;
 
-/** Put a value on one line and truncate it, saying how much was cut. */
-function clipImportValue(value: string): string {
-  const flat = value.replace(/\s+/g, ' ').trim();
-  if (flat.length <= IMPORT_VALUE_MAX) {
-    return flat;
-  }
-  return `${flat.slice(0, IMPORT_VALUE_MAX)}… (${flat.length - IMPORT_VALUE_MAX} more chars)`;
+/**
+ * True for a character hidden from bundle-supplied text: a C0 or C1 control
+ * (newlines included), a bidi override or isolate, or a zero-width character.
+ */
+function isHiddenChar(code: number): boolean {
+  return (
+    code <= 0x1f ||
+    (code >= 0x7f && code <= 0x9f) ||
+    (code >= 0x200b && code <= 0x200d) ||
+    (code >= 0x202a && code <= 0x202e) ||
+    (code >= 0x2066 && code <= 0x2069) ||
+    code === 0xfeff
+  );
 }
 
 /**
- * Describe, on one line, what an imported config would write over a local tool.
+ * Make text from an untrusted profile bundle safe to show to the user.
  *
- * Shown to the user before they approve an imported config from an untrusted
- * bundle. For an MCP server: command and args, url, and the env key names
- * (never the values). For a hook group: event, matcher, and each hook's
- * command or prompt. Other kinds are never applied, so they yield ''.
+ * Removes the characters that can hide or reorder text or add lines, then
+ * clips the result to BUNDLE_TEXT_MAX characters, the last one an ellipsis.
  */
-export function describeImportedConfig(config: ExportedToolConfig): string {
-  const parts: string[] = [];
+export function sanitizeBundleText(value: string): string {
+  const visible = Array.from(value).filter((ch) => !isHiddenChar(ch.codePointAt(0)!));
+  if (visible.length <= BUNDLE_TEXT_MAX) {
+    return visible.join('');
+  }
+  return `${visible.slice(0, BUNDLE_TEXT_MAX - 1).join('')}…`;
+}
+
+/**
+ * Name the config fields whose imported value differs from the local tool's.
+ *
+ * Returns field names only (for an MCP server: command, url, args, env; for a
+ * hook group: eventName, matcher, hooks), never a value. Other kinds yield [].
+ */
+export function importConflictFields(exported: ExportedTool, local: NormalizedTool): string[] {
+  const config = exported.config;
+  const meta = local.metadata;
+  const differs = (a: unknown, b: unknown): boolean => JSON.stringify(a) !== JSON.stringify(b);
+  const fields: string[] = [];
   switch (config.kind) {
     case 'mcp_server':
-      if (config.command !== '') {
-        parts.push(`command: ${clipImportValue([config.command, ...config.args].join(' '))}`);
+      if (config.command !== ((meta.command as string | undefined) ?? '')) {
+        fields.push('command');
       }
-      if (config.url) {
-        parts.push(`url: ${clipImportValue(config.url)}`);
+      if ((config.url ?? '') !== ((meta.url as string | undefined) ?? '')) {
+        fields.push('url');
       }
-      if (Object.keys(config.env).length > 0) {
-        parts.push(`env keys: ${clipImportValue(Object.keys(config.env).join(', '))}`);
+      if (differs(config.args, meta.args ?? [])) {
+        fields.push('args');
+      }
+      if (differs(config.env, meta.env ?? {})) {
+        fields.push('env');
       }
       break;
     case 'hook':
-      parts.push(`event: ${clipImportValue(config.eventName)}`);
-      parts.push(`matcher: ${config.matcher === '' ? '(any)' : clipImportValue(config.matcher)}`);
-      for (const hook of config.hooks) {
-        if (typeof hook.command === 'string') {
-          parts.push(`command: ${clipImportValue(hook.command)}`);
-        } else if (typeof hook.prompt === 'string') {
-          parts.push(`prompt: ${clipImportValue(hook.prompt)}`);
-        } else {
-          parts.push(`hook: ${clipImportValue(JSON.stringify(hook))}`);
-        }
+      if (config.eventName !== ((meta.eventName as string | undefined) ?? '')) {
+        fields.push('eventName');
+      }
+      if (config.matcher !== ((meta.matcher as string | undefined) ?? '')) {
+        fields.push('matcher');
+      }
+      if (differs(config.hooks, meta.hooks ?? [])) {
+        fields.push('hooks');
       }
       break;
     default:
-      return '';
+      break;
   }
-  return parts.join(' · ');
+  return fields;
+}
+
+/**
+ * One output-channel line per import conflict: the sanitized tool name and
+ * the names of the fields that differ. Never contains a field value.
+ */
+export function formatImportConflictReport(conflicts: ImportAnalysis['conflicts']): string[] {
+  return conflicts.map(({ exported, local }) => {
+    const fields = importConflictFields(exported, local);
+    return `  ${sanitizeBundleText(exported.name)}: ${fields.length > 0 ? fields.join(', ') : 'config'}`;
+  });
 }

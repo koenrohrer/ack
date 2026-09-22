@@ -12,7 +12,7 @@ import type { ProfileToolEntry } from '../../services/profile.types.js';
 import type { NormalizedTool } from '../../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { canonicalKey, extractToolTypeFromKey } from '../../utils/tool-key.utils.js';
-import { describeImportedConfig } from './tool-tree.command-utils.js';
+import { sanitizeBundleText, formatImportConflictReport } from './tool-tree.command-utils.js';
 import type { ProviderRegistry } from '../../providers/provider.registry.js';
 
 /**
@@ -144,6 +144,7 @@ export function registerProfileCommands(
   treeProvider: ToolTreeProvider,
   workspaceProfileService: WorkspaceProfileService,
   registry: ProviderRegistry,
+  outputChannel: vscode.OutputChannel,
 ): void {
   // ---------------------------------------------------------------------------
   // Create Profile
@@ -636,7 +637,7 @@ export function registerProfileCommands(
         }
 
         const convertChoice = await vscode.window.showWarningMessage(
-          `This profile was created for ${importValidation.sourceAgent}. Convert to ${activeAgent.displayName}?`,
+          `This profile was created for ${sanitizeBundleText(importValidation.sourceAgent ?? '')}. Convert to ${activeAgent.displayName}?`,
           { modal: true },
           'Convert',
           'Cancel',
@@ -652,7 +653,7 @@ export function registerProfileCommands(
 
         // Show conversion results
         if (conversion.stats.skipped > 0) {
-          const skippedList = conversion.stats.skippedTools.slice(0, 5).join(', ');
+          const skippedList = conversion.stats.skippedTools.slice(0, 5).map(sanitizeBundleText).join(', ');
           const more = conversion.stats.skippedTools.length > 5
             ? ` and ${conversion.stats.skippedTools.length - 5} more`
             : '';
@@ -672,13 +673,14 @@ export function registerProfileCommands(
       const nameConflict = existingProfiles.find((p) => p.name === finalName);
 
       if (nameConflict) {
+        const shownName = sanitizeBundleText(finalName);
         const choice = await vscode.window.showQuickPick(
           [
-            { label: 'Overwrite existing', description: `Replace "${finalName}"` },
-            { label: `Import as "${finalName} (imported)"`, description: 'Use a different name' },
+            { label: 'Overwrite existing', description: `Replace "${shownName}"` },
+            { label: `Import as "${shownName} (imported)"`, description: 'Use a different name' },
             { label: 'Cancel', description: '' },
           ],
-          { placeHolder: `A profile named "${finalName}" already exists` },
+          { placeHolder: `A profile named "${shownName}" already exists` },
         );
 
         if (!choice || choice.label === 'Cancel') {
@@ -695,44 +697,17 @@ export function registerProfileCommands(
       // Analyze import
       const analysis = await profileService.analyzeImport(bundle);
 
-      // Handle conflicts: ask per-tool
-      const useImported: typeof analysis.conflicts = [];
-      for (const conflict of analysis.conflicts) {
-        const resolution = await vscode.window.showQuickPick(
-          [
-            {
-              label: `Use imported config for "${conflict.exported.name}"`,
-              detail: describeImportedConfig(conflict.exported.config),
-              useImported: true,
-            },
-            { label: `Keep local config for "${conflict.exported.name}"`, useImported: false },
-          ] as Array<vscode.QuickPickItem & { useImported: boolean }>,
-          { placeHolder: `Config conflict: "${conflict.exported.name}"` },
+      // Conflicts keep the local config: ACK never writes config from a bundle.
+      // The output channel names the fields that differ, never their values.
+      if (analysis.conflicts.length > 0) {
+        outputChannel.appendLine(
+          `Profile import "${sanitizeBundleText(finalName)}": kept the local config for ${analysis.conflicts.length} tool(s) whose imported config differs:`,
         );
-
-        if (!resolution) {
-          continue; // Skip this conflict (keep local)
+        for (const line of formatImportConflictReport(analysis.conflicts)) {
+          outputChannel.appendLine(line);
         }
-
-        if ((resolution as { useImported: boolean }).useImported) {
-          useImported.push(conflict);
-        }
-      }
-
-      // Apply the imported config for each conflict the user resolved that way
-      const notApplied: string[] = [];
-      for (const conflict of useImported) {
-        const applied = await profileService.applyImportedConfig(conflict.exported, conflict.local);
-        if (!applied.applied) {
-          notApplied.push(`${conflict.exported.name} (${applied.reason})`);
-        }
-      }
-      if (useImported.length > 0) {
-        treeProvider.refresh();
-      }
-      if (notApplied.length > 0) {
         vscode.window.showWarningMessage(
-          `Kept the local config for ${notApplied.length} tool(s): ${notApplied.join(', ')}`,
+          `Kept the local config for ${analysis.conflicts.length} tool(s) whose imported config differs. See the ACK output channel for the fields that differ.`,
         );
       }
 
@@ -754,7 +729,7 @@ export function registerProfileCommands(
 
       // Prompt to switch
       const switchAction = await vscode.window.showInformationMessage(
-        `Profile "${finalName}" imported. Switch to it now?`,
+        `Profile "${sanitizeBundleText(finalName)}" imported. Switch to it now?`,
         'Switch',
       );
 
@@ -766,7 +741,7 @@ export function registerProfileCommands(
 
       if (skipped.length > 0) {
         vscode.window.showWarningMessage(
-          `Import complete. ${skipped.length} tool(s) not found — add them locally via the + on each tool group: ${skipped.join(', ')}`,
+          `Import complete. ${skipped.length} tool(s) not found — add them locally via the + on each tool group: ${skipped.map(sanitizeBundleText).join(', ')}`,
         );
       }
     },

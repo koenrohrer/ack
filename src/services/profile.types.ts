@@ -176,12 +176,6 @@ export interface ImportAnalysis {
 }
 
 /**
- * Outcome of applying an imported tool config over its local counterpart.
- * `reason` says why the local config was left unchanged.
- */
-export type ImportApplyResult = { applied: true } | { applied: false; reason: string };
-
-/**
  * Result of an import operation.
  */
 export interface ImportResult {

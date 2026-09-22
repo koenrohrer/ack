@@ -167,7 +167,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   // 14. Profile commands (create, switch, edit, delete, save-as, export, import, associate, clone-to-agent)
-  registerProfileCommands(context, profileService, configService, treeProvider, workspaceProfileService, registry);
+  registerProfileCommands(context, profileService, configService, treeProvider, workspaceProfileService, registry, outputChannel);
 
   // 14b. Restore active profile name in sidebar header on startup
   const activeId = profileService.getActiveProfileId();

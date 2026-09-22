@@ -411,7 +411,6 @@ export class ClaudeCodeProvider implements AgentProvider {
     scope: ConfigScope,
     eventName: string,
     matcherGroup: { matcher: string; hooks: unknown[] },
-    stashed = false,
   ): Promise<void> {
     this.ensureWriteServices();
     const filePath = this.getSettingsPath(scope);
@@ -420,7 +419,6 @@ export class ClaudeCodeProvider implements AgentProvider {
       filePath,
       eventName,
       matcherGroup as { matcher: string; hooks: Array<Record<string, unknown>>; [key: string]: unknown },
-      stashed,
     );
   }
 
