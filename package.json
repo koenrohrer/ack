@@ -453,7 +453,7 @@
     "npm-run-all": "^4.1",
     "typescript": "^5.7",
     "typescript-eslint": "^8.0",
-    "vitest": "^3.0"
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "serialize-javascript": "^7.0.6"
