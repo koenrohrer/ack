@@ -1,9 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
 import type { Profile, SwitchResult } from '../../services/profile.types.js';
+
+/** A dialog spy the `vscode` mock forwards to. Vitest 4 types a bare `vi.fn()` as not callable. */
+type DialogSpy = Mock<(...args: any[]) => any>;
 
 /**
  * The `ack.importProfile` command, driven through its registered handler.
@@ -18,11 +21,11 @@ const ui = vi.hoisted(() => ({
   bundlePath: '',
   quickPickLabel: undefined as string | undefined,
   infoAnswer: undefined as string | undefined,
-  showOpenDialog: undefined as unknown as ReturnType<typeof vi.fn>,
-  showQuickPick: undefined as unknown as ReturnType<typeof vi.fn>,
-  showInformationMessage: undefined as unknown as ReturnType<typeof vi.fn>,
-  showWarningMessage: undefined as unknown as ReturnType<typeof vi.fn>,
-  showErrorMessage: undefined as unknown as ReturnType<typeof vi.fn>,
+  showOpenDialog: undefined as unknown as DialogSpy,
+  showQuickPick: undefined as unknown as DialogSpy,
+  showInformationMessage: undefined as unknown as DialogSpy,
+  showWarningMessage: undefined as unknown as DialogSpy,
+  showErrorMessage: undefined as unknown as DialogSpy,
 }));
 
 vi.mock('vscode', () => ({
