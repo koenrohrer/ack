@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { NormalizedTool } from '../types/config.js';
+import { extractToolTypeFromKey } from '../utils/tool-key.utils.js';
 
 // ---------------------------------------------------------------------------
 // Profile data model types
@@ -239,7 +240,13 @@ export const ExportedToolSchema = z.object({
   type: z.enum(['skill', 'mcp_server', 'hook', 'command', 'custom_prompt']),
   name: z.string(),
   config: ExportedToolConfigSchema,
-}).passthrough();
+}).passthrough().refine(
+  // A bundle is untrusted: the key picks the local tool, and the config is
+  // compared with it to report conflicts; ACK never writes it. All three must
+  // name the same tool type.
+  (tool) => extractToolTypeFromKey(tool.key) === tool.type && tool.type === tool.config.kind,
+  'Tool key prefix, type and config kind must agree.',
+);
 
 /**
  * Zod schema for validating imported profile bundles.
@@ -283,9 +290,60 @@ export const PROFILE_STORE_VERSION = 2;
  */
 export const EXPORT_BUNDLE_VERSION = 2;
 
-/** Default empty store used when no profile data exists yet */
+/**
+ * globalState key holding copies of profile stores that failed validation.
+ *
+ * The value is an array of `{ savedAt, store }`, appended to -- never replaced --
+ * each time ProfileService is about to overwrite an unreadable store.
+ */
+export const PROFILE_STORE_BACKUP_KEY = 'ack.profiles.unreadableBackups';
+
+/**
+ * Default empty store, for reference only.
+ *
+ * Never hand this object out to be mutated: use {@link createDefaultProfileStore},
+ * which returns a fresh copy with its own `profiles` array.
+ */
 export const DEFAULT_PROFILE_STORE: ProfileStore = {
   version: PROFILE_STORE_VERSION,
   profiles: [],
   activeProfileId: null,
 };
+
+/** A fresh empty store that shares no array with any other store. */
+export function createDefaultProfileStore(): ProfileStore {
+  return { version: PROFILE_STORE_VERSION, profiles: [], activeProfileId: null };
+}
+
+/**
+ * Recover what can be read from a stored value that failed ProfileStoreSchema.
+ *
+ * Keeps every profile that passes ProfileSchema on its own and drops the rest.
+ * Keeps `activeProfileId` only when it names a kept profile. Keeps `version`
+ * only when it is a number: a missing version reads as v1, so migrateIfNeeded
+ * still assigns an agent to a recovered pre-v2 profile.
+ */
+export function salvageProfileStore(raw: unknown): ProfileStore {
+  const store = createDefaultProfileStore();
+  if (typeof raw !== 'object' || raw === null) {
+    return store;
+  }
+
+  const record = raw as Record<string, unknown>;
+  store.version = typeof record.version === 'number' ? record.version : undefined;
+
+  if (Array.isArray(record.profiles)) {
+    for (const candidate of record.profiles) {
+      const parsed = ProfileSchema.safeParse(candidate);
+      if (parsed.success) {
+        store.profiles.push(parsed.data as Profile);
+      }
+    }
+  }
+
+  const active = record.activeProfileId;
+  if (typeof active === 'string' && store.profiles.some((p) => p.id === active)) {
+    store.activeProfileId = active;
+  }
+  return store;
+}

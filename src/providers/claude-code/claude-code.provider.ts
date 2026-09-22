@@ -6,7 +6,7 @@ import type { BackupService } from '../../services/backup.service.js';
 import type { AgentProvider, ProviderCapabilities } from '../../types/provider.js';
 import type { NormalizedTool } from '../../types/config.js';
 import type { McpTransportSupport } from '../../types/provider-mcp.js';
-import { ToolType, ConfigScope } from '../../types/enums.js';
+import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { ClaudeCodePaths } from './paths.js';
 import { parseSettingsFile, readDisabledMcpServers } from './parsers/settings.parser.js';
 import { parseMcpFile, parseClaudeJson } from './parsers/mcp.parser.js';
@@ -14,7 +14,8 @@ import { parseSkillsDir } from './parsers/skill.parser.js';
 import { parseCommandsDir } from './parsers/command.parser.js';
 import { ProviderScopeError } from '../../types/provider-errors.js';
 import { toggleMcpServer, removeMcpServer, addMcpServer } from './writers/mcp.writer.js';
-import { toggleHook, removeHook, addHook } from './writers/settings.writer.js';
+import { toggleHook, removeHook, addHook, findHookGroupIndex } from './writers/settings.writer.js';
+import type { HookGroupLocator } from './writers/settings.writer.js';
 import { removeSkill, copySkill, renameSkill } from './writers/skill.writer.js';
 import { removeCommand, copyCommand, renameCommand } from './writers/command.writer.js';
 import { writeSkillTree } from '../shared/skill-tree.js';
@@ -226,9 +227,7 @@ export class ClaudeCodeProvider implements AgentProvider {
       case ToolType.Hook: {
         const filePath = tool.source.filePath;
         const eventName = tool.metadata.eventName as string;
-        const parts = tool.id.split(':');
-        const matcherIndex = parseInt(parts[parts.length - 1], 10);
-        await toggleHook(this.configService!, filePath, eventName, matcherIndex, shouldDisable);
+        await toggleHook(this.configService!, filePath, eventName, this.hookLocator(tool), shouldDisable);
         break;
       }
 
@@ -488,20 +487,59 @@ export class ClaudeCodeProvider implements AgentProvider {
   // Private write routing methods
   // ---------------------------------------------------------------------------
 
+  /**
+   * Copy an MCP server entry into `scope` as its source file holds it.
+   *
+   * The parsed metadata keeps five fields, so an entry rebuilt from it loses
+   * `type`, `headers`, `cwd` and every other key. A server disabled through a
+   * settings `disabledMcpServers` list has no flag of its own, so the copy gets
+   * `disabled: true`; otherwise the move would enable it.
+   */
   private async writeMcpServer(tool: NormalizedTool, scope: ConfigScope): Promise<void> {
     const { filePath, schemaKey } = this.getMcpFileInfo(scope);
-    const serverConfig = this.extractMcpServerConfig(tool);
+    const read = await this.fileIO.readJsonFile<{ mcpServers?: Record<string, Record<string, unknown>> }>(
+      tool.source.filePath,
+    );
+    if (!read.success) {
+      throw new Error(`Cannot read MCP server ${tool.name} from ${tool.source.filePath}: ${read.error}`);
+    }
+    const servers = read.data?.mcpServers ?? {};
+    if (!Object.hasOwn(servers, tool.name)) {
+      throw new Error(
+        `MCP server ${tool.name} was not found in ${tool.source.filePath}; the file changed since it was read. Refresh and try again.`,
+      );
+    }
+    const serverConfig = { ...servers[tool.name] };
+    if (tool.status === ToolStatus.Disabled) {
+      serverConfig.disabled = true;
+    }
     await addMcpServer(this.configService!, filePath, schemaKey, tool.name, serverConfig);
   }
 
+  /**
+   * Copy a hook matcher group into `scope` as its source file holds it.
+   *
+   * The parser drops unknown hook keys, so the group is read again from the
+   * source file. A stashed (disabled) group stays in `_disabledHooks`.
+   */
   private async writeHook(tool: NormalizedTool, scope: ConfigScope): Promise<void> {
     const filePath = this.getSettingsFilePath(scope);
     const eventName = tool.metadata.eventName as string;
-    const matcherGroup = {
-      matcher: (tool.metadata.matcher as string) ?? '',
-      hooks: (tool.metadata.hooks as Array<Record<string, unknown>>) ?? [],
-    };
-    await addHook(this.configService!, filePath, eventName, matcherGroup);
+    const stashed = tool.metadata.stashed === true;
+    const read = await this.fileIO.readJsonFile<
+      Record<string, Record<string, Array<{ matcher: string; hooks: Array<Record<string, unknown>> }>> | undefined>
+    >(tool.source.filePath);
+    if (!read.success) {
+      throw new Error(`Cannot read hook ${tool.name} from ${tool.source.filePath}: ${read.error}`);
+    }
+    const groups = read.data?.[stashed ? '_disabledHooks' : 'hooks']?.[eventName] ?? [];
+    const index = findHookGroupIndex(groups, this.hookLocator(tool));
+    if (index === -1) {
+      throw new Error(
+        `Hook ${tool.name} was not found in ${tool.source.filePath}; the file changed since it was read. Refresh and try again.`,
+      );
+    }
+    await addHook(this.configService!, filePath, eventName, groups[index], stashed);
   }
 
   private async writeSkill(tool: NormalizedTool, scope: ConfigScope): Promise<void> {
@@ -536,10 +574,7 @@ export class ClaudeCodeProvider implements AgentProvider {
     const filePath = this.getSettingsFilePath(tool.scope);
     const eventName = tool.metadata.eventName as string;
     const stashed = tool.metadata.stashed === true;
-    // Extract matcher index from tool ID (format: "hook:{scope}:{eventName}:{index}" or "hook-stashed:...")
-    const parts = tool.id.split(':');
-    const matcherIndex = parseInt(parts[parts.length - 1], 10);
-    await removeHook(this.configService!, filePath, eventName, matcherIndex, stashed);
+    await removeHook(this.configService!, filePath, eventName, this.hookLocator(tool), stashed);
   }
 
   private async removeSkillTool(tool: NormalizedTool): Promise<void> {
@@ -558,6 +593,22 @@ export class ClaudeCodeProvider implements AgentProvider {
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
+
+  /**
+   * Locate a hook's matcher group by what the parser read, not by position.
+   *
+   * The id ends in the group's index ("hook:{scope}:{eventName}:{index}" or
+   * "hook-stashed:..."), which goes stale as soon as an earlier group of the
+   * same event moves; it survives only as the tiebreak among identical groups.
+   */
+  private hookLocator(tool: NormalizedTool): HookGroupLocator {
+    const parts = tool.id.split(':');
+    return {
+      index: parseInt(parts[parts.length - 1], 10),
+      matcher: (tool.metadata.matcher as string | undefined) ?? '',
+      hooks: (tool.metadata.hooks as Array<Record<string, unknown>> | undefined) ?? [],
+    };
+  }
 
   private ensureWriteServices(): void {
     if (!this.configService || !this.backupService) {
@@ -590,16 +641,6 @@ export class ClaudeCodeProvider implements AgentProvider {
       default:
         throw new Error(`Cannot determine settings file for scope: ${scope}`);
     }
-  }
-
-  private extractMcpServerConfig(tool: NormalizedTool): Record<string, unknown> {
-    const config: Record<string, unknown> = {};
-    if (tool.metadata.command) { config.command = tool.metadata.command; }
-    if (tool.metadata.args) { config.args = tool.metadata.args; }
-    if (tool.metadata.env) { config.env = tool.metadata.env; }
-    if (tool.metadata.transport) { config.transport = tool.metadata.transport; }
-    if (tool.metadata.url) { config.url = tool.metadata.url; }
-    return config;
   }
 
   private requiresWorkspace(scope: ConfigScope): boolean {

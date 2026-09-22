@@ -7,6 +7,9 @@ import type { McpTransportSupport, PluginMcpTransport } from '../../types/provid
 import type { PluginMcpServer } from '../../types/plugin.js';
 import { extractToolTypeFromKey } from '../../utils/tool-key.utils.js';
 import { ToolType } from '../../types/enums.js';
+import { CodexProvider } from '../../providers/codex/codex.provider.js';
+import { SchemaService } from '../../services/schema.service.js';
+import { createMockFileIO } from './helpers/mock-fileio.js';
 
 /**
  * Agent Plugins 1.0.0 §7.2.1 / §7.2.2.4 / §9.1 / §9.2 — translating one already
@@ -292,6 +295,37 @@ describe('toNativeMcpServer — pass-through of already-resolved fields (§7.2.1
     );
     expect(config.url).toBe('https://deploy.example.com/mcp');
     expect(config.headers).toStrictEqual({ 'X-Tenant': 'public-tenant', Accept: 'application/json' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The headers key comes from the descriptor too
+// ---------------------------------------------------------------------------
+
+describe('toNativeMcpServer — headers key from the descriptor', () => {
+  const HEADERS = { 'X-Tenant': 'public-tenant' };
+
+  it('writes headers under the key the descriptor names', () => {
+    const support: McpTransportSupport = {
+      field: undefined,
+      native: { stdio: null, 'streamable-http': null },
+      headersField: 'http_headers',
+    };
+    const config = expectTranslated(
+      toNativeMcpServer(remoteServer('streamable-http', { headers: HEADERS }), VARS, support),
+    );
+
+    expect(config.http_headers).toStrictEqual(HEADERS);
+    expect(Object.keys(config)).not.toContain('headers');
+  });
+
+  it("writes Codex's http_headers, read off the Codex provider itself", () => {
+    const support = new CodexProvider(createMockFileIO(), new SchemaService()).getMcpTransportSupport();
+    const config = expectTranslated(
+      toNativeMcpServer(remoteServer('streamable-http', { headers: HEADERS }), VARS, support),
+    );
+
+    expect(config).toStrictEqual({ url: 'https://deploy.example.com/mcp', http_headers: HEADERS });
   });
 });
 

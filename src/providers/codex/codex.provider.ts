@@ -430,9 +430,16 @@ export class CodexProvider implements AgentProvider {
    * Codex infers the transport from `command` vs `url`, so both expressible
    * transports map to `null` -- write no field. It cannot express `sse`, which
    * §7.2.2.4 turns into a skipped server rather than a guessed value.
+   *
+   * Static headers for a streamable HTTP server live under `http_headers`
+   * (codex-rs `RawMcpServerConfig`), not `headers`.
    */
   getMcpTransportSupport(): McpTransportSupport {
-    return { field: undefined, native: { stdio: null, 'streamable-http': null } };
+    return {
+      field: undefined,
+      native: { stdio: null, 'streamable-http': null },
+      headersField: 'http_headers',
+    };
   }
 
   // ---------------------------------------------------------------------------

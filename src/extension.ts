@@ -22,6 +22,7 @@ import { registerToolTreeCommands } from './views/tool-tree/tool-tree.commands.j
 import { registerManagementCommands } from './views/tool-tree/tool-tree.management.js';
 import { registerProfileCommands } from './views/tool-tree/tool-tree.profile-commands.js';
 import { runInstallPlugin } from './views/tool-tree/tool-tree.plugin-install.js';
+import { reportSwitchFailures } from './views/profile-switch-report.js';
 import { ToolManagerService } from './services/tool-manager.service.js';
 import { ProfileService } from './services/profile.service.js';
 import { FileWatcherManager } from './views/file-watcher.manager.js';
@@ -30,6 +31,7 @@ import { WorkspaceProfileService } from './services/workspace-profile.service.js
 import { AgentSwitcherService } from './services/agent-switcher.service.js';
 import { showAgentQuickPick } from './views/agent-switcher/agent-switcher.quickpick.js';
 import { createAgentStatusBar, updateAgentStatusBar } from './views/agent-switcher/agent-switcher.statusbar.js';
+import { serialize } from './utils/serialize.js';
 
 /**
  * Service container for cross-module access to initialized services.
@@ -166,7 +168,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   // 14. Profile commands (create, switch, edit, delete, save-as, export, import, associate, clone-to-agent)
-  registerProfileCommands(context, profileService, configService, treeProvider, workspaceProfileService, registry);
+  registerProfileCommands(context, profileService, configService, treeProvider, workspaceProfileService, registry, outputChannel);
 
   // 14b. Restore active profile name in sidebar header on startup
   const activeId = profileService.getActiveProfileId();
@@ -223,7 +225,22 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(activateAgentCmd);
 
-  // 15e. React to agent switches (status bar, file watchers, tree, panels, workspace profiles)
+  // 15e. Workspace profile auto-activation. It runs ONLY from the agent-switch
+  // listener below -- startup activates an agent through switchAgent, which
+  // fires that listener -- and serialize() keeps two quick agent switches from
+  // running two profile switches over the same config files at once.
+  const autoActivateWorkspaceProfile = serialize((root: string) =>
+    handleWorkspaceAutoActivation(
+      root,
+      profileService,
+      workspaceProfileService,
+      treeProvider,
+      outputChannel,
+      registry,
+    ),
+  );
+
+  // 15e.1 React to agent switches (status bar, file watchers, tree, panels, workspace profiles)
   context.subscriptions.push(
     agentSwitcher.onDidSwitchAgent(async (provider) => {
       await vscode.commands.executeCommand('setContext', 'ack.activeProviderId', provider?.id ?? '');
@@ -246,14 +263,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
         // Re-check workspace profile association for the new agent
         if (workspaceRoot) {
-          await handleWorkspaceAutoActivation(
-            workspaceRoot,
-            profileService,
-            workspaceProfileService,
-            treeProvider,
-            outputChannel,
-            registry,
-          );
+          await autoActivateWorkspaceProfile(workspaceRoot).catch((err: unknown) => {
+            outputChannel.appendLine(`Workspace profile auto-activation error: ${err}`);
+          });
         }
       }
     }),
@@ -265,8 +277,7 @@ export function activate(context: vscode.ExtensionContext): void {
   //   (b) exactly one detected -> activate it;
   //   (c) two or more detected, no usable history -> route to the chooser;
   //   (d) none detected -> the "install an agent" welcome.
-  // Returns true iff an agent was activated.
-  const applyDetectionResult = async (detected: AgentProvider[]): Promise<boolean> => {
+  const applyDetectionResult = async (detected: AgentProvider[]): Promise<void> => {
     const detectedIds = detected.map((a) => a.id);
 
     // Per-agent detection drives the chooser buttons' visibility (and preserves
@@ -290,21 +301,20 @@ export function activate(context: vscode.ExtensionContext): void {
         await agentSwitcher.switchAgent(decision.id);
       }
       outputChannel.appendLine(`Active agent: ${registry.getProvider(decision.id)?.displayName ?? decision.id}`);
-      return true;
+      return;
     }
 
     if (decision.kind === 'choose') {
       await vscode.commands.executeCommand('setContext', 'ack.noAgents', false);
       await vscode.commands.executeCommand('setContext', 'ack.chooseAgent', true);
       outputChannel.appendLine(`Multiple agents detected, awaiting choice: ${detected.map((a) => a.displayName).join(', ')}`);
-      return false;
+      return;
     }
 
     // none detected
     await vscode.commands.executeCommand('setContext', 'ack.chooseAgent', false);
     await vscode.commands.executeCommand('setContext', 'ack.noAgents', true);
     outputChannel.appendLine('No supported agent platforms detected');
-    return false;
   };
 
   // 15f. Re-detect agents command
@@ -361,19 +371,10 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     // Reconcile: last-used-first, else single auto-select, else route to chooser.
-    const activated = await applyDetectionResult(detected);
-
-    // Auto-activate workspace profile after successful agent selection
-    if (activated && workspaceRoot) {
-      await handleWorkspaceAutoActivation(
-        workspaceRoot,
-        profileService,
-        workspaceProfileService,
-        treeProvider,
-        outputChannel,
-        registry,
-      );
-    }
+    // Activating an agent fires onDidSwitchAgent, whose listener (15e.1) runs
+    // workspace profile auto-activation -- calling it here as well ran it twice
+    // at once.
+    await applyDetectionResult(detected);
 
     // Run provider configuration checks (each provider self-gates on detection).
     for (const a of registry.getAllProviders()) {
@@ -484,8 +485,9 @@ async function handleWorkspaceAutoActivation(
   // 8. Update sidebar header
   treeProvider.setActiveProfile(profile.name);
 
-  // 9. Show info notification
+  // 9. Show info notification, then any toggle that failed
   vscode.window.showInformationMessage(`Switched to profile: ${profile.name}`);
+  reportSwitchFailures(result, outputChannel);
 
   // 10. If missing tools, report them (local-only; no remote install)
   if (result.skipped > 0) {

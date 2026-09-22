@@ -634,4 +634,54 @@ describe('ToolManagerService', () => {
       expect(conflict).toBe(false);
     });
   });
+
+  // -----------------------------------------------------------------------
+  // mcpServerExists
+  // -----------------------------------------------------------------------
+
+  describe('mcpServerExists', () => {
+    it('returns true when a server with that name is configured at the scope', async () => {
+      (mockConfigService.readToolsByScope as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        makeMcpTool({ name: 'github', scope: ConfigScope.Project }),
+      ]);
+
+      await expect(service.mcpServerExists(ConfigScope.Project, 'github')).resolves.toBe(true);
+      expect(mockConfigService.readToolsByScope).toHaveBeenCalledWith(
+        ToolType.McpServer,
+        ConfigScope.Project,
+      );
+    });
+
+    it('returns false when only other servers are configured', async () => {
+      (mockConfigService.readToolsByScope as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        makeMcpTool({ name: 'time', scope: ConfigScope.User }),
+      ]);
+
+      await expect(service.mcpServerExists(ConfigScope.User, 'github')).resolves.toBe(false);
+    });
+
+    it('counts the error entry an unreadable config file produces as a taken name', async () => {
+      (mockConfigService.readToolsByScope as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        makeMcpTool({ name: 'MCP Config Error', status: ToolStatus.Error }),
+      ]);
+
+      await expect(service.mcpServerExists(ConfigScope.User, 'MCP Config Error')).resolves.toBe(true);
+    });
+
+    it('reports the name as taken when the scope read yields a config error', async () => {
+      (mockConfigService.readToolsByScope as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        makeMcpTool({ name: 'MCP Config Error', status: ToolStatus.Error }),
+      ]);
+
+      await expect(service.mcpServerExists(ConfigScope.User, 'github')).resolves.toBe(true);
+    });
+
+    it('propagates a read failure instead of reporting the name as free', async () => {
+      (mockConfigService.readToolsByScope as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('Read failed'),
+      );
+
+      await expect(service.mcpServerExists(ConfigScope.User, 'github')).rejects.toThrow('Read failed');
+    });
+  });
 });

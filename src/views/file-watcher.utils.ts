@@ -9,6 +9,26 @@ import * as path from 'path';
 import type { AgentProvider } from '../types/provider.js';
 import { ConfigScope } from '../types/enums.js';
 
+const ALL_SCOPES: readonly ConfigScope[] = [
+  ConfigScope.User,
+  ConfigScope.Project,
+  ConfigScope.Local,
+  ConfigScope.Managed,
+];
+
+/**
+ * Whether a watch path is a directory that needs recursive watching.
+ *
+ * Skills, commands, prompts, instructions, and agents directories contain
+ * subdirectories (skills/commands) or multiple files (prompts/agents). Every
+ * other watch path is a config file, watched through its parent directory.
+ */
+function isRecursiveWatchPath(p: string): boolean {
+  const basename = path.basename(p);
+  return basename === 'skills' || basename === 'commands'
+    || basename === 'prompts' || basename === 'instructions' || basename === 'agents';
+}
+
 /**
  * Collects and deduplicates watch directories from a platform provider.
  *
@@ -21,26 +41,13 @@ export function collectWatchDirs(provider: AgentProvider): {
   dir: string;
   recursive: boolean;
 }[] {
-  const allScopes = [
-    ConfigScope.User,
-    ConfigScope.Project,
-    ConfigScope.Local,
-    ConfigScope.Managed,
-  ];
-
   const dirSet = new Map<string, boolean>();
 
-  for (const scope of allScopes) {
+  for (const scope of ALL_SCOPES) {
     const paths = provider.getWatchPaths(scope);
 
     for (const p of paths) {
-      // Skills, commands, prompts, instructions, and agents directories need recursive watching
-      // because they contain subdirectories (skills/commands) or multiple files (prompts/agents).
-      const basename = path.basename(p);
-      const isRecursiveDir = basename === 'skills' || basename === 'commands'
-        || basename === 'prompts' || basename === 'instructions' || basename === 'agents';
-
-      if (isRecursiveDir) {
+      if (isRecursiveWatchPath(p)) {
         // Watch the directory itself recursively
         if (!dirSet.has(p)) {
           dirSet.set(p, true);
@@ -59,4 +66,53 @@ export function collectWatchDirs(provider: AgentProvider): {
     dir,
     recursive,
   }));
+}
+
+/**
+ * Maps each non-recursive watch directory to the file names watched in it.
+ *
+ * A config file is watched through its parent directory with a `*` pattern,
+ * so the watcher also reports every sibling. For `~/.claude.json` that parent
+ * is the home directory, and a write to `~/.bash_history` would otherwise
+ * refresh the tree and show a notification. A directory that is also a
+ * recursive watch path gets no entry: everything under it is relevant.
+ */
+export function collectWatchedFileNames(provider: AgentProvider): Map<string, Set<string>> {
+  const recursiveDirs = new Set<string>();
+  const namesByDir = new Map<string, Set<string>>();
+
+  for (const scope of ALL_SCOPES) {
+    for (const p of provider.getWatchPaths(scope)) {
+      if (isRecursiveWatchPath(p)) {
+        recursiveDirs.add(p);
+        continue;
+      }
+      const dir = path.dirname(p);
+      const names = namesByDir.get(dir) ?? new Set<string>();
+      names.add(path.basename(p));
+      namesByDir.set(dir, names);
+    }
+  }
+
+  for (const dir of recursiveDirs) {
+    namesByDir.delete(dir);
+  }
+  return namesByDir;
+}
+
+/**
+ * Whether a change at `changedPath` concerns a watched file.
+ *
+ * `watchedNames` is the entry {@link collectWatchedFileNames} holds for the
+ * watcher's directory; `undefined` means the directory has no filter and
+ * every change counts.
+ */
+export function isWatchedChange(
+  watchedNames: ReadonlySet<string> | undefined,
+  changedPath: string,
+): boolean {
+  if (watchedNames === undefined) {
+    return true;
+  }
+  return watchedNames.has(path.basename(changedPath));
 }

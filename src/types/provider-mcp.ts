@@ -18,6 +18,12 @@ export type PluginMcpTransport = 'stdio' | 'streamable-http' | 'sse';
 export interface McpTransportSupport {
   field?: string;
   native: Partial<Record<PluginMcpTransport, string | null>>;
+  /**
+   * The native key a remote server's static HTTP headers are written under.
+   * Absent means `headers`, which Claude Code, Copilot, Pi and Hermes all use;
+   * Codex reads them from `http_headers`.
+   */
+  headersField?: string;
 }
 
 /**

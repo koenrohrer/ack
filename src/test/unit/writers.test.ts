@@ -13,7 +13,7 @@ import { claudeCodeSchemas } from '../../providers/claude-code/schemas.js';
 import { toggleMcpServer, removeMcpServer, addMcpServer } from '../../providers/claude-code/writers/mcp.writer.js';
 
 // Settings writer
-import { toggleHook, removeHook, addHook } from '../../providers/claude-code/writers/settings.writer.js';
+import { toggleHook, removeHook, addHook, findHookGroupIndex } from '../../providers/claude-code/writers/settings.writer.js';
 
 // Skill writer
 import { removeSkill, copySkill, renameSkill } from '../../providers/claude-code/writers/skill.writer.js';
@@ -374,6 +374,68 @@ describe('Settings Writer', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Settings Writer -- hooks addressed by content, not position
+// ---------------------------------------------------------------------------
+
+describe('Settings Writer -- hook locator', () => {
+  const bash = { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo a' }] };
+  const write = { matcher: 'Write', hooks: [{ type: 'command', command: 'echo b' }] };
+
+  it('findHookGroupIndex finds a group by matcher and hook commands', () => {
+    expect(findHookGroupIndex([bash, write], { index: 0, ...write })).toBe(1);
+  });
+
+  it('findHookGroupIndex ignores hook-entry keys the settings schema strips', () => {
+    // The parser validates through HookEntrySchema, which drops unknown keys,
+    // so the locator built from parsed metadata never carries `async`.
+    const raw = { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo a', async: true }] };
+    expect(findHookGroupIndex([write, raw], { index: 0, ...bash })).toBe(1);
+  });
+
+  it('findHookGroupIndex prefers the recorded index among identical groups', () => {
+    expect(findHookGroupIndex([bash, bash, bash], { index: 2, ...bash })).toBe(2);
+    expect(findHookGroupIndex([bash, bash], { index: 5, ...bash })).toBe(0);
+  });
+
+  it('findHookGroupIndex returns -1 when no group matches', () => {
+    expect(findHookGroupIndex([bash], { index: 0, ...write })).toBe(-1);
+  });
+
+  it('toggleHook with a stale index disables the group the locator describes', async () => {
+    const filePath = path.join(tmpDir, 'settings.json');
+    // `write` was at index 1 when read; an earlier toggle moved it to index 0.
+    await fileIO.writeJsonFile(filePath, { hooks: { PreToolUse: [write] } });
+
+    await toggleHook(configService, filePath, 'PreToolUse', { index: 1, ...write }, true);
+
+    const result = await fileIO.readJsonFile<Record<string, unknown>>(filePath);
+    expect(result.success && result.data).toEqual({ hooks: {}, _disabledHooks: { PreToolUse: [write] } });
+  });
+
+  it('toggleHook rejects and writes nothing when the locator matches no group', async () => {
+    const filePath = path.join(tmpDir, 'settings.json');
+    await fileIO.writeJsonFile(filePath, { hooks: { PreToolUse: [bash] } });
+
+    await expect(
+      toggleHook(configService, filePath, 'PreToolUse', { index: 0, ...write }, true),
+    ).rejects.toThrow(/not found/);
+
+    const result = await fileIO.readJsonFile<Record<string, unknown>>(filePath);
+    expect(result.success && result.data).toEqual({ hooks: { PreToolUse: [bash] } });
+  });
+
+  it('removeHook with a stale index removes the group the locator describes', async () => {
+    const filePath = path.join(tmpDir, 'settings.json');
+    await fileIO.writeJsonFile(filePath, { hooks: { PreToolUse: [bash, write] } });
+
+    await removeHook(configService, filePath, 'PreToolUse', { index: 0, ...write });
+
+    const result = await fileIO.readJsonFile<Record<string, unknown>>(filePath);
+    expect(result.success && result.data).toEqual({ hooks: { PreToolUse: [bash] } });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Skill Writer
 // ---------------------------------------------------------------------------
 
@@ -397,16 +459,46 @@ describe('Skill Writer', () => {
     await fs.writeFile(skillMd, 'original content');
 
     // Use a spy to verify backup was called before deletion
-    const backupSpy = vi.spyOn(backup, 'createBackup');
+    const backupSpy = vi.spyOn(backup, 'createBackupAt');
 
     await removeSkill(backup, skillDir);
 
-    expect(backupSpy).toHaveBeenCalledWith(skillMd);
+    expect(backupSpy).toHaveBeenCalledWith(skillMd, `${skillDir}.SKILL.md`);
     // Directory should be gone after removal
     const dirExists = await fs.access(skillDir).then(() => true).catch(() => false);
     expect(dirExists).toBe(false);
 
     backupSpy.mockRestore();
+  });
+
+  it('removeSkill keeps a backup of SKILL.md beside the directory it deletes', async () => {
+    const skillDir = path.join(tmpDir, 'kept-skill');
+    await fs.mkdir(skillDir);
+    await fs.writeFile(path.join(skillDir, 'SKILL.md'), 'original skill');
+
+    await removeSkill(backup, skillDir);
+
+    expect(await fs.readFile(`${skillDir}.SKILL.md.bak.1`, 'utf-8')).toBe('original skill');
+  });
+
+  it('removeSkill keeps a backup of a disabled SKILL.md.disabled', async () => {
+    const skillDir = path.join(tmpDir, 'off-skill');
+    await fs.mkdir(skillDir);
+    await fs.writeFile(path.join(skillDir, 'SKILL.md.disabled'), 'disabled skill');
+
+    await removeSkill(backup, skillDir);
+
+    expect(await fs.readFile(`${skillDir}.SKILL.md.disabled.bak.1`, 'utf-8')).toBe('disabled skill');
+  });
+
+  it('removeSkill puts the backup outside the directory when the path ends in a separator', async () => {
+    const skillDir = path.join(tmpDir, 'slash-skill');
+    await fs.mkdir(skillDir);
+    await fs.writeFile(path.join(skillDir, 'SKILL.md'), 'slash skill');
+
+    await removeSkill(backup, `${skillDir}${path.sep}`);
+
+    expect(await fs.readFile(`${skillDir}.SKILL.md.bak.1`, 'utf-8')).toBe('slash skill');
   });
 
   it('copySkill copies directory to target', async () => {
@@ -485,6 +577,16 @@ describe('Command Writer', () => {
     expect(exists).toBe(false);
   });
 
+  it('removeCommand keeps a backup of a directory command beside the directory it deletes', async () => {
+    const cmdDir = path.join(tmpDir, 'kept-cmd');
+    await fs.mkdir(cmdDir);
+    await fs.writeFile(path.join(cmdDir, 'main.md'), 'main command');
+
+    await removeCommand(backup, cmdDir, true);
+
+    expect(await fs.readFile(`${cmdDir}.main.md.bak.1`, 'utf-8')).toBe('main command');
+  });
+
   it('copyCommand copies single file to target', async () => {
     const source = path.join(tmpDir, 'source.md');
     await fs.writeFile(source, 'command content');
@@ -524,5 +626,17 @@ describe('Command Writer', () => {
 
     const newExists = await fs.access(target).then(() => true).catch(() => false);
     expect(newExists).toBe(true);
+  });
+
+  it('renameCommand refuses to replace an existing target', async () => {
+    const source = path.join(tmpDir, 'my-cmd.md.disabled');
+    const target = path.join(tmpDir, 'my-cmd.md');
+    await fs.writeFile(source, 'old');
+    await fs.writeFile(target, 'current');
+
+    await expect(renameCommand(source, target)).rejects.toThrow(/already exists/);
+
+    expect(await fs.readFile(target, 'utf-8')).toBe('current');
+    expect(await fs.readFile(source, 'utf-8')).toBe('old');
   });
 });

@@ -8,6 +8,7 @@ import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { canonicalKey } from '../../utils/tool-key.utils.js';
 import type { ProviderRegistry } from '../../providers/provider.registry.js';
 import type { WorkspaceProfileService } from '../../services/workspace-profile.service.js';
+import { reportSwitchFailures } from '../profile-switch-report.js';
 import {
   applyMcpEnvUpdate,
   canToggleMcpStatus,
@@ -310,6 +311,7 @@ export class ConfigPanel {
         `toggled=${result.toggled} skipped=${result.skipped} failed=${result.failed} ` +
         `nonToggleableSkipped=${result.nonToggleableSkipped}`,
       );
+      reportSwitchFailures(result, this.outputChannel);
 
       if (result.nonToggleableSkipped > 0) {
         const activeAgent = this.registry.getActiveProvider()?.displayName ?? 'active agent';
@@ -443,7 +445,8 @@ export class ConfigPanel {
       // If this is the active profile, re-apply so tool states reflect the changes
       const activeId = this.profileService.getActiveProfileId();
       if (activeId === profileId) {
-        await this.profileService.switchProfile(profileId);
+        const result = await this.profileService.switchProfile(profileId);
+        reportSwitchFailures(result, this.outputChannel);
         await this.sendToolsData();
         this.refreshTree();
       }
@@ -473,19 +476,20 @@ export class ConfigPanel {
         return;
       }
 
+      const activeAgentId = this.registry.getActiveProvider()?.id;
+      if (!activeAgentId) {
+        this.postMessage({ type: 'operationError', op: 'associateProfile', error: 'No agent is active' });
+        return;
+      }
+
       if (profileId === null) {
-        await this.workspaceProfileService.removeAssociation(wsRoot);
+        await this.workspaceProfileService.removeAssociation(wsRoot, activeAgentId);
         this.postMessage({ type: 'workspaceAssociation', profileName: null });
-        this.outputChannel.appendLine('[ConfigPanel] Removed workspace profile association');
+        this.outputChannel.appendLine(`[ConfigPanel] Removed workspace profile association for agent "${activeAgentId}"`);
       } else {
         const profile = this.profileService.getProfile(profileId);
         if (!profile) {
           this.postMessage({ type: 'operationError', op: 'associateProfile', error: 'Profile not found' });
-          return;
-        }
-        const activeAgentId = this.registry.getActiveProvider()?.id;
-        if (!activeAgentId) {
-          this.postMessage({ type: 'operationError', op: 'associateProfile', error: 'No agent is active' });
           return;
         }
         await this.workspaceProfileService.setAssociation(wsRoot, profile.name, activeAgentId);
@@ -505,11 +509,12 @@ export class ConfigPanel {
   private async sendWorkspaceAssociation(): Promise<void> {
     try {
       const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-      if (!wsRoot) {
+      const activeAgentId = this.registry.getActiveProvider()?.id;
+      if (!wsRoot || !activeAgentId) {
         this.postMessage({ type: 'workspaceAssociation', profileName: null });
         return;
       }
-      const association = await this.workspaceProfileService.getAssociation(wsRoot);
+      const association = await this.workspaceProfileService.getAssociationForAgent(wsRoot, activeAgentId);
       this.postMessage({ type: 'workspaceAssociation', profileName: association?.profileName ?? null });
     } catch {
       this.postMessage({ type: 'workspaceAssociation', profileName: null });
@@ -585,18 +590,12 @@ export class ConfigPanel {
       const containerKey = provider?.getMcpContainerKey() ?? 'mcpServers';
       const disableField = provider?.getMcpDisableField();
 
-      // Codex stores MCP servers in config.toml; Hermes in config.yaml; the
-      // rest use JSON. Route to the matching write pipeline by format.
-      const mcpFormat = provider?.getMcpConfigFormat();
-      const mutate = (current: Record<string, unknown>) =>
-        applyMcpEnvUpdate(current, containerKey, disableField, serverName, env, disabled);
-      if (mcpFormat === 'toml') {
-        await this.configService.writeTomlConfigFile(filePath, schemaKey, mutate);
-      } else if (mcpFormat === 'yaml') {
-        await this.configService.writeYamlConfigFile(filePath, schemaKey, mutate);
-      } else {
-        await this.configService.writeConfigFile(filePath, schemaKey, mutate);
-      }
+      await this.configService.writeMcpConfigFile(
+        provider?.getMcpConfigFormat(),
+        filePath,
+        schemaKey,
+        (current) => applyMcpEnvUpdate(current, containerKey, disableField, serverName, env, disabled),
+      );
 
       this.outputChannel.appendLine(`[ConfigPanel] Updated MCP env for "${serverName}" (${scope})`);
       this.postMessage({ type: 'operationSuccess', op: 'updateMcpEnv', message: 'Settings saved' });

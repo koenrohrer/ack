@@ -9,10 +9,12 @@ import { ToolType, ConfigScope, ToolStatus } from '../types/enums.js';
 import { canonicalKey, extractToolTypeFromKey } from '../utils/tool-key.utils.js';
 import {
   PROFILE_STORE_KEY,
-  DEFAULT_PROFILE_STORE,
+  PROFILE_STORE_BACKUP_KEY,
   ProfileStoreSchema,
   PROFILE_STORE_VERSION,
   EXPORT_BUNDLE_VERSION,
+  createDefaultProfileStore,
+  salvageProfileStore,
 } from './profile.types.js';
 import type {
   Profile,
@@ -25,6 +27,7 @@ import type {
   ImportAnalysis,
 } from './profile.types.js';
 import type { ProviderRegistry } from '../providers/provider.registry.js';
+import { importConflictFields } from './profile-import.utils.js';
 
 /**
  * Manages named profiles -- preset collections of tool enabled/disabled states.
@@ -431,6 +434,8 @@ export class ProfileService {
    * - Incompatible tools (not supported by active agent) are skipped and
    *   listed in `result.incompatibleSkipped`.
    * - Tools already in the desired state are not toggled.
+   * - A hook entry that enables a key with several stashed groups and none
+   *   active enables none; it is counted in `result.failed` with a message.
    * - Toggles execute **sequentially** to avoid race conditions on shared
    *   config files (e.g. two MCP servers in the same .claude.json).
    */
@@ -480,6 +485,22 @@ export class ProfileService {
     let skipped = 0;
     let nonToggleableSkipped = 0;
     const incompatibleSkipped: string[] = [];
+    const ambiguousHookEnables: string[] = [];
+
+    // Hook groups per scope, read once. readToolsByScope does not collapse keys.
+    const hooksByScope = new Map<ConfigScope, NormalizedTool[]>();
+    const hookGroupsSharingKey = async (winner: NormalizedTool): Promise<NormalizedTool[]> => {
+      let hooks = hooksByScope.get(winner.scope);
+      if (!hooks) {
+        hooks = await this.configService.readToolsByScope(ToolType.Hook, winner.scope);
+        hooksByScope.set(winner.scope, hooks);
+      }
+      const key = canonicalKey(winner);
+      const siblings = hooks.filter(
+        (h) => h.source.filePath === winner.source.filePath && canonicalKey(h) === key,
+      );
+      return siblings.length > 0 ? siblings : [winner];
+    };
 
     for (const entry of profile.tools) {
       // Check tool type compatibility with active agent
@@ -506,19 +527,40 @@ export class ProfileService {
         continue;
       }
 
-      const currentlyEnabled = tool.status === ToolStatus.Enabled;
-      if (currentlyEnabled === entry.enabled) {
-        // Already in desired state -- no toggle needed
-        continue;
+      // A hook's canonical key is its event and matcher, so one settings file can
+      // hold several groups under one key. readAllTools keeps only the first.
+      // A disabling entry applies to every group with that key in the winner's
+      // file. An enabling entry changes nothing while one group is active and
+      // enables a stashed group only when it is the only one: with several
+      // stashed, ACK cannot tell which the user wants, so it enables none.
+      let targets = [tool];
+      if (tool.type === ToolType.Hook) {
+        const groups = await hookGroupsSharingKey(tool);
+        if (!entry.enabled) {
+          targets = groups;
+        } else if (groups.some((g) => g.status === ToolStatus.Enabled)) {
+          targets = [];
+        } else if (groups.length > 1) {
+          targets = [];
+          ambiguousHookEnables.push(
+            `Did not enable hook ${entry.key}: ${groups.length} disabled groups share this key. Enable one manually.`,
+          );
+        } else {
+          targets = groups;
+        }
       }
-
-      ops.push({ tool, targetEnabled: entry.enabled });
+      for (const target of targets) {
+        if ((target.status === ToolStatus.Enabled) !== entry.enabled) {
+          ops.push({ tool: target, targetEnabled: entry.enabled });
+        }
+      }
     }
 
     // Execute toggles sequentially to prevent race conditions on shared config files
     let toggled = 0;
-    let failed = 0;
-    const errors: string[] = [];
+    // An ambiguous hook enable counts as failed so callers surface its message.
+    let failed = ambiguousHookEnables.length;
+    const errors: string[] = [...ambiguousHookEnables];
 
     for (const op of ops) {
       const result = await this.toolManager.toggleTool(op.tool);
@@ -859,50 +901,32 @@ export class ProfileService {
   }
 
   /**
-   * Heuristic comparison to determine if an exported tool matches its local counterpart.
+   * Determine whether an exported tool matches its local counterpart.
    *
-   * Uses simple shape matching rather than exact equality:
-   * - MCP servers: compare command + args + env key count
-   * - Skills/commands: compare file count
-   * - Hooks: compare hooks array length and event/matcher
+   * - MCP servers and hooks: match when importConflictFields names no field
+   *   (command, url, args element by element, env key set; event, matcher,
+   *   and each hook's type, command, prompt and timeout)
+   * - Skills/commands: always match
    */
   private configsMatch(exported: ExportedTool, local: NormalizedTool): boolean {
     const config = exported.config;
 
     switch (config.kind) {
-      case 'mcp_server': {
-        const localCmd = (local.metadata.command as string) ?? '';
-        const localArgs = (local.metadata.args as string[]) ?? [];
-        const localEnv = (local.metadata.env as Record<string, string>) ?? {};
-        return (
-          config.command === localCmd &&
-          config.args.length === localArgs.length &&
-          Object.keys(config.env).length === Object.keys(localEnv).length
-        );
-      }
+      case 'mcp_server':
+      case 'hook':
+        return importConflictFields(exported, local).length === 0;
 
       case 'skill':
       case 'command':
       case 'custom_prompt': {
         // Compare by file count as a simple heuristic
         const localDir = local.source.directoryPath;
-        // If we can't determine local file count, treat as matching
-        // (the user can still see and resolve via conflict UI)
+        // If we can't determine local file count, treat as matching.
+        // An import keeps the local files either way; it never writes them.
         if (!localDir) {
           return true;
         }
         return true; // File count check would require async; treat as matching for now
-      }
-
-      case 'hook': {
-        const localHooks = (local.metadata.hooks as unknown[]) ?? [];
-        const localEvent = (local.metadata.eventName as string) ?? '';
-        const localMatcher = (local.metadata.matcher as string) ?? '';
-        return (
-          config.eventName === localEvent &&
-          config.matcher === localMatcher &&
-          config.hooks.length === localHooks.length
-        );
       }
 
       default:
@@ -917,19 +941,20 @@ export class ProfileService {
   /**
    * Load the profile store from globalState with Zod validation.
    *
-   * If stored data fails validation (corrupt state), returns the default
-   * empty store to prevent crashes. This is defensive -- corrupt data
-   * should not block the extension from functioning.
+   * No stored value yields a fresh empty store. A stored value that fails
+   * validation is salvaged -- every profile that validates on its own is kept
+   * -- so one bad entry never hides the rest. Every return value is a fresh
+   * object the caller may mutate.
    */
   private loadStore(): ProfileStore {
-    const raw = this.globalState.get<ProfileStore>(
-      PROFILE_STORE_KEY,
-      DEFAULT_PROFILE_STORE,
-    );
+    const raw = this.globalState.get<unknown>(PROFILE_STORE_KEY);
+    if (raw === undefined) {
+      return createDefaultProfileStore();
+    }
 
     const result = ProfileStoreSchema.safeParse(raw);
     if (!result.success) {
-      return { ...DEFAULT_PROFILE_STORE };
+      return salvageProfileStore(raw);
     }
 
     return result.data as ProfileStore;
@@ -937,8 +962,24 @@ export class ProfileService {
 
   /**
    * Persist the profile store to globalState.
+   *
+   * Never overwrites an unreadable store silently: when the value currently
+   * stored fails validation, it is first appended to PROFILE_STORE_BACKUP_KEY
+   * and the backup is logged, so the dropped entries can still be recovered.
    */
   private async saveStore(store: ProfileStore): Promise<void> {
+    const previous = this.globalState.get<unknown>(PROFILE_STORE_KEY);
+    if (previous !== undefined && !ProfileStoreSchema.safeParse(previous).success) {
+      const existing = this.globalState.get<unknown>(PROFILE_STORE_BACKUP_KEY);
+      const backups = Array.isArray(existing) ? existing : [];
+      await this.globalState.update(PROFILE_STORE_BACKUP_KEY, [
+        ...backups,
+        { savedAt: new Date().toISOString(), store: previous },
+      ]);
+      this.outputChannel?.appendLine(
+        `Profile store failed validation; kept the readable profiles and saved the original under globalState key "${PROFILE_STORE_BACKUP_KEY}" before writing.`,
+      );
+    }
     await this.globalState.update(PROFILE_STORE_KEY, store);
   }
 }

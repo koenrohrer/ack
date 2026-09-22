@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { AgentProvider } from '../types/provider.js';
-import { collectWatchDirs } from './file-watcher.utils.js';
+import { collectWatchDirs, collectWatchedFileNames, isWatchedChange } from './file-watcher.utils.js';
 
 /**
  * Manages file system watchers for config change detection.
@@ -34,6 +34,7 @@ export class FileWatcherManager implements vscode.Disposable {
     this.disposeWatchers();
 
     const dirs = collectWatchDirs(provider);
+    const fileNames = collectWatchedFileNames(provider);
 
     for (const { dir, recursive } of dirs) {
       const base = vscode.Uri.file(dir);
@@ -42,9 +43,17 @@ export class FileWatcherManager implements vscode.Disposable {
 
       const watcher = vscode.workspace.createFileSystemWatcher(pattern);
 
-      watcher.onDidChange(() => this.handleChange());
-      watcher.onDidCreate(() => this.handleChange());
-      watcher.onDidDelete(() => this.handleChange());
+      // A `*` watcher on a config file's parent also sees its siblings; only
+      // the watched file names may trigger a refresh.
+      const watchedNames = recursive ? undefined : fileNames.get(dir);
+      const onEvent = (uri: vscode.Uri): void => {
+        if (isWatchedChange(watchedNames, uri.fsPath)) {
+          this.handleChange();
+        }
+      };
+      watcher.onDidChange(onEvent);
+      watcher.onDidCreate(onEvent);
+      watcher.onDidDelete(onEvent);
 
       this.watchers.push(watcher);
     }

@@ -13,15 +13,23 @@ import type { BackupService } from '../../../services/backup.service.js';
  * Remove a skill by deleting its entire directory recursively.
  *
  * Backs up whichever SKILL.md variant exists first -- a disabled skill has its
- * file renamed to SKILL.md.disabled. createBackup is a no-op for the absent one.
+ * file renamed to SKILL.md.disabled. createBackupAt is a no-op for the absent one.
+ *
+ * The backup sits BESIDE the directory (`<skills>/<name>.SKILL.md.bak.1`), never
+ * inside it: the delete below removes everything inside. The `.bak.N` suffix
+ * keeps it from being read as a skill or a markdown file by any agent.
  */
 export async function removeSkill(
   backupService: BackupService,
   skillDirPath: string,
 ): Promise<void> {
-  await backupService.createBackup(path.join(skillDirPath, 'SKILL.md'));
-  await backupService.createBackup(path.join(skillDirPath, 'SKILL.md.disabled'));
-  await fs.rm(skillDirPath, { recursive: true, force: true });
+  // resolve() drops a trailing separator, which would otherwise put
+  // `${dir}/.SKILL.md` inside the directory being deleted.
+  const dir = path.resolve(skillDirPath);
+  for (const fileName of ['SKILL.md', 'SKILL.md.disabled']) {
+    await backupService.createBackupAt(path.join(dir, fileName), `${dir}.${fileName}`);
+  }
+  await fs.rm(dir, { recursive: true, force: true });
 }
 
 /**

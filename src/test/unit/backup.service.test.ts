@@ -74,6 +74,33 @@ describe('BackupService', () => {
     await expect(fs.access(`${file}.bak.6`)).rejects.toThrow();
   });
 
+  it('createBackupAt writes the backup under a base path outside the source directory', async () => {
+    const dir = await makeTmpDir();
+    const skillDir = path.join(dir, 'my-skill');
+    await fs.mkdir(skillDir);
+    const source = path.join(skillDir, 'SKILL.md');
+    const base = path.join(dir, 'my-skill.SKILL.md');
+
+    await fs.writeFile(source, 'version-1');
+    await svc.createBackupAt(source, base);
+    await fs.writeFile(source, 'version-2');
+    await svc.createBackupAt(source, base);
+
+    expect(await fs.readFile(`${base}.bak.1`, 'utf-8')).toBe('version-2');
+    expect(await fs.readFile(`${base}.bak.2`, 'utf-8')).toBe('version-1');
+    // Nothing is written beside the source itself.
+    expect((await fs.readdir(skillDir)).sort()).toEqual(['SKILL.md']);
+  });
+
+  it('createBackupAt does nothing when the source file does not exist', async () => {
+    const dir = await makeTmpDir();
+    const base = path.join(dir, 'gone.SKILL.md');
+
+    await svc.createBackupAt(path.join(dir, 'gone', 'SKILL.md'), base);
+
+    await expect(fs.access(`${base}.bak.1`)).rejects.toThrow();
+  });
+
   it('does nothing when source file does not exist', async () => {
     const dir = await makeTmpDir();
     const file = path.join(dir, 'nonexistent.json');

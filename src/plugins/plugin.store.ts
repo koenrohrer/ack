@@ -4,7 +4,7 @@ import * as path from 'path';
 import type { AgentPlugin, PluginDiagnostic } from '../types/plugin.js';
 import { loadPlugin } from './plugin.loader.js';
 import { isValidPluginName } from './plugin.name.js';
-import { isContained } from './plugin.paths.js';
+import { entryExists, isContained } from './plugin.paths.js';
 
 /**
  * The managed plugin store: ACK copies a plugin package in, and owns exactly two
@@ -128,6 +128,18 @@ export class PluginStore {
         `The plugin name ${JSON.stringify(name)} does not resolve to a path inside the managed store.`,
       );
     }
+    await this.recoverInterruptedInstall(name, owned.root);
+
+    // (1b) Refuse a source that overlaps PLUGIN_ROOT, before anything is
+    // written. A source equal to or inside the root is deleted by the replace
+    // below; a source containing the root is copied into itself until the
+    // path is too long. isContained resolves symlinks on both sides, so a link
+    // to the installed root is caught as well.
+    if ((await isContained(owned.root, sourcePath)) || (await isContained(sourcePath, owned.root))) {
+      throw new Error(
+        `The plugin at ${JSON.stringify(sourceDir)} overlaps its install location ${JSON.stringify(owned.root)}. Choose a source directory outside the managed plugin store.`,
+      );
+    }
 
     // (2) PLUGIN_DATA: created if absent, and otherwise left completely alone.
     // §9.1 requires its contents to survive an update, so an existing data
@@ -136,16 +148,43 @@ export class PluginStore {
 
     // (3) PLUGIN_ROOT: replaced, not merged. A file the previous version
     // shipped and this one does not must not linger in the installed package.
+    //
+    // The new copy is built in a staging directory beside the root and loaded
+    // there first; only then is it swapped in by rename. A copy or load that
+    // fails leaves the installed version exactly as it was. The staging and
+    // set-aside names start with `.`, which §5.5 forbids in a plugin name, so
+    // `list` never reports either one.
     const copyDiagnostics: PluginDiagnostic[] = [];
-    await fs.rm(owned.root, { recursive: true, force: true });
-    await fs.mkdir(owned.root, { recursive: true });
-    await copyContained(
-      validated.plugin.root,
-      validated.plugin.root,
-      owned.root,
-      copyDiagnostics,
-      new Set([validated.plugin.root]),
-    );
+    await fs.mkdir(this.pluginsDir, { recursive: true });
+    const staging = await fs.mkdtemp(path.join(this.pluginsDir, `.staging-${name}-`));
+    const setAside = `${staging}-previous`;
+    let previousSetAside = false;
+    try {
+      await copyContained(
+        validated.plugin.root,
+        validated.plugin.root,
+        staging,
+        copyDiagnostics,
+        new Set([validated.plugin.root]),
+      );
+      const staged = await loadPlugin(staging, { pluginData: owned.dataDir });
+      if (!staged.ok) {
+        throw new Error(
+          `The plugin ${JSON.stringify(name)} was copied into the store but no longer loads: ${describeDiagnostics(staged.diagnostics)}`,
+        );
+      }
+      if (await entryExists(owned.root)) {
+        await fs.rename(owned.root, setAside);
+        previousSetAside = true;
+      }
+      await fs.rename(staging, owned.root);
+    } catch (error) {
+      await fs.rm(staging, { recursive: true, force: true });
+      if (previousSetAside) {
+        await fs.rename(setAside, owned.root);
+      }
+      throw error;
+    }
 
     // (4) Re-load from the installed location, with the data directory this
     // store owns. Only this result has every `${PLUGIN_ROOT}`/`${PLUGIN_DATA}`
@@ -153,9 +192,18 @@ export class PluginStore {
     // store, so only this result is safe to write into an agent's config.
     const installed = await loadPlugin(owned.root, { pluginData: owned.dataDir });
     if (!installed.ok) {
+      // Put the previous version back; the new copy loaded from staging, so
+      // reaching here means the filesystem changed underneath the install.
+      await fs.rm(owned.root, { recursive: true, force: true });
+      if (previousSetAside) {
+        await fs.rename(setAside, owned.root);
+      }
       throw new Error(
         `The plugin ${JSON.stringify(name)} was copied into the store but no longer loads: ${describeDiagnostics(installed.diagnostics)}`,
       );
+    }
+    if (previousSetAside) {
+      await fs.rm(setAside, { recursive: true, force: true });
     }
     installed.plugin.diagnostics.push(...copyDiagnostics);
 
@@ -180,6 +228,36 @@ export class PluginStore {
     }
     await fs.rm(owned.root, { recursive: true, force: true });
     await fs.rm(owned.dataDir, { recursive: true, force: true });
+  }
+
+  /**
+   * Undo what a crash inside `install` for `name` left in the plugins tree.
+   *
+   * A crash between `root -> <staging>-previous` and `staging -> root` leaves no
+   * root and one set-aside copy: that copy is renamed back. More than one
+   * set-aside copy is ambiguous and is left for the user. Staging
+   * directories are removed. Only names `mkdtemp` made for this plugin match:
+   * the six-character suffix holds no `-`, so another plugin whose name merely
+   * starts with this one is never touched.
+   */
+  private async recoverInterruptedInstall(name: string, root: string): Promise<void> {
+    let entries: string[];
+    try {
+      entries = await fs.readdir(this.pluginsDir);
+    } catch {
+      return;
+    }
+    const escaped = name.replace(/\./g, '\\.');
+    const staging = new RegExp(`^\\.staging-${escaped}-[A-Za-z0-9]{6}$`);
+    const setAside = new RegExp(`^\\.staging-${escaped}-[A-Za-z0-9]{6}-previous$`);
+
+    const setAsides = entries.filter((entry) => setAside.test(entry));
+    if (setAsides.length === 1 && !(await entryExists(root))) {
+      await fs.rename(path.join(this.pluginsDir, setAsides[0]), root);
+    }
+    for (const entry of entries.filter((e) => staging.test(e))) {
+      await fs.rm(path.join(this.pluginsDir, entry), { recursive: true, force: true });
+    }
   }
 
   /**

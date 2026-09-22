@@ -85,7 +85,9 @@ export function toNativeMcpServer(
   // Remote transports launch no subprocess, so §9.1 injection does not apply.
   config.url = server.url;
   if (server.headers !== undefined) {
-    config.headers = { ...server.headers };
+    // The key is the agent's, like the transport field: Codex reads static
+    // headers from `http_headers` and would ignore a `headers` table.
+    config[transport.headersField ?? 'headers'] = { ...server.headers };
   }
   return { ok: true, config };
 }

@@ -12,7 +12,9 @@ import type { ProfileToolEntry } from '../../services/profile.types.js';
 import type { NormalizedTool } from '../../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { canonicalKey, extractToolTypeFromKey } from '../../utils/tool-key.utils.js';
+import { sanitizeBundleText, sanitizeBundleError, formatImportConflictReport } from './tool-tree.command-utils.js';
 import type { ProviderRegistry } from '../../providers/provider.registry.js';
+import { reportSwitchFailures } from '../profile-switch-report.js';
 
 /**
  * QuickPick item that carries an optional profile reference.
@@ -33,6 +35,9 @@ interface ProfileQuickPickItem extends vscode.QuickPickItem {
 interface ToolPickItem extends vscode.QuickPickItem {
   key?: string;
 }
+
+/** Name stored for an imported profile whose bundle name has nothing visible left. */
+const IMPORTED_PROFILE_FALLBACK_NAME = 'Imported profile';
 
 /** Tool types offered in the profile tool picker, in display order. */
 const PROFILE_TOOL_TYPES: ReadonlyArray<{ type: ToolType; label: string }> = [
@@ -143,6 +148,7 @@ export function registerProfileCommands(
   treeProvider: ToolTreeProvider,
   workspaceProfileService: WorkspaceProfileService,
   registry: ProviderRegistry,
+  outputChannel: vscode.OutputChannel,
 ): void {
   // ---------------------------------------------------------------------------
   // Create Profile
@@ -274,11 +280,7 @@ export function registerProfileCommands(
       }
       vscode.window.showInformationMessage(parts.join(', '));
 
-      if (result.failed > 0) {
-        vscode.window.showWarningMessage(
-          `${result.failed} toggle(s) failed: ${result.errors.join('; ')}`,
-        );
-      }
+      reportSwitchFailures(result, outputChannel);
 
       // Inform user about non-toggleable entries (e.g. MCP servers on Copilot)
       if (result.nonToggleableSkipped > 0) {
@@ -304,8 +306,9 @@ export function registerProfileCommands(
 
       // Track manual override if workspace has an association
       const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-      if (wsRoot) {
-        const assoc = await workspaceProfileService.getAssociation(wsRoot);
+      const switchAgentId = registry.getActiveProvider()?.id;
+      if (wsRoot && switchAgentId) {
+        const assoc = await workspaceProfileService.getAssociationForAgent(wsRoot, switchAgentId);
         if (assoc) {
           if (profileName === assoc.profileName) {
             // User switched back to the associated profile -- clear override
@@ -389,13 +392,14 @@ export function registerProfileCommands(
             treeProvider.setActiveProfile(trimmedName);
           }
           // Update workspace association if it references the old name
+          // (the edit list holds only the active agent's profiles, so only that
+          // agent's association can name this one)
           const renameWsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-          if (renameWsRoot) {
-            const assoc = await workspaceProfileService.getAssociation(renameWsRoot);
+          const renameAgentId = registry.getActiveProvider()?.id;
+          if (renameWsRoot && renameAgentId) {
+            const assoc = await workspaceProfileService.getAssociationForAgent(renameWsRoot, renameAgentId);
             if (assoc && assoc.profileName === oldName) {
-              // Preserve agentId from existing association, or use active agent if legacy
-              const agentIdToUse = assoc.agentId ?? registry.getActiveProvider()?.id ?? 'claude-code';
-              await workspaceProfileService.setAssociation(renameWsRoot, trimmedName, agentIdToUse);
+              await workspaceProfileService.setAssociation(renameWsRoot, trimmedName, renameAgentId);
             }
           }
           vscode.window.showInformationMessage(`Profile renamed to "${trimmedName}"`);
@@ -610,7 +614,7 @@ export function registerProfileCommands(
           return;
         }
         vscode.window.showErrorMessage(
-          `Invalid profile bundle: ${validation.error.message}`,
+          `Invalid profile bundle: ${sanitizeBundleError(validation.error.message)}`,
         );
         return;
       }
@@ -633,7 +637,7 @@ export function registerProfileCommands(
         }
 
         const convertChoice = await vscode.window.showWarningMessage(
-          `This profile was created for ${importValidation.sourceAgent}. Convert to ${activeAgent.displayName}?`,
+          `This profile was created for ${sanitizeBundleText(importValidation.sourceAgent ?? '')}. Convert to ${activeAgent.displayName}?`,
           { modal: true },
           'Convert',
           'Cancel',
@@ -649,7 +653,7 @@ export function registerProfileCommands(
 
         // Show conversion results
         if (conversion.stats.skipped > 0) {
-          const skippedList = conversion.stats.skippedTools.slice(0, 5).join(', ');
+          const skippedList = conversion.stats.skippedTools.slice(0, 5).map(sanitizeBundleText).join(', ');
           const more = conversion.stats.skippedTools.length > 5
             ? ` and ${conversion.stats.skippedTools.length - 5} more`
             : '';
@@ -663,8 +667,10 @@ export function registerProfileCommands(
         }
       }
 
-      // Name collision check
-      let finalName = bundle.profile.name;
+      // Sanitize the bundle's name once: it is stored, and the tree, pickers and
+      // notifications show it. A collision exists only when the stored name would
+      // equal an existing name exactly: two local names can clip to the same text.
+      let finalName = sanitizeBundleText(bundle.profile.name) || IMPORTED_PROFILE_FALLBACK_NAME;
       const existingProfiles = profileService.getProfiles();
       const nameConflict = existingProfiles.find((p) => p.name === finalName);
 
@@ -692,24 +698,18 @@ export function registerProfileCommands(
       // Analyze import
       const analysis = await profileService.analyzeImport(bundle);
 
-      // Handle conflicts: ask per-tool
-      const resolvedConflictKeys = new Set<string>();
-      for (const conflict of analysis.conflicts) {
-        const resolution = await vscode.window.showQuickPick(
-          [
-            { label: `Use imported config for "${conflict.exported.name}"`, useImported: true },
-            { label: `Keep local config for "${conflict.exported.name}"`, useImported: false },
-          ] as Array<vscode.QuickPickItem & { useImported: boolean }>,
-          { placeHolder: `Config conflict: "${conflict.exported.name}"` },
+      // Conflicts keep the local config: ACK never writes config from a bundle.
+      // The output channel names the fields that differ, never their values.
+      if (analysis.conflicts.length > 0) {
+        outputChannel.appendLine(
+          `Profile import "${finalName}": kept the local config for ${analysis.conflicts.length} tool(s) whose imported config differs:`,
         );
-
-        if (!resolution) {
-          continue; // Skip this conflict (keep local)
+        for (const line of formatImportConflictReport(analysis.conflicts)) {
+          outputChannel.appendLine(line);
         }
-
-        if ((resolution as { useImported: boolean }).useImported) {
-          resolvedConflictKeys.add(conflict.exported.key);
-        }
+        vscode.window.showWarningMessage(
+          `Kept the local config for ${analysis.conflicts.length} tool(s) whose imported config differs. See the ACK output channel for the fields that differ.`,
+        );
       }
 
       // Handle missing tools: report and skip (local-only; no remote install).
@@ -735,14 +735,15 @@ export function registerProfileCommands(
       );
 
       if (switchAction === 'Switch') {
-        await profileService.switchProfile(newProfile.id);
+        const result = await profileService.switchProfile(newProfile.id);
+        reportSwitchFailures(result, outputChannel);
         treeProvider.setActiveProfile(finalName);
         treeProvider.refresh();
       }
 
       if (skipped.length > 0) {
         vscode.window.showWarningMessage(
-          `Import complete. ${skipped.length} tool(s) not found — add them locally via the + on each tool group: ${skipped.join(', ')}`,
+          `Import complete. ${skipped.length} tool(s) not found — add them locally via the + on each tool group: ${skipped.map(sanitizeBundleText).join(', ')}`,
         );
       }
     },
@@ -790,15 +791,15 @@ export function registerProfileCommands(
         return;
       }
 
+      const currentProvider = registry.getActiveProvider();
+      if (!currentProvider) {
+        vscode.window.showWarningMessage('No agent is active. Cannot associate profile.');
+        return;
+      }
       if (selected.profile === null) {
-        await workspaceProfileService.removeAssociation(wsRoot);
+        await workspaceProfileService.removeAssociation(wsRoot, currentProvider.id);
         vscode.window.showInformationMessage('Workspace profile association removed');
       } else {
-        const currentProvider = registry.getActiveProvider();
-        if (!currentProvider) {
-          vscode.window.showWarningMessage('No agent is active. Cannot associate profile.');
-          return;
-        }
         await workspaceProfileService.setAssociation(wsRoot, selected.profile.name, currentProvider.id);
         vscode.window.showInformationMessage(
           `Workspace associated with profile "${selected.profile.name}"`,
