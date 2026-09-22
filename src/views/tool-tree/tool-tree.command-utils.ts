@@ -7,6 +7,7 @@
 
 import { ToolType } from '../../types/enums.js';
 import type { NormalizedTool } from '../../types/config.js';
+import type { ExportedToolConfig } from '../../services/profile.types.js';
 
 /**
  * Determine the open route for a tool based on its type.
@@ -77,4 +78,57 @@ export function getTomlPath(
     return `mcp_servers.${tool.name}`;
   }
   return '';
+}
+
+/** Longest value describeImportedConfig shows before it truncates. */
+const IMPORT_VALUE_MAX = 80;
+
+/** Put a value on one line and truncate it, saying how much was cut. */
+function clipImportValue(value: string): string {
+  const flat = value.replace(/\s+/g, ' ').trim();
+  if (flat.length <= IMPORT_VALUE_MAX) {
+    return flat;
+  }
+  return `${flat.slice(0, IMPORT_VALUE_MAX)}… (${flat.length - IMPORT_VALUE_MAX} more chars)`;
+}
+
+/**
+ * Describe, on one line, what an imported config would write over a local tool.
+ *
+ * Shown to the user before they approve an imported config from an untrusted
+ * bundle. For an MCP server: command and args, url, and the env key names
+ * (never the values). For a hook group: event, matcher, and each hook's
+ * command or prompt. Other kinds are never applied, so they yield ''.
+ */
+export function describeImportedConfig(config: ExportedToolConfig): string {
+  const parts: string[] = [];
+  switch (config.kind) {
+    case 'mcp_server':
+      if (config.command !== '') {
+        parts.push(`command: ${clipImportValue([config.command, ...config.args].join(' '))}`);
+      }
+      if (config.url) {
+        parts.push(`url: ${clipImportValue(config.url)}`);
+      }
+      if (Object.keys(config.env).length > 0) {
+        parts.push(`env keys: ${clipImportValue(Object.keys(config.env).join(', '))}`);
+      }
+      break;
+    case 'hook':
+      parts.push(`event: ${clipImportValue(config.eventName)}`);
+      parts.push(`matcher: ${config.matcher === '' ? '(any)' : clipImportValue(config.matcher)}`);
+      for (const hook of config.hooks) {
+        if (typeof hook.command === 'string') {
+          parts.push(`command: ${clipImportValue(hook.command)}`);
+        } else if (typeof hook.prompt === 'string') {
+          parts.push(`prompt: ${clipImportValue(hook.prompt)}`);
+        } else {
+          parts.push(`hook: ${clipImportValue(JSON.stringify(hook))}`);
+        }
+      }
+      break;
+    default:
+      return '';
+  }
+  return parts.join(' · ');
 }

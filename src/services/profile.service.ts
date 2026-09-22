@@ -682,10 +682,15 @@ export class ProfileService {
    *   `url` take the imported values (an empty one is removed); every other key
    *   stays. A server whose transport kind differs (a command on one side, a
    *   url on the other) is left unchanged, because its transport key would no
-   *   longer match.
+   *   longer match. So is a server whose imported url differs from the local
+   *   one, because its other keys (headers, tokens) would go to the new url,
+   *   and an import with neither a command nor a url.
    * - Hook: the imported matcher group is added, stashed if the local group is
    *   stashed, and the local group removed.
    * - Other kinds: never in conflict (configsMatch), so reported as not applied.
+   *
+   * The bundle is untrusted, so a config whose kind is not the local tool's
+   * type is never applied.
    *
    * Never throws: a failure is returned as `applied: false` with its reason.
    */
@@ -695,11 +700,24 @@ export class ProfileService {
       return { applied: false, reason: 'no agent is active' };
     }
     const config = exported.config;
+    if (local.type !== config.kind || exported.type !== config.kind) {
+      return { applied: false, reason: `the imported ${config.kind} config does not match the local ${local.type}` };
+    }
     try {
       if (config.kind === 'mcp_server') {
+        if (config.command === '' && !config.url) {
+          return { applied: false, reason: 'the imported server has neither a command nor a url' };
+        }
         const localIsStdio = typeof local.metadata.command === 'string' && local.metadata.command !== '';
         if ((config.command !== '') !== localIsStdio) {
           return { applied: false, reason: 'the imported server uses a different transport' };
+        }
+        const localUrl = typeof local.metadata.url === 'string' ? local.metadata.url : '';
+        if (config.url && config.url !== localUrl) {
+          return {
+            applied: false,
+            reason: `the imported server changes its URL to ${config.url}; re-add the server manually to change its URL`,
+          };
         }
         const containerKey = provider.getMcpContainerKey();
         const mutate = (current: Record<string, unknown>): Record<string, unknown> => {
@@ -965,7 +983,7 @@ export class ProfileService {
    * Heuristic comparison to determine if an exported tool matches its local counterpart.
    *
    * Uses simple shape matching rather than exact equality:
-   * - MCP servers: compare command + args + env key count
+   * - MCP servers: compare command + url + args + env key count
    * - Skills/commands: compare file count
    * - Hooks: compare hooks array length and event/matcher
    */
@@ -977,8 +995,10 @@ export class ProfileService {
         const localCmd = (local.metadata.command as string) ?? '';
         const localArgs = (local.metadata.args as string[]) ?? [];
         const localEnv = (local.metadata.env as Record<string, string>) ?? {};
+        const localUrl = (local.metadata.url as string) ?? '';
         return (
           config.command === localCmd &&
+          (config.url ?? '') === localUrl &&
           config.args.length === localArgs.length &&
           Object.keys(config.env).length === Object.keys(localEnv).length
         );

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { NormalizedTool } from '../types/config.js';
+import { extractToolTypeFromKey } from '../utils/tool-key.utils.js';
 
 // ---------------------------------------------------------------------------
 // Profile data model types
@@ -245,7 +246,12 @@ export const ExportedToolSchema = z.object({
   type: z.enum(['skill', 'mcp_server', 'hook', 'command', 'custom_prompt']),
   name: z.string(),
   config: ExportedToolConfigSchema,
-}).passthrough();
+}).passthrough().refine(
+  // A bundle is untrusted: the key picks the local tool, the config is what is
+  // written over it. All three must name the same tool type.
+  (tool) => extractToolTypeFromKey(tool.key) === tool.type && tool.type === tool.config.kind,
+  'Tool key prefix, type and config kind must agree.',
+);
 
 /**
  * Zod schema for validating imported profile bundles.

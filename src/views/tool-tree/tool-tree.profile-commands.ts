@@ -12,6 +12,7 @@ import type { ProfileToolEntry } from '../../services/profile.types.js';
 import type { NormalizedTool } from '../../types/config.js';
 import { ToolType, ConfigScope, ToolStatus } from '../../types/enums.js';
 import { canonicalKey, extractToolTypeFromKey } from '../../utils/tool-key.utils.js';
+import { describeImportedConfig } from './tool-tree.command-utils.js';
 import type { ProviderRegistry } from '../../providers/provider.registry.js';
 
 /**
@@ -699,7 +700,11 @@ export function registerProfileCommands(
       for (const conflict of analysis.conflicts) {
         const resolution = await vscode.window.showQuickPick(
           [
-            { label: `Use imported config for "${conflict.exported.name}"`, useImported: true },
+            {
+              label: `Use imported config for "${conflict.exported.name}"`,
+              detail: describeImportedConfig(conflict.exported.config),
+              useImported: true,
+            },
             { label: `Keep local config for "${conflict.exported.name}"`, useImported: false },
           ] as Array<vscode.QuickPickItem & { useImported: boolean }>,
           { placeHolder: `Config conflict: "${conflict.exported.name}"` },
