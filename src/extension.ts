@@ -30,6 +30,7 @@ import { WorkspaceProfileService } from './services/workspace-profile.service.js
 import { AgentSwitcherService } from './services/agent-switcher.service.js';
 import { showAgentQuickPick } from './views/agent-switcher/agent-switcher.quickpick.js';
 import { createAgentStatusBar, updateAgentStatusBar } from './views/agent-switcher/agent-switcher.statusbar.js';
+import { serialize } from './utils/serialize.js';
 
 /**
  * Service container for cross-module access to initialized services.
@@ -223,7 +224,22 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(activateAgentCmd);
 
-  // 15e. React to agent switches (status bar, file watchers, tree, panels, workspace profiles)
+  // 15e. Workspace profile auto-activation. It runs ONLY from the agent-switch
+  // listener below -- startup activates an agent through switchAgent, which
+  // fires that listener -- and serialize() keeps two quick agent switches from
+  // running two profile switches over the same config files at once.
+  const autoActivateWorkspaceProfile = serialize((root: string) =>
+    handleWorkspaceAutoActivation(
+      root,
+      profileService,
+      workspaceProfileService,
+      treeProvider,
+      outputChannel,
+      registry,
+    ),
+  );
+
+  // 15e.1 React to agent switches (status bar, file watchers, tree, panels, workspace profiles)
   context.subscriptions.push(
     agentSwitcher.onDidSwitchAgent(async (provider) => {
       await vscode.commands.executeCommand('setContext', 'ack.activeProviderId', provider?.id ?? '');
@@ -246,14 +262,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
         // Re-check workspace profile association for the new agent
         if (workspaceRoot) {
-          await handleWorkspaceAutoActivation(
-            workspaceRoot,
-            profileService,
-            workspaceProfileService,
-            treeProvider,
-            outputChannel,
-            registry,
-          );
+          await autoActivateWorkspaceProfile(workspaceRoot).catch((err: unknown) => {
+            outputChannel.appendLine(`Workspace profile auto-activation error: ${err}`);
+          });
         }
       }
     }),
@@ -361,19 +372,10 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     // Reconcile: last-used-first, else single auto-select, else route to chooser.
-    const activated = await applyDetectionResult(detected);
-
-    // Auto-activate workspace profile after successful agent selection
-    if (activated && workspaceRoot) {
-      await handleWorkspaceAutoActivation(
-        workspaceRoot,
-        profileService,
-        workspaceProfileService,
-        treeProvider,
-        outputChannel,
-        registry,
-      );
-    }
+    // Activating an agent fires onDidSwitchAgent, whose listener (15e.1) runs
+    // workspace profile auto-activation -- calling it here as well ran it twice
+    // at once.
+    await applyDetectionResult(detected);
 
     // Run provider configuration checks (each provider self-gates on detection).
     for (const a of registry.getAllProviders()) {
