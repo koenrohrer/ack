@@ -4,7 +4,7 @@ import * as path from 'path';
 import type { AgentPlugin, PluginDiagnostic } from '../types/plugin.js';
 import { loadPlugin } from './plugin.loader.js';
 import { isValidPluginName } from './plugin.name.js';
-import { isContained } from './plugin.paths.js';
+import { entryExists, isContained } from './plugin.paths.js';
 
 /**
  * The managed plugin store: ACK copies a plugin package in, and owns exactly two
@@ -357,16 +357,6 @@ function skipEntry(diagnostics: PluginDiagnostic[], subject: string, reason: str
 async function installedAtOf(root: string): Promise<string> {
   const stats = await statOrNull(root);
   return (stats?.mtime ?? new Date()).toISOString();
-}
-
-/** Whether an entry exists at `target`, without following a final symlink. */
-async function entryExists(target: string): Promise<boolean> {
-  try {
-    await fs.lstat(target);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /** Stat `target`, following links, or null when it cannot be resolved. */

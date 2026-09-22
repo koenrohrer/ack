@@ -1,9 +1,9 @@
-import * as fs from 'fs/promises';
 import * as path from 'path';
 import type { ConfigScope } from '../types/enums.js';
 import type { AgentPlugin, PluginDiagnostic } from '../types/plugin.js';
 import type { AgentProvider } from '../types/provider.js';
 import { readSkillTree } from './plugin.files.js';
+import { entryExists } from './plugin.paths.js';
 import type { InstalledPluginRecord, PluginStore } from './plugin.store.js';
 import { installedServerName, toNativeMcpServer } from './plugin.translate.js';
 
@@ -217,21 +217,6 @@ async function fanOutServers(
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Whether anything at all occupies `target`, without following a link.
- *
- * A dangling symlink is still an occupied name: the write would land on it, so
- * it is still a collision the user gets asked about.
- */
-async function entryExists(target: string): Promise<boolean> {
-  try {
-    await fs.lstat(target);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

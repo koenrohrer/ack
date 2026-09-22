@@ -44,8 +44,12 @@ async function resolveThroughSymlinks(absolute: string): Promise<string | null> 
   }
 }
 
-/** Whether a filesystem entry exists at `target`, without following a link. */
-async function entryExists(target: string): Promise<boolean> {
+/**
+ * Whether anything at all occupies `target`, without following a link.
+ *
+ * A dangling symlink still counts as occupied: a write would land on it.
+ */
+export async function entryExists(target: string): Promise<boolean> {
   try {
     await fs.lstat(target);
     return true;

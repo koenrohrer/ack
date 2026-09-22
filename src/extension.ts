@@ -276,8 +276,7 @@ export function activate(context: vscode.ExtensionContext): void {
   //   (b) exactly one detected -> activate it;
   //   (c) two or more detected, no usable history -> route to the chooser;
   //   (d) none detected -> the "install an agent" welcome.
-  // Returns true iff an agent was activated.
-  const applyDetectionResult = async (detected: AgentProvider[]): Promise<boolean> => {
+  const applyDetectionResult = async (detected: AgentProvider[]): Promise<void> => {
     const detectedIds = detected.map((a) => a.id);
 
     // Per-agent detection drives the chooser buttons' visibility (and preserves
@@ -301,21 +300,20 @@ export function activate(context: vscode.ExtensionContext): void {
         await agentSwitcher.switchAgent(decision.id);
       }
       outputChannel.appendLine(`Active agent: ${registry.getProvider(decision.id)?.displayName ?? decision.id}`);
-      return true;
+      return;
     }
 
     if (decision.kind === 'choose') {
       await vscode.commands.executeCommand('setContext', 'ack.noAgents', false);
       await vscode.commands.executeCommand('setContext', 'ack.chooseAgent', true);
       outputChannel.appendLine(`Multiple agents detected, awaiting choice: ${detected.map((a) => a.displayName).join(', ')}`);
-      return false;
+      return;
     }
 
     // none detected
     await vscode.commands.executeCommand('setContext', 'ack.chooseAgent', false);
     await vscode.commands.executeCommand('setContext', 'ack.noAgents', true);
     outputChannel.appendLine('No supported agent platforms detected');
-    return false;
   };
 
   // 15f. Re-detect agents command

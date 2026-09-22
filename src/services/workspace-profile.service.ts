@@ -34,11 +34,9 @@ export const WorkspaceProfileAssociationSchema = z
  * `associations`, plus the legacy top-level fields mirroring one of them so a
  * version that reads only those still finds an association.
  */
-const WorkspaceProfileFileSchema = z
-  .object({
-    associations: z.record(z.string(), z.string()).optional(),
-  })
-  .passthrough();
+const WorkspaceProfileFileSchema = z.object({
+  associations: z.record(z.string(), z.string()).optional(),
+});
 
 /** Agent a legacy association without `agentId` applies to. */
 const LEGACY_AGENT_ID = 'claude-code';

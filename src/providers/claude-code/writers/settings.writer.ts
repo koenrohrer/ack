@@ -1,4 +1,5 @@
 import type { ConfigService } from '../../../services/config.service.js';
+import { HookEntrySchema } from '../schemas.js';
 
 /**
  * Writer functions for hook mutations in settings JSON files.
@@ -34,10 +35,13 @@ export interface HookGroupLocator {
   hooks: ReadonlyArray<Record<string, unknown>>;
 }
 
+/** The hook fields HookEntrySchema keeps, read off the schema so the two cannot drift. */
+const HOOK_ENTRY_FIELDS = Object.keys(HookEntrySchema.shape);
+
 /**
- * Compare form of a matcher group: the matcher plus, per hook, the four
- * fields HookEntrySchema keeps. The parser validates active hooks through
- * that schema, which drops every other key, so a locator built from parsed
+ * Compare form of a matcher group: the matcher plus, per hook, the fields
+ * HookEntrySchema keeps. The parser validates active hooks through that
+ * schema, which drops every other key, so a locator built from parsed
  * metadata must still match the raw group it came from.
  */
 function hookGroupSignature(group: { matcher?: unknown; hooks?: unknown }): string {
@@ -46,7 +50,7 @@ function hookGroupSignature(group: { matcher?: unknown; hooks?: unknown }): stri
     typeof group.matcher === 'string' ? group.matcher : '',
     hooks.map((hook) => {
       const entry = (hook ?? {}) as Record<string, unknown>;
-      return [entry.type, entry.command, entry.prompt, entry.timeout];
+      return HOOK_ENTRY_FIELDS.map((field) => entry[field]);
     }),
   ]);
 }

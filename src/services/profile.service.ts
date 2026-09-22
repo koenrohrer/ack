@@ -727,16 +727,12 @@ export class ProfileService {
           servers[local.name] = merged;
           return { ...current, [containerKey]: servers };
         };
-        const filePath = local.source.filePath;
-        const schemaKey = provider.getMcpSchemaKey(local.scope);
-        const format = provider.getMcpConfigFormat();
-        if (format === 'toml') {
-          await this.configService.writeTomlConfigFile(filePath, schemaKey, mutate);
-        } else if (format === 'yaml') {
-          await this.configService.writeYamlConfigFile(filePath, schemaKey, mutate);
-        } else {
-          await this.configService.writeConfigFile(filePath, schemaKey, mutate);
-        }
+        await this.configService.writeMcpConfigFile(
+          provider.getMcpConfigFormat(),
+          local.source.filePath,
+          provider.getMcpSchemaKey(local.scope),
+          mutate,
+        );
         return { applied: true };
       }
 

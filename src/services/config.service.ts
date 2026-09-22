@@ -265,6 +265,27 @@ export class ConfigService {
   }
 
   /**
+   * Safe write pipeline for an MCP config file in the provider's format.
+   *
+   * Codex stores MCP servers in config.toml, Hermes in config.yaml, and the
+   * rest in JSON; `format` is the provider's `getMcpConfigFormat()`.
+   */
+  async writeMcpConfigFile(
+    format: 'toml' | 'json' | 'yaml' | undefined,
+    filePath: string,
+    schemaKey: string,
+    mutate: (current: Record<string, unknown>) => Record<string, unknown>,
+  ): Promise<void> {
+    if (format === 'toml') {
+      await this.writeTomlConfigFile(filePath, schemaKey, mutate);
+    } else if (format === 'yaml') {
+      await this.writeYamlConfigFile(filePath, schemaKey, mutate);
+    } else {
+      await this.writeConfigFile(filePath, schemaKey, mutate);
+    }
+  }
+
+  /**
    * Safe write pipeline for text config files (skills, commands).
    *
    * Sequence: backup -> atomic write.
