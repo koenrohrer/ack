@@ -660,12 +660,20 @@ describe('ToolManagerService', () => {
       await expect(service.mcpServerExists(ConfigScope.User, 'github')).resolves.toBe(false);
     });
 
-    it('does not count the error entry an unreadable config file produces', async () => {
+    it('counts the error entry an unreadable config file produces as a taken name', async () => {
       (mockConfigService.readToolsByScope as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
         makeMcpTool({ name: 'MCP Config Error', status: ToolStatus.Error }),
       ]);
 
-      await expect(service.mcpServerExists(ConfigScope.User, 'MCP Config Error')).resolves.toBe(false);
+      await expect(service.mcpServerExists(ConfigScope.User, 'MCP Config Error')).resolves.toBe(true);
+    });
+
+    it('reports the name as taken when the scope read yields a config error', async () => {
+      (mockConfigService.readToolsByScope as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        makeMcpTool({ name: 'MCP Config Error', status: ToolStatus.Error }),
+      ]);
+
+      await expect(service.mcpServerExists(ConfigScope.User, 'github')).resolves.toBe(true);
     });
 
     it('propagates a read failure instead of reporting the name as free', async () => {

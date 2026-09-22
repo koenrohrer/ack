@@ -160,13 +160,15 @@ export class ToolManagerService {
    * Used before adding a server, because `installMcpServer` replaces an
    * existing entry of the same name without asking. Unlike checkConflict, a
    * read failure propagates: reporting "no conflict" for a file that could not
-   * be read would let the caller overwrite a server it never saw. The error
-   * entry a provider returns for an unreadable file is not a server.
+   * be read would let the caller overwrite a server it never saw. For the
+   * same reason, an Error-status entry (the provider's report of a malformed
+   * config file) counts as the name being taken: the file may hold a server
+   * of that name that could not be parsed, so the caller asks first.
    */
   async mcpServerExists(scope: ConfigScope, serverName: string): Promise<boolean> {
     const servers = await this.configService.readToolsByScope(ToolType.McpServer, scope);
     return servers.some(
-      (server) => server.name === serverName && server.status !== ToolStatus.Error,
+      (server) => server.status === ToolStatus.Error || server.name === serverName,
     );
   }
 
