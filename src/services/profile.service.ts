@@ -433,6 +433,8 @@ export class ProfileService {
    * - Incompatible tools (not supported by active agent) are skipped and
    *   listed in `result.incompatibleSkipped`.
    * - Tools already in the desired state are not toggled.
+   * - A hook entry that enables a key with several stashed groups and none
+   *   active enables none; it is counted in `result.failed` with a message.
    * - Toggles execute **sequentially** to avoid race conditions on shared
    *   config files (e.g. two MCP servers in the same .claude.json).
    */
@@ -482,6 +484,7 @@ export class ProfileService {
     let skipped = 0;
     let nonToggleableSkipped = 0;
     const incompatibleSkipped: string[] = [];
+    const ambiguousHookEnables: string[] = [];
 
     // Hook groups per scope, read once. readToolsByScope does not collapse keys.
     const hooksByScope = new Map<ConfigScope, NormalizedTool[]>();
@@ -526,10 +529,25 @@ export class ProfileService {
       // A hook's canonical key is its event and matcher, so one settings file can
       // hold several groups under one key. readAllTools keeps only the first.
       // A disabling entry applies to every group with that key in the winner's
-      // file; an enabling entry toggles only the winner, so a switch never
-      // unstashes a sibling group the user disabled.
-      const targets =
-        tool.type === ToolType.Hook && !entry.enabled ? await hookGroupsSharingKey(tool) : [tool];
+      // file. An enabling entry changes nothing while one group is active and
+      // enables a stashed group only when it is the only one: with several
+      // stashed, ACK cannot tell which the user wants, so it enables none.
+      let targets = [tool];
+      if (tool.type === ToolType.Hook) {
+        const groups = await hookGroupsSharingKey(tool);
+        if (!entry.enabled) {
+          targets = groups;
+        } else if (groups.some((g) => g.status === ToolStatus.Enabled)) {
+          targets = [];
+        } else if (groups.length > 1) {
+          targets = [];
+          ambiguousHookEnables.push(
+            `Did not enable hook ${entry.key}: ${groups.length} disabled groups share this key. Enable one manually.`,
+          );
+        } else {
+          targets = groups;
+        }
+      }
       for (const target of targets) {
         if ((target.status === ToolStatus.Enabled) !== entry.enabled) {
           ops.push({ tool: target, targetEnabled: entry.enabled });
@@ -539,8 +557,9 @@ export class ProfileService {
 
     // Execute toggles sequentially to prevent race conditions on shared config files
     let toggled = 0;
-    let failed = 0;
-    const errors: string[] = [];
+    // An ambiguous hook enable counts as failed so callers surface its message.
+    let failed = ambiguousHookEnables.length;
+    const errors: string[] = [...ambiguousHookEnables];
 
     for (const op of ops) {
       const result = await this.toolManager.toggleTool(op.tool);

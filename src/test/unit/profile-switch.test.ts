@@ -131,4 +131,78 @@ describe('ProfileService.switchProfile — hook groups sharing one key', () => {
     expect(result.toggled).toBe(0);
   });
 
+  it('does not enable a stashed winner when a same-key sibling is active', async () => {
+    const winner = hook(0, 'echo a', ToolStatus.Disabled);
+    const active = hook(1, 'echo b', ToolStatus.Enabled);
+    const { svc, toggleTool } = makeService([winner], { [ConfigScope.Project]: [winner, active] }, [
+      { key: 'hook:PreToolUse:Bash', enabled: true },
+    ]);
+
+    const result = await svc.switchProfile('p1');
+
+    expect(toggleTool).not.toHaveBeenCalled();
+    expect(result.toggled).toBe(0);
+    expect(result.errors).toEqual([]);
+  });
+
+  it('enables the only stashed group when no same-key group is active', async () => {
+    const only = hook(0, 'echo a', ToolStatus.Disabled);
+    const { svc, toggleTool } = makeService([only], { [ConfigScope.Project]: [only] }, [
+      { key: 'hook:PreToolUse:Bash', enabled: true },
+    ]);
+
+    const result = await svc.switchProfile('p1');
+
+    expect(toggleTool.mock.calls.map(([tool]) => (tool as NormalizedTool).id)).toEqual([only.id]);
+    expect(result.toggled).toBe(1);
+    expect(result.errors).toEqual([]);
+  });
+});
+
+describe('ProfileService.switchProfile — ambiguous hook enable', () => {
+  it('enables no group and warns when a disable then an enable leaves several groups stashed', async () => {
+    // A settings file with an active lint.sh group and a stashed risky.sh group
+    // under one key. toggleTool flips the stored status, as the real one does.
+    let groups = [hook(0, 'lint.sh', ToolStatus.Enabled), hook(1, 'risky.sh', ToolStatus.Disabled)];
+    const registry = new ProviderRegistry();
+    registry.register(createMockProvider());
+    registry.setActiveProvider('mock');
+    const configService = {
+      readAllTools: async (type: ToolType) => (type === ToolType.Hook ? [{ ...groups[0] }] : []),
+      readToolsByScope: async (type: ToolType, scope: ConfigScope) =>
+        type === ToolType.Hook && scope === ConfigScope.Project ? groups.map((g) => ({ ...g })) : [],
+    } as unknown as CtorArgs[1];
+    const toggleTool = vi.fn(async (tool: NormalizedTool) => {
+      groups = groups.map((g) =>
+        g.id === tool.id
+          ? { ...g, status: g.status === ToolStatus.Enabled ? ToolStatus.Disabled : ToolStatus.Enabled }
+          : g,
+      );
+      return { success: true as const };
+    });
+    const memento = mementoWith([{ key: 'hook:PreToolUse:Bash', enabled: false }]);
+    const svc = new ProfileService(
+      memento,
+      configService,
+      { toggleTool } as unknown as CtorArgs[2],
+      registry,
+      {} as unknown as CtorArgs[4],
+    );
+    const p2 = await svc.createProfile('Loud');
+    await svc.updateProfile(p2.id, { tools: [{ key: 'hook:PreToolUse:Bash', enabled: true }] });
+
+    await svc.switchProfile('p1');
+    expect(groups.map((g) => g.status)).toEqual([ToolStatus.Disabled, ToolStatus.Disabled]);
+    toggleTool.mockClear();
+
+    const result = await svc.switchProfile(p2.id);
+
+    expect(toggleTool).not.toHaveBeenCalled();
+    expect(groups.map((g) => g.status)).toEqual([ToolStatus.Disabled, ToolStatus.Disabled]);
+    expect(result.toggled).toBe(0);
+    expect(result.failed).toBe(1);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain('hook:PreToolUse:Bash');
+    expect(result.errors[0]).toContain('2');
+  });
 });
