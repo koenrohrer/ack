@@ -847,6 +847,101 @@ Deploy everything.`);
   });
 });
 
+// ---------------------------------------------------------------------------
+// ClaudeCodeProvider scope move (writeTool into another scope)
+// ---------------------------------------------------------------------------
+
+describe('ClaudeCodeProvider writeTool copies the source entry as written', () => {
+  /** Two workspaces under one tmp dir: the tool is read in `from`, written to `to`. */
+  async function twoWorkspaces(): Promise<{ from: string; to: string; provider: ClaudeCodeProvider }> {
+    const dir = await makeTmpDir();
+    const from = path.join(dir, 'from');
+    const to = path.join(dir, 'to');
+    await fs.mkdir(path.join(from, '.claude'), { recursive: true });
+    await fs.mkdir(path.join(to, '.claude'), { recursive: true });
+    const provider = new ClaudeCodeProvider(fileIO, schemaService, to);
+    const { configService, backupService } = makeWriteServices();
+    provider.setWriteServices(configService, backupService);
+    return { from, to, provider };
+  }
+
+  it('writes every key of an MCP server entry and adds no transport key', async () => {
+    const { from, to, provider } = await twoWorkspaces();
+    const entry = { type: 'stdio', command: 'node', args: ['s.js'], env: { A: '1' }, cwd: '/srv', timeout: 30 };
+    await fs.writeFile(path.join(from, '.mcp.json'), JSON.stringify({ mcpServers: { srv: entry } }));
+    const [tool] = await new ClaudeCodeProvider(fileIO, schemaService, from)
+      .readTools(ToolType.McpServer, ConfigScope.Project);
+
+    await provider.writeTool(tool, ConfigScope.Project);
+
+    const saved = JSON.parse(await fs.readFile(path.join(to, '.mcp.json'), 'utf-8'));
+    expect(saved.mcpServers.srv).toEqual(entry);
+  });
+
+  it('writes disabled: true for a server disabled through disabledMcpServers', async () => {
+    const { from, to, provider } = await twoWorkspaces();
+    await fs.writeFile(path.join(from, '.mcp.json'), JSON.stringify({ mcpServers: { srv: { command: 'node' } } }));
+    await fs.writeFile(
+      path.join(from, '.claude', 'settings.json'),
+      JSON.stringify({ disabledMcpServers: ['srv'] }),
+    );
+    const [tool] = await new ClaudeCodeProvider(fileIO, schemaService, from)
+      .readTools(ToolType.McpServer, ConfigScope.Project);
+    expect(tool.status).toBe(ToolStatus.Disabled);
+
+    await provider.writeTool(tool, ConfigScope.Project);
+
+    const saved = JSON.parse(await fs.readFile(path.join(to, '.mcp.json'), 'utf-8'));
+    expect(saved.mcpServers.srv).toEqual({ command: 'node', disabled: true });
+  });
+
+  it('throws when the MCP server is no longer in its source file', async () => {
+    const { from, to, provider } = await twoWorkspaces();
+    const mcpPath = path.join(from, '.mcp.json');
+    await fs.writeFile(mcpPath, JSON.stringify({ mcpServers: { srv: { command: 'node' } } }));
+    const [tool] = await new ClaudeCodeProvider(fileIO, schemaService, from)
+      .readTools(ToolType.McpServer, ConfigScope.Project);
+    await fs.writeFile(mcpPath, JSON.stringify({ mcpServers: {} }));
+
+    await expect(provider.writeTool(tool, ConfigScope.Project)).rejects.toThrow(/srv/);
+    await expect(fs.access(path.join(to, '.mcp.json'))).rejects.toThrow();
+  });
+
+  it('writes a stashed hook group into _disabledHooks with every key kept', async () => {
+    const { from, to, provider } = await twoWorkspaces();
+    const group = { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo a', statusMessage: 'kept' }] };
+    await fs.writeFile(
+      path.join(from, '.claude', 'settings.json'),
+      JSON.stringify({ _disabledHooks: { PreToolUse: [group] } }),
+    );
+    const [tool] = await new ClaudeCodeProvider(fileIO, schemaService, from)
+      .readTools(ToolType.Hook, ConfigScope.Project);
+    expect(tool.status).toBe(ToolStatus.Disabled);
+
+    await provider.writeTool(tool, ConfigScope.Project);
+
+    const saved = JSON.parse(await fs.readFile(path.join(to, '.claude', 'settings.json'), 'utf-8'));
+    expect(saved._disabledHooks).toEqual({ PreToolUse: [group] });
+    expect(saved.hooks).toBeUndefined();
+  });
+
+  it('writes an active hook group into hooks with every key kept', async () => {
+    const { from, to, provider } = await twoWorkspaces();
+    const group = { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo a', statusMessage: 'kept' }] };
+    await fs.writeFile(
+      path.join(from, '.claude', 'settings.json'),
+      JSON.stringify({ hooks: { PreToolUse: [group] } }),
+    );
+    const [tool] = await new ClaudeCodeProvider(fileIO, schemaService, from)
+      .readTools(ToolType.Hook, ConfigScope.Project);
+
+    await provider.writeTool(tool, ConfigScope.Project);
+
+    const saved = JSON.parse(await fs.readFile(path.join(to, '.claude', 'settings.json'), 'utf-8'));
+    expect(saved.hooks).toEqual({ PreToolUse: [group] });
+  });
+});
+
 describe('CodexProvider capabilities', () => {
   it('excludes custom prompts from toggle and move capabilities', () => {
     const provider = new CodexProvider(fileIO, schemaService);

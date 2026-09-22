@@ -193,20 +193,24 @@ export async function removeHook(
  *
  * Pushes the matcher group into the event's array, creating the
  * event array if it does not exist. Used for scope move.
+ *
+ * @param stashed - If true, adds to `_disabledHooks` so the group stays disabled.
  */
 export async function addHook(
   configService: ConfigService,
   filePath: string,
   eventName: string,
   matcherGroup: HookMatcherGroup,
+  stashed = false,
 ): Promise<void> {
   await configService.writeConfigFile(filePath, 'settings-file', (current: Record<string, unknown>) => {
-    const hooks = { ...((current.hooks as HooksRecord) ?? {}) };
+    const fieldName = stashed ? '_disabledHooks' : 'hooks';
+    const hooks = { ...((current[fieldName] as HooksRecord) ?? {}) };
     const matchers = [...(hooks[eventName] ?? [])];
 
     matchers.push(matcherGroup);
     hooks[eventName] = matchers;
 
-    return { ...current, hooks };
+    return { ...current, [fieldName]: hooks };
   });
 }
