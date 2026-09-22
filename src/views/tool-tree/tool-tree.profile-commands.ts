@@ -35,6 +35,9 @@ interface ToolPickItem extends vscode.QuickPickItem {
   key?: string;
 }
 
+/** Name stored for an imported profile whose bundle name has nothing visible left. */
+const IMPORTED_PROFILE_FALLBACK_NAME = 'Imported profile';
+
 /** Tool types offered in the profile tool picker, in display order. */
 const PROFILE_TOOL_TYPES: ReadonlyArray<{ type: ToolType; label: string }> = [
   { type: ToolType.Skill, label: 'Skills' },
@@ -667,20 +670,20 @@ export function registerProfileCommands(
         }
       }
 
-      // Name collision check
-      let finalName = bundle.profile.name;
+      // Sanitize the bundle's name once: it is stored, and the tree, pickers and
+      // notifications show it. The collision check compares sanitized names.
+      let finalName = sanitizeBundleText(bundle.profile.name) || IMPORTED_PROFILE_FALLBACK_NAME;
       const existingProfiles = profileService.getProfiles();
-      const nameConflict = existingProfiles.find((p) => p.name === finalName);
+      const nameConflict = existingProfiles.find((p) => sanitizeBundleText(p.name) === finalName);
 
       if (nameConflict) {
-        const shownName = sanitizeBundleText(finalName);
         const choice = await vscode.window.showQuickPick(
           [
-            { label: 'Overwrite existing', description: `Replace "${shownName}"` },
-            { label: `Import as "${shownName} (imported)"`, description: 'Use a different name' },
+            { label: 'Overwrite existing', description: `Replace "${finalName}"` },
+            { label: `Import as "${finalName} (imported)"`, description: 'Use a different name' },
             { label: 'Cancel', description: '' },
           ],
-          { placeHolder: `A profile named "${shownName}" already exists` },
+          { placeHolder: `A profile named "${finalName}" already exists` },
         );
 
         if (!choice || choice.label === 'Cancel') {
@@ -701,7 +704,7 @@ export function registerProfileCommands(
       // The output channel names the fields that differ, never their values.
       if (analysis.conflicts.length > 0) {
         outputChannel.appendLine(
-          `Profile import "${sanitizeBundleText(finalName)}": kept the local config for ${analysis.conflicts.length} tool(s) whose imported config differs:`,
+          `Profile import "${finalName}": kept the local config for ${analysis.conflicts.length} tool(s) whose imported config differs:`,
         );
         for (const line of formatImportConflictReport(analysis.conflicts)) {
           outputChannel.appendLine(line);
@@ -729,7 +732,7 @@ export function registerProfileCommands(
 
       // Prompt to switch
       const switchAction = await vscode.window.showInformationMessage(
-        `Profile "${sanitizeBundleText(finalName)}" imported. Switch to it now?`,
+        `Profile "${finalName}" imported. Switch to it now?`,
         'Switch',
       );
 
