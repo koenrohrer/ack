@@ -83,29 +83,45 @@ export function getTomlPath(
 /** Longest bundle-supplied text shown in a notification or the output channel. */
 const BUNDLE_TEXT_MAX = 80;
 
+/** Most combining marks kept on one base character. */
+const COMBINING_MARKS_MAX = 2;
+
 /**
- * True for a character hidden from bundle-supplied text: a C0 or C1 control
- * (newlines included), a bidi override or isolate, or a zero-width character.
+ * Matches a character hidden from bundle-supplied text: a control (newlines
+ * included), a format character (bidi marks, overrides and isolates,
+ * zero-width characters, soft hyphen, tags, interlinear annotation), a lone
+ * surrogate, a line or paragraph separator, or a default-ignorable code point
+ * (variation selectors, the combining grapheme joiner and the Hangul fillers).
  */
-function isHiddenChar(code: number): boolean {
-  return (
-    code <= 0x1f ||
-    (code >= 0x7f && code <= 0x9f) ||
-    (code >= 0x200b && code <= 0x200d) ||
-    (code >= 0x202a && code <= 0x202e) ||
-    (code >= 0x2066 && code <= 0x2069) ||
-    code === 0xfeff
-  );
-}
+const HIDDEN_CHAR = /[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}]/u;
+
+/** Matches a combining mark. */
+const COMBINING_MARK = /\p{M}/u;
 
 /**
  * Make text from an untrusted profile bundle safe to show to the user.
  *
- * Removes the characters that can hide or reorder text or add lines, then
- * clips the result to BUNDLE_TEXT_MAX characters, the last one an ellipsis.
+ * Removes the characters that can hide or reorder text or add lines, keeps at
+ * most COMBINING_MARKS_MAX combining marks on each base character, then clips
+ * the result to BUNDLE_TEXT_MAX characters, the last one an ellipsis.
  */
 export function sanitizeBundleText(value: string): string {
-  const visible = Array.from(value).filter((ch) => !isHiddenChar(ch.codePointAt(0)!));
+  const visible: string[] = [];
+  let marks = 0;
+  for (const ch of value) {
+    if (HIDDEN_CHAR.test(ch)) {
+      continue;
+    }
+    if (COMBINING_MARK.test(ch)) {
+      marks++;
+      if (marks > COMBINING_MARKS_MAX) {
+        continue;
+      }
+    } else {
+      marks = 0;
+    }
+    visible.push(ch);
+  }
   if (visible.length <= BUNDLE_TEXT_MAX) {
     return visible.join('');
   }
