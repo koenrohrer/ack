@@ -8,7 +8,30 @@ All notable changes to ACK are documented here.
 
 ### Added
 
-- **Install Agent Plugins packages.** `ACK: Install Plugin...` (also the package button and context menu on the Skills and MCP Servers groups) loads and validates a plugin folder (`plugin.json`, `skills/`, `mcp.json`), copies it into a managed store under ACK's global storage, and installs its skills and namespaced MCP servers into the active agent. A per-component report lists anything skipped, such as an MCP transport the agent does not support.
+- **Install Agent Plugins packages.** `ACK: Install Plugin...` (also the package button and context menu on the Skills and MCP Servers groups) loads and validates a plugin folder (`plugin.json`, `skills/`, `mcp.json`), copies it into a managed store under ACK's global storage, and installs its skills and namespaced MCP servers into the active agent. A per-component report lists anything skipped, such as an MCP transport the agent does not support. An update is staged beside the installed copy, so a failed update keeps the installed version, and a crash mid-install is recovered on the next install.
+
+### Changed
+
+- **Profile import never writes imported config.** When an imported tool conflicts with a local tool of the same name, ACK keeps the local config and lists the fields that differ (such as `command`, `url`, `args`, `env` keys, or hook `matcher` and `hooks`) in the ACK output channel. ACK strips invisible, bidi, and separator characters from bundle text before it shows or stores it, including the imported profile name.
+- **An ambiguous hook enable is refused.** When a profile enables a hook whose key matches more than one disabled matcher group, ACK leaves the groups disabled and shows a warning instead of picking one.
+- **Profile switch failures are always reported.** Every switch path -- the tree, import-then-switch, workspace auto-activation, and the config panel -- shows a warning and writes the failed toggles to the ACK output channel.
+
+### Fixed
+
+- Stripping comments and trailing commas from a JSON config no longer changes the contents of string values.
+- An invalid profile store is salvaged and backed up before ACK saves over it, rather than replaced with an empty store.
+- Skill and command backups are written outside the directory being deleted, so a delete no longer removes its own backup.
+- Disabled Claude Code commands (`.md.disabled`) are listed, renaming a command never overwrites another, and the enabled file wins when both `x.md` and `x.md.disabled` exist in one scope.
+- Workspace profile associations are kept per agent. Associating a profile for one agent no longer drops the association for another. Existing single-association files still load.
+- Workspace profile auto-activation runs one at a time, so overlapping triggers no longer interleave switches.
+- A hook toggle locates its matcher group by content, so a stale tree no longer toggles the wrong group. A profile disable now covers every matcher group that shares the hook's key.
+- Moving an MCP server or hook to another scope copies the entry as written, keeping fields ACK does not model.
+- Add MCP Server confirms before it overwrites an existing server, and treats a server name as possibly taken when the scope's MCP config is malformed.
+- The file watcher refreshes the tree only when a watched config file changes.
+
+### Under the hood
+
+- Bumped `js-yaml` to 4.3.2 and `smol-toml` to 1.9.0.
 
 ---
 
